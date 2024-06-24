@@ -1,7 +1,6 @@
 package broadcast
 
 import (
-	"broadcast_channels/crypto"
 	"broadcast_channels/network"
 	"fmt"
 	. "github.com/google/uuid"
@@ -57,10 +56,11 @@ func (channel BCBChannel) BEBDeliver(msg []byte) {
 
 func (channel BCBChannel) processMsg(msg []byte) {
 	idLen := unsafe.Sizeof(UUID{})
-	id := crypto.BytesToUUID(msg[:idLen])
+	id := UUID(msg[:idLen])
 	instance, ok := channel.instances[id]
 	if !ok {
-		instance, err := newBcbInstance(id, channel.n, channel.f, channel.network)
+		var err error // Declare err here to avoid shadowing the instance variable
+		instance, err = newBcbInstance(id, channel.n, channel.f, channel.network)
 		if err != nil {
 			log.Printf("unable to create new bcb instance with id %s upon receiving a message: %s\n", id, err)
 			return
