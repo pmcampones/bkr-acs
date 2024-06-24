@@ -3,7 +3,6 @@ package network
 import (
 	"crypto/tls"
 	"log"
-	"unsafe"
 )
 
 type NodeObserver interface {
@@ -128,8 +127,8 @@ func (n *Node) readFromConnection(peer peer) {
 }
 
 func (n *Node) processMessage(msg []byte) {
-	msgType := messageType(bytesToInt(msg[:unsafe.Sizeof(messageType(0))]))
-	content := msg[unsafe.Sizeof(messageType(0)):]
+	msgType := msgType(msg[0])
+	content := msg[1:]
 	switch msgType {
 	case membership:
 		n.processMembershipMsg(content)

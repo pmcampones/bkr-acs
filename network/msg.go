@@ -6,22 +6,12 @@ import (
 	"net"
 )
 
-type messageType byte
+type msgType byte
 
 const (
-	membership messageType = 'A' + iota
+	membership msgType = 'A' + iota
 	generic
 )
-
-func intToBytes(i uint32) []byte {
-	bs := make([]byte, 4)
-	binary.LittleEndian.PutUint32(bs, i)
-	return bs
-}
-
-func bytesToInt(bs []byte) uint32 {
-	return binary.LittleEndian.Uint32(bs)
-}
 
 func send(conn net.Conn, msg []byte) error {
 	writer := bufio.NewWriter(conn)
