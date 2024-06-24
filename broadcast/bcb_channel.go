@@ -1,9 +1,9 @@
 package broadcast
 
 import (
+	"broadcast_channels/crypto"
+	"broadcast_channels/network"
 	"fmt"
-	"fullMembership/crypto"
-	"fullMembership/network"
 	. "github.com/google/uuid"
 	"github.com/samber/mo"
 	"log"

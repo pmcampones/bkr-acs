@@ -1,9 +1,9 @@
 package main
 
 import (
+	"broadcast_channels/broadcast"
+	"broadcast_channels/network"
 	"bufio"
-	"fullMembership/broadcast"
-	"fullMembership/network"
 	"os"
 )
 

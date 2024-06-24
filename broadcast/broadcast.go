@@ -1,6 +1,6 @@
 package broadcast
 
-import "fullMembership/network"
+import "broadcast_channels/network"
 
 type bcastType byte
 
