@@ -5,7 +5,7 @@ import (
 	"broadcast_channels/network"
 	"fmt"
 	. "github.com/google/uuid"
-	"os"
+	"log"
 )
 
 type bcbInstanceObserver interface {
@@ -87,27 +87,10 @@ func (b *bcbInstance) handleSend(msg []byte) error {
 	return nil
 }
 
-func (b *bcbInstance) handleEcho(msg []byte) error {
-	if b.delivered {
-		return fmt.Errorf("already delivered")
-	}
-	mid := crypto.BytesToUUID(msg)
-	b.echos[mid]++
-	b.msg[mid] = msg
-	threshold := (b.n + b.f) / 2
-	if b.echos[mid] > threshold {
-		b.delivered = true
-		for _, observer := range b.observers {
-			observer.bcbInstanceDeliver(b.id, msg)
-		}
-	}
-	return nil
-}
-
 func (b *bcbInstance) processEchoes() {
 	for echo := range b.echoChannel {
 		if b.delivered {
-			_, _ = fmt.Fprintf(os.Stderr, "already delivered\n")
+			log.Printf("already delivered on BCB instance %s", b.id)
 		} else {
 			mid := crypto.BytesToUUID(echo)
 			b.echos[mid]++
