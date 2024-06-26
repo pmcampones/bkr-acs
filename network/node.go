@@ -3,6 +3,7 @@ package network
 import (
 	"crypto/tls"
 	"log"
+	"sync"
 )
 
 type NodeObserver interface {
@@ -11,6 +12,7 @@ type NodeObserver interface {
 
 type Node struct {
 	id        string
+	peersLock sync.RWMutex
 	peers     map[string]*peer
 	observers []NodeObserver
 	config    *tls.Config
@@ -25,6 +27,7 @@ func Join(id, contact, skPathname, certPathname string) *Node {
 	}
 	node := Node{
 		id:        id,
+		peersLock: sync.RWMutex{},
 		peers:     make(map[string]*peer),
 		observers: make([]NodeObserver, 0),
 		config:    config,
@@ -47,6 +50,8 @@ func (n *Node) AddObserver(observer NodeObserver) {
 func (n *Node) Broadcast(msg []byte) {
 	toSend := append([]byte{byte(generic)}, msg...)
 	go n.processMessage(toSend)
+	n.peersLock.RLock()
+	defer n.peersLock.RUnlock()
 	for _, peer := range n.peers {
 		err := send(peer.conn, toSend)
 		if err != nil {
@@ -93,9 +98,25 @@ func (n *Node) amIContact(contact string) bool {
 func (n *Node) maintainConnection(peer peer, amContact bool) {
 	defer n.closeConnection(peer)
 	log.Println("New connection with:", peer.id)
+	n.updatePeers(peer)
 	if amContact {
 		log.Println("Sending network list to:", peer.id)
-		for _, p := range n.peers {
+		n.sendMembership(peer)
+	}
+	n.readFromConnection(peer)
+}
+
+func (n *Node) updatePeers(peer peer) {
+	n.peersLock.Lock()
+	defer n.peersLock.Unlock()
+	n.peers[peer.id] = &peer
+}
+
+func (n *Node) sendMembership(peer peer) {
+	n.peersLock.RLock()
+	defer n.peersLock.RUnlock()
+	for _, p := range n.peers {
+		if p.id != peer.id {
 			toSend := append([]byte{byte(membership)}, []byte(p.id)...)
 			err := send(peer.conn, toSend)
 			if err != nil {
@@ -103,8 +124,6 @@ func (n *Node) maintainConnection(peer peer, amContact bool) {
 			}
 		}
 	}
-	n.peers[peer.id] = &peer
-	n.readFromConnection(peer)
 }
 
 func (n *Node) closeConnection(peer peer) {
@@ -112,6 +131,8 @@ func (n *Node) closeConnection(peer peer) {
 	if err != nil {
 		log.Println("Error closing connection:", err)
 	}
+	n.peersLock.Lock()
+	defer n.peersLock.Unlock()
 	delete(n.peers, peer.id)
 }
 
