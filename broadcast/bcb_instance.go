@@ -107,7 +107,7 @@ func (b *bcbInstance) handleEcho(msg []byte) error {
 func (b *bcbInstance) processEchoes() {
 	for echo := range b.echoChannel {
 		if b.delivered {
-			_, _ = fmt.Fprintf(os.Stderr, "already delivered")
+			_, _ = fmt.Fprintf(os.Stderr, "already delivered\n")
 		} else {
 			mid := crypto.BytesToUUID(echo)
 			b.echos[mid]++

@@ -31,6 +31,7 @@ func (sw *sliceWrapper[T]) set(slice []T) {
 
 type BCBChannel struct {
 	instances map[UUID]*bcbInstance
+	finished  map[UUID]bool
 	n         uint
 	f         uint
 	observers *sliceWrapper[BCBObserver]
@@ -41,7 +42,13 @@ func (channel BCBChannel) bcbInstanceDeliver(id UUID, msg []byte) {
 	for _, observer := range (*channel.observers).get() {
 		observer.BCBDeliver(msg)
 	}
-	//TODO delete instance
+	instance, ok := channel.instances[id]
+	if !ok {
+		log.Fatalf("bcb channel instance with id %s not found upon delivery\n", id)
+	}
+	instance.close()
+	delete(channel.instances, id)
+	channel.finished[id] = true
 }
 
 func BCBCreateChannel(node *network.Node, n, f uint) *BCBChannel {
@@ -49,6 +56,7 @@ func BCBCreateChannel(node *network.Node, n, f uint) *BCBChannel {
 	wrapper := sliceWrapper[BCBObserver]{observers}
 	channel := BCBChannel{
 		instances: make(map[UUID]*bcbInstance),
+		finished:  make(map[UUID]bool),
 		n:         n,
 		f:         f,
 		network:   node,
@@ -85,6 +93,10 @@ func (channel BCBChannel) BEBDeliver(msg []byte) {
 func (channel BCBChannel) processMsg(msg []byte) {
 	idLen := unsafe.Sizeof(UUID{})
 	id := UUID(msg[:idLen])
+	if channel.finished[id] {
+		log.Printf("received message from finished instance with id: %s\n", id)
+		return
+	}
 	instance, ok := channel.instances[id]
 	if !ok {
 		var err error // Declare err here to avoid shadowing the instance variable
