@@ -5,7 +5,7 @@ import (
 	"broadcast_channels/network"
 	"fmt"
 	. "github.com/google/uuid"
-	"log"
+	"log/slog"
 )
 
 type bcbInstanceObserver interface {
@@ -90,9 +90,10 @@ func (b *bcbInstance) handleSend(msg []byte) error {
 func (b *bcbInstance) processEchoes() {
 	for echo := range b.echoChannel {
 		if b.delivered {
-			log.Printf("already delivered on BCB instance %s", b.id)
+			slog.Debug("already delivered on BCB instance", "Id", b.id)
 		} else {
 			mid := crypto.BytesToUUID(echo)
+			slog.Debug("processing echo", "Id", b.id, "Echo", echo, "Content id", mid)
 			b.echos[mid]++
 			b.msg[mid] = echo
 			threshold := (b.n + b.f) / 2

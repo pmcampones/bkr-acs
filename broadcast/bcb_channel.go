@@ -4,7 +4,7 @@ import (
 	"broadcast_channels/network"
 	"fmt"
 	. "github.com/google/uuid"
-	"log"
+	"log/slog"
 	"unsafe"
 )
 
@@ -27,7 +27,7 @@ func (channel *BCBChannel) bcbInstanceDeliver(id UUID, msg []byte) {
 	}
 	instance, ok := channel.instances[id]
 	if !ok {
-		log.Fatalf("bcb channel instance with id %s not found upon delivery\n", id)
+		slog.Error("bcb channel instance not found upon delivery", "Id", id)
 	}
 	instance.close()
 	delete(channel.instances, id)
@@ -49,6 +49,7 @@ func BCBCreateChannel(node *network.Node, n, f uint) *BCBChannel {
 }
 
 func (channel *BCBChannel) AttachObserver(observer BCBObserver) {
+	slog.Info("attaching observer to bcb channel", "observer", observer)
 	channel.observers = append(channel.observers, observer)
 }
 
@@ -58,6 +59,7 @@ func (channel *BCBChannel) BCBroadcast(msg []byte) error {
 	if err != nil {
 		return fmt.Errorf("bcb channel unable to create bcb instance during send: %v", err)
 	}
+	slog.Info("sending bcb broadcast", "id", id, "msg", msg)
 	channel.instances[id] = bcbInstance
 	bcbInstance.attachObserver(channel)
 	bcbInstance.bcbSend(msg)
@@ -68,6 +70,7 @@ func (channel *BCBChannel) BCBroadcast(msg []byte) error {
 // It's ok because map is a reference and n and f don't change, however it does mess with the observers slice.
 func (channel *BCBChannel) BEBDeliver(msg []byte) {
 	if bcastType(msg[0]) == bcbMsg {
+		slog.Debug("received message in bcb channel", "msg", msg)
 		channel.processMsg(msg[1:])
 	}
 }
@@ -76,7 +79,7 @@ func (channel *BCBChannel) processMsg(msg []byte) {
 	idLen := unsafe.Sizeof(UUID{})
 	id := UUID(msg[:idLen])
 	if channel.finished[id] {
-		log.Printf("received message from finished instance with id: %s\n", id)
+		slog.Debug("received message from finished instance", "id", id)
 		return
 	}
 	instance, ok := channel.instances[id]
@@ -84,7 +87,7 @@ func (channel *BCBChannel) processMsg(msg []byte) {
 		var err error // Declare err here to avoid shadowing the instance variable
 		instance, err = newBcbInstance(id, channel.n, channel.f, channel.network)
 		if err != nil {
-			log.Printf("unable to create new bcb instance with idBytes %s upon receiving a message: %s\n", id, err)
+			slog.Error("unable to create new bcb instance upon receiving a message", "id", id, "error", err)
 			return
 		}
 		channel.instances[id] = instance
@@ -92,6 +95,6 @@ func (channel *BCBChannel) processMsg(msg []byte) {
 	}
 	err := instance.bebReceive(msg[idLen:])
 	if err != nil {
-		log.Println("error handling received message in bcb channel:", err)
+		slog.Error("error handling received message in bcb channel", "error", err)
 	}
 }

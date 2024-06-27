@@ -2,7 +2,7 @@ package network
 
 import (
 	"crypto/tls"
-	"log"
+	"log/slog"
 	"sync"
 )
 
@@ -34,10 +34,10 @@ func Join(id, contact, skPathname, certPathname string) *Node {
 	}
 	isContact := node.amIContact(contact)
 	if !isContact {
-		log.Println("I am not the contact")
+		slog.Debug("I am not the contact")
 		node.connectToContact(id, contact)
 	} else {
-		log.Println("I am the contact")
+		slog.Debug("I am the contact")
 	}
 	go node.listenConnections(id, skPathname, certPathname, isContact)
 	return &node
@@ -55,7 +55,7 @@ func (n *Node) Broadcast(msg []byte) {
 	for _, peer := range n.peers {
 		err := send(peer.conn, toSend)
 		if err != nil {
-			log.Println("Error sending to connection:", err)
+			slog.Warn("error sending to connection", "peer id", peer.id, "error", err)
 		}
 	}
 }
@@ -63,30 +63,36 @@ func (n *Node) Broadcast(msg []byte) {
 func (n *Node) connectToContact(id, contact string) {
 	peer, err := newOutbound(id, contact, n.config)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("error connecting to contact", "error", err)
+		panic(err)
 	}
-	log.Println("Establishing connection with:", peer.id)
+	slog.Debug("establishing connection with peer", "peer id", peer.id)
 	go n.maintainConnection(peer, false)
 }
 
 func (n *Node) listenConnections(address, skPathname, certPathname string, amContact bool) {
 	cert, err := tls.LoadX509KeyPair(certPathname, skPathname)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("error loading certificate and key",
+			"error", err,
+			"skPathname", skPathname,
+			"certPathname", certPathname)
+		panic(err)
 	}
 	config := &tls.Config{Certificates: []tls.Certificate{cert}}
 	listener, err := tls.Listen("tcp", address, config)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("error listening on address", "address", address, "error", err)
+		panic(err)
 	}
 	defer listener.Close()
 	for {
 		peer, err := getInbound(listener)
 		if err != nil {
-			log.Println("Error accepting connection:", err)
+			slog.Warn("error accepting connection with peer", "peer id", peer.id, "error", err)
 			continue
 		}
-		log.Println("Received connection from:", peer.id)
+		slog.Debug("received connection from peer", "peer id", peer.id)
 		go n.maintainConnection(peer, amContact)
 	}
 }
@@ -97,10 +103,9 @@ func (n *Node) amIContact(contact string) bool {
 
 func (n *Node) maintainConnection(peer peer, amContact bool) {
 	defer n.closeConnection(peer)
-	log.Println("New connection with:", peer.id)
+	slog.Debug("maintaining connection with peer", "peer id", peer.id)
 	n.updatePeers(peer)
 	if amContact {
-		log.Println("Sending network list to:", peer.id)
 		n.sendMembership(peer)
 	}
 	n.readFromConnection(peer)
@@ -115,12 +120,13 @@ func (n *Node) updatePeers(peer peer) {
 func (n *Node) sendMembership(peer peer) {
 	n.peersLock.RLock()
 	defer n.peersLock.RUnlock()
+	slog.Debug("sending membership to peer", "peer id", peer.id, "membership", n.peers)
 	for _, p := range n.peers {
 		if p.id != peer.id {
 			toSend := append([]byte{byte(membership)}, []byte(p.id)...)
 			err := send(peer.conn, toSend)
 			if err != nil {
-				log.Println("Error sending to connection:", err)
+				slog.Warn("error sending to connection", "peer id", peer.id, "error", err)
 			}
 		}
 	}
@@ -129,7 +135,7 @@ func (n *Node) sendMembership(peer peer) {
 func (n *Node) closeConnection(peer peer) {
 	err := peer.conn.Close()
 	if err != nil {
-		log.Println("Error closing connection:", err)
+		slog.Warn("error closing connection", "peer id", peer.id, "error", err)
 	}
 	n.peersLock.Lock()
 	defer n.peersLock.Unlock()
@@ -140,7 +146,7 @@ func (n *Node) readFromConnection(peer peer) {
 	for {
 		msg, err := receive(peer.conn)
 		if err != nil {
-			log.Println("Error reading from connection:", err)
+			slog.Error("error reading from connection", "peer id", peer.id, "error", err)
 			return
 		}
 		go n.processMessage(msg)
@@ -158,7 +164,7 @@ func (n *Node) processMessage(msg []byte) {
 			observer.BEBDeliver(content)
 		}
 	default:
-		log.Println("Unhandled default case:", msgType, content)
+		slog.Error("unhandled default case", "msg type", msgType, "msg content", content)
 	}
 }
 
@@ -166,7 +172,7 @@ func (n *Node) processMembershipMsg(msg []byte) {
 	address := string(msg)
 	outbound, err := newOutbound(n.id, address, n.config)
 	if err != nil {
-		log.Println("Error connecting to peer:", err)
+		slog.Warn("error connecting to peer", "error", err)
 	}
 	n.maintainConnection(outbound, false)
 }
