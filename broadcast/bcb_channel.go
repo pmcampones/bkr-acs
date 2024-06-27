@@ -12,34 +12,17 @@ type BCBObserver interface {
 	BCBDeliver(msg []byte)
 }
 
-// Please forgive me reader, I know this is not orthodox and not idiomatic at all.
-// Slices are passed by value and the append function is the only way to modify them.
-// This is a workaround to allow the BCBChannel to have a slice of observers that can be modified across copies of the struct.
-// This could have been avoided if the function implementations received pointers and not struct copies, however this is not possible because of the NodeObserver interface.
-// It was either this or use a map with the observer as the key. Considering we mostly do iteration on the observers, I chose this.
-type sliceWrapper[T any] struct {
-	slice []T
-}
-
-func (sw *sliceWrapper[T]) get() []T {
-	return sw.slice
-}
-
-func (sw *sliceWrapper[T]) set(slice []T) {
-	sw.slice = slice
-}
-
 type BCBChannel struct {
 	instances map[UUID]*bcbInstance
 	finished  map[UUID]bool
 	n         uint
 	f         uint
-	observers *sliceWrapper[BCBObserver]
+	observers []BCBObserver
 	network   *network.Node
 }
 
-func (channel BCBChannel) bcbInstanceDeliver(id UUID, msg []byte) {
-	for _, observer := range (*channel.observers).get() {
+func (channel *BCBChannel) bcbInstanceDeliver(id UUID, msg []byte) {
+	for _, observer := range channel.observers {
 		observer.BCBDeliver(msg)
 	}
 	instance, ok := channel.instances[id]
@@ -53,24 +36,23 @@ func (channel BCBChannel) bcbInstanceDeliver(id UUID, msg []byte) {
 
 func BCBCreateChannel(node *network.Node, n, f uint) *BCBChannel {
 	observers := make([]BCBObserver, 0)
-	wrapper := sliceWrapper[BCBObserver]{observers}
-	channel := BCBChannel{
+	channel := &BCBChannel{
 		instances: make(map[UUID]*bcbInstance),
 		finished:  make(map[UUID]bool),
 		n:         n,
 		f:         f,
 		network:   node,
-		observers: &wrapper,
+		observers: observers,
 	}
 	node.AddObserver(channel)
-	return &channel
+	return channel
 }
 
-func (channel BCBChannel) AttachObserver(observer BCBObserver) {
-	(*channel.observers).set(append((*channel.observers).get(), observer))
+func (channel *BCBChannel) AttachObserver(observer BCBObserver) {
+	channel.observers = append(channel.observers, observer)
 }
 
-func (channel BCBChannel) BCBroadcast(msg []byte) error {
+func (channel *BCBChannel) BCBroadcast(msg []byte) error {
 	id := New()
 	bcbInstance, err := newBcbInstance(id, channel.n, channel.f, channel.network)
 	if err != nil {
@@ -84,13 +66,13 @@ func (channel BCBChannel) BCBroadcast(msg []byte) error {
 
 // Can't call this method by reference because it implements NodeObserver.
 // It's ok because map is a reference and n and f don't change, however it does mess with the observers slice.
-func (channel BCBChannel) BEBDeliver(msg []byte) {
+func (channel *BCBChannel) BEBDeliver(msg []byte) {
 	if bcastType(msg[0]) == bcbMsg {
 		channel.processMsg(msg[1:])
 	}
 }
 
-func (channel BCBChannel) processMsg(msg []byte) {
+func (channel *BCBChannel) processMsg(msg []byte) {
 	idLen := unsafe.Sizeof(UUID{})
 	id := UUID(msg[:idLen])
 	if channel.finished[id] {
