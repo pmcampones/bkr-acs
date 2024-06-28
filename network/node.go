@@ -3,6 +3,7 @@ package network
 import (
 	"crypto/tls"
 	"log/slog"
+	"net"
 	"sync"
 )
 
@@ -71,6 +72,20 @@ func (n *Node) connectToContact(id, contact string) {
 }
 
 func (n *Node) listenConnections(address, skPathname, certPathname string, amContact bool) {
+	listener := n.setupTLSListener(address, skPathname, certPathname)
+	defer listener.Close()
+	for {
+		peer, err := getInbound(listener)
+		if err != nil {
+			slog.Warn("error accepting connection with peer", "peer id", peer.id, "error", err)
+			continue
+		}
+		slog.Debug("received connection from peer", "peer id", peer.id)
+		go n.maintainConnection(peer, amContact)
+	}
+}
+
+func (n *Node) setupTLSListener(address string, skPathname string, certPathname string) net.Listener {
 	cert, err := tls.LoadX509KeyPair(certPathname, skPathname)
 	if err != nil {
 		slog.Error("error loading certificate and key",
@@ -85,16 +100,7 @@ func (n *Node) listenConnections(address, skPathname, certPathname string, amCon
 		slog.Error("error listening on address", "address", address, "error", err)
 		panic(err)
 	}
-	defer listener.Close()
-	for {
-		peer, err := getInbound(listener)
-		if err != nil {
-			slog.Warn("error accepting connection with peer", "peer id", peer.id, "error", err)
-			continue
-		}
-		slog.Debug("received connection from peer", "peer id", peer.id)
-		go n.maintainConnection(peer, amContact)
-	}
+	return listener
 }
 
 func (n *Node) amIContact(contact string) bool {
