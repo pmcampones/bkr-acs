@@ -8,6 +8,13 @@ import (
 	"unsafe"
 )
 
+type bcastType byte
+
+const (
+	bcbMsg bcastType = 'A' + iota
+	brbMsg
+)
+
 type BCBObserver interface {
 	BCBDeliver(msg []byte)
 }
@@ -97,4 +104,16 @@ func (channel *BCBChannel) processMsg(msg []byte) {
 	if err != nil {
 		slog.Error("error handling received message in bcb channel", "error", err)
 	}
+}
+
+func sliceJoin(slices ...[]byte) []byte {
+	length := 0
+	for _, aSlice := range slices {
+		length += len(aSlice)
+	}
+	res := make([]byte, 0, length)
+	for _, aSlice := range slices {
+		res = append(res, aSlice...)
+	}
+	return res
 }
