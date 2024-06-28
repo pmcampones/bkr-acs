@@ -2,6 +2,7 @@ package broadcast
 
 import (
 	"broadcast_channels/network"
+	"crypto/ecdsa"
 	"fmt"
 	. "github.com/google/uuid"
 	"log/slog"
@@ -26,6 +27,7 @@ type BCBChannel struct {
 	f         uint
 	observers []BCBObserver
 	network   *network.Node
+	sk        ecdsa.PrivateKey
 }
 
 func (channel *BCBChannel) bcbInstanceDeliver(id UUID, msg []byte) {
@@ -41,7 +43,7 @@ func (channel *BCBChannel) bcbInstanceDeliver(id UUID, msg []byte) {
 	channel.finished[id] = true
 }
 
-func BCBCreateChannel(node *network.Node, n, f uint) *BCBChannel {
+func BCBCreateChannel(node *network.Node, n, f uint, sk ecdsa.PrivateKey) *BCBChannel {
 	observers := make([]BCBObserver, 0)
 	channel := &BCBChannel{
 		instances: make(map[UUID]*bcbInstance),
@@ -50,6 +52,7 @@ func BCBCreateChannel(node *network.Node, n, f uint) *BCBChannel {
 		f:         f,
 		network:   node,
 		observers: observers,
+		sk:        sk,
 	}
 	node.AddObserver(channel)
 	return channel
@@ -73,8 +76,6 @@ func (channel *BCBChannel) BCBroadcast(msg []byte) error {
 	return nil
 }
 
-// Can't call this method by reference because it implements NodeObserver.
-// It's ok because map is a reference and n and f don't change, however it does mess with the observers slice.
 func (channel *BCBChannel) BEBDeliver(msg []byte) {
 	if bcastType(msg[0]) == bcbMsg {
 		slog.Debug("received message in bcb channel", "msg", msg)
