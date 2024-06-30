@@ -1,14 +1,13 @@
 package main
 
-import "C"
 import (
 	"broadcast_channels/broadcast"
 	"broadcast_channels/crypto"
 	"broadcast_channels/network"
 	"bufio"
-	"crypto/ecdsa"
-	"fmt"
+	"flag"
 	"github.com/lmittmann/tint"
+	"github.com/magiconair/properties"
 	"log/slog"
 	"os"
 	"time"
@@ -26,18 +25,19 @@ func (co ConcreteObserver) BEBDeliver(msg []byte) {
 }
 
 func main() {
+	propsPathname := flag.String("config", "config/config.properties", "pathname of the configuration file")
+	address := flag.String("address", "localhost:6000", "address of the current node")
+	skPathname := flag.String("sk", "sk.pem", "pathname of the private key")
+	certPathname := flag.String("cert", "cert.pem", "pathname of the certificate")
+	flag.Parse()
+	props := properties.MustLoadFile(*propsPathname, properties.UTF8)
+	contact := props.GetString("contact", "localhost:6000")
+	pksMapper := props.GetString("pks", "config/pk_mapper")
+
 	setupLogger()
-	pksMapper := os.Args[5]
 	crypto.LoadPks(pksMapper)
-	skPathname := os.Args[3]
-	sk, err := crypto.ReadPrivateKey(skPathname)
-	if err != nil {
-		slog.Error("Error reading private key", "error", err)
-		return
-	}
-	fmt.Println(sk)
-	node := network.Join(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
-	testBCB(node, *sk)
+	node := network.Join(*address, contact, *skPathname, *certPathname)
+	testBCB(node, *skPathname)
 	//testBEB(node)
 }
 
@@ -52,9 +52,14 @@ func setupLogger() {
 	slog.Info("Set up logger")
 }
 
-func testBCB(node *network.Node, sk ecdsa.PrivateKey) {
+func testBCB(node *network.Node, skPathname string) {
+	sk, err := crypto.ReadPrivateKey(skPathname)
+	if err != nil {
+		slog.Error("Error reading private key", "error", err)
+		return
+	}
 	observer := ConcreteObserver{}
-	bcbChannel := broadcast.BCBCreateChannel(node, 4, 1, sk)
+	bcbChannel := broadcast.BCBCreateChannel(node, 4, 1, *sk)
 	bcbChannel.AttachObserver(observer)
 	input := bufio.NewScanner(os.Stdin)
 	for input.Scan() {
