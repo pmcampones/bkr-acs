@@ -29,6 +29,7 @@ func main() {
 	address := flag.String("address", "localhost:6000", "address of the current node")
 	skPathname := flag.String("sk", "sk.pem", "pathname of the private key")
 	certPathname := flag.String("cert", "cert.pem", "pathname of the certificate")
+	myIdx := flag.Uint("idx", 0, "index of the public key")
 	flag.Parse()
 	props := properties.MustLoadFile(*propsPathname, properties.UTF8)
 	contact := props.GetString("contact", "localhost:6000")
@@ -36,6 +37,11 @@ func main() {
 
 	setupLogger()
 	crypto.LoadPks(pksMapper)
+	err := crypto.SetMyIdx(*myIdx)
+	if err != nil {
+		slog.Error("Error setting my index", "error", err)
+		return
+	}
 	node := network.Join(*address, contact, *skPathname, *certPathname)
 	testBCB(node, *skPathname)
 	//testBEB(node)

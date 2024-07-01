@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"crypto/ecdsa"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
@@ -41,4 +42,14 @@ func readPublicKey(pkPathname string) (*ecdsa.PublicKey, error) {
 		return nil, err
 	}
 	return pub.(*ecdsa.PublicKey), nil
+}
+
+func Sign(sk *ecdsa.PrivateKey, msg []byte) ([]byte, error) {
+	hash := sha256.Sum256(msg)
+	return sk.Sign(rand.Reader, hash[:], nil)
+}
+
+func Verify(pk *ecdsa.PublicKey, msg []byte, sig []byte) bool {
+	hash := sha256.Sum256(msg)
+	return ecdsa.VerifyASN1(pk, hash[:], sig)
 }
