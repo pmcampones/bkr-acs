@@ -1,6 +1,8 @@
 package network
 
 import (
+	"broadcast_channels/crypto"
+	"crypto/ecdsa"
 	"crypto/tls"
 	"log/slog"
 	"net"
@@ -8,7 +10,7 @@ import (
 )
 
 type NodeObserver interface {
-	BEBDeliver(msg []byte)
+	BEBDeliver(msg []byte, sender *ecdsa.PublicKey)
 }
 
 type Node struct {
@@ -17,6 +19,7 @@ type Node struct {
 	peers     map[string]*peer
 	observers []NodeObserver
 	config    *tls.Config
+	sk        *ecdsa.PrivateKey
 }
 
 // Join Creates a new node and adds it to the network
@@ -26,12 +29,18 @@ func Join(id, contact, skPathname, certPathname string) *Node {
 	config := &tls.Config{
 		InsecureSkipVerify: true,
 	}
+	sk, err := crypto.ReadPrivateKey(skPathname)
+	if err != nil {
+		slog.Error("error reading private key", "error", err)
+		panic(err)
+	}
 	node := Node{
 		id:        id,
 		peersLock: sync.RWMutex{},
 		peers:     make(map[string]*peer),
 		observers: make([]NodeObserver, 0),
 		config:    config,
+		sk:        sk,
 	}
 	isContact := node.amIContact(contact)
 	if !isContact {
@@ -50,24 +59,24 @@ func (n *Node) AddObserver(observer NodeObserver) {
 
 func (n *Node) Broadcast(msg []byte) {
 	toSend := append([]byte{byte(generic)}, msg...)
-	go n.processMessage(toSend)
+	go n.processMessage(toSend, &n.sk.PublicKey)
 	n.peersLock.RLock()
 	defer n.peersLock.RUnlock()
 	for _, peer := range n.peers {
 		err := send(peer.conn, toSend)
 		if err != nil {
-			slog.Warn("error sending to connection", "peer id", peer.id, "error", err)
+			slog.Warn("error sending to connection", "peer name", peer.name, "error", err)
 		}
 	}
 }
 
 func (n *Node) connectToContact(id, contact string) {
-	peer, err := newOutbound(id, contact, n.config)
+	peer, err := newOutbound(id, contact, n.config, n.sk)
 	if err != nil {
 		slog.Error("error connecting to contact", "error", err)
 		panic(err)
 	}
-	slog.Debug("establishing connection with peer", "peer id", peer.id)
+	slog.Debug("establishing connection with peer", "peer name", peer.name)
 	go n.maintainConnection(peer, false)
 }
 
@@ -77,10 +86,10 @@ func (n *Node) listenConnections(address, skPathname, certPathname string, amCon
 	for {
 		peer, err := getInbound(listener)
 		if err != nil {
-			slog.Warn("error accepting connection with peer", "peer id", peer.id, "error", err)
+			slog.Warn("error accepting connection with peer", "peer name", peer.name, "error", err)
 			continue
 		}
-		slog.Debug("received connection from peer", "peer id", peer.id)
+		slog.Debug("received connection from peer", "peer name", peer.name)
 		go n.maintainConnection(peer, amContact)
 	}
 }
@@ -109,7 +118,7 @@ func (n *Node) amIContact(contact string) bool {
 
 func (n *Node) maintainConnection(peer peer, amContact bool) {
 	defer n.closeConnection(peer)
-	slog.Debug("maintaining connection with peer", "peer id", peer.id)
+	slog.Debug("maintaining connection with peer", "peer name", peer.name)
 	n.updatePeers(peer)
 	if amContact {
 		n.sendMembership(peer)
@@ -120,19 +129,19 @@ func (n *Node) maintainConnection(peer peer, amContact bool) {
 func (n *Node) updatePeers(peer peer) {
 	n.peersLock.Lock()
 	defer n.peersLock.Unlock()
-	n.peers[peer.id] = &peer
+	n.peers[peer.name] = &peer
 }
 
 func (n *Node) sendMembership(peer peer) {
 	n.peersLock.RLock()
 	defer n.peersLock.RUnlock()
-	slog.Debug("sending membership to peer", "peer id", peer.id, "membership", n.peers)
+	slog.Debug("sending membership to peer", "peer name", peer.name, "membership", n.peers)
 	for _, p := range n.peers {
-		if p.id != peer.id {
-			toSend := append([]byte{byte(membership)}, []byte(p.id)...)
+		if p.name != peer.name {
+			toSend := append([]byte{byte(membership)}, []byte(p.name)...)
 			err := send(peer.conn, toSend)
 			if err != nil {
-				slog.Warn("error sending to connection", "peer id", peer.id, "error", err)
+				slog.Warn("error sending to connection", "peer name", peer.name, "error", err)
 			}
 		}
 	}
@@ -141,25 +150,25 @@ func (n *Node) sendMembership(peer peer) {
 func (n *Node) closeConnection(peer peer) {
 	err := peer.conn.Close()
 	if err != nil {
-		slog.Warn("error closing connection", "peer id", peer.id, "error", err)
+		slog.Warn("error closing connection", "peer name", peer.name, "error", err)
 	}
 	n.peersLock.Lock()
 	defer n.peersLock.Unlock()
-	delete(n.peers, peer.id)
+	delete(n.peers, peer.name)
 }
 
 func (n *Node) readFromConnection(peer peer) {
 	for {
 		msg, err := receive(peer.conn)
 		if err != nil {
-			slog.Error("error reading from connection", "peer id", peer.id, "error", err)
+			slog.Error("error reading from connection", "peer name", peer.name, "error", err)
 			return
 		}
-		go n.processMessage(msg)
+		go n.processMessage(msg, peer.pk)
 	}
 }
 
-func (n *Node) processMessage(msg []byte) {
+func (n *Node) processMessage(msg []byte, sender *ecdsa.PublicKey) {
 	msgType := msgType(msg[0])
 	content := msg[1:]
 	switch msgType {
@@ -167,7 +176,7 @@ func (n *Node) processMessage(msg []byte) {
 		n.processMembershipMsg(content)
 	case generic:
 		for _, observer := range n.observers {
-			observer.BEBDeliver(content)
+			observer.BEBDeliver(content, sender)
 		}
 	default:
 		slog.Error("unhandled default case", "msg type", msgType, "msg content", content)
@@ -176,7 +185,7 @@ func (n *Node) processMessage(msg []byte) {
 
 func (n *Node) processMembershipMsg(msg []byte) {
 	address := string(msg)
-	outbound, err := newOutbound(n.id, address, n.config)
+	outbound, err := newOutbound(n.id, address, n.config, n.sk)
 	if err != nil {
 		slog.Warn("error connecting to peer", "error", err)
 	}

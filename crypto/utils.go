@@ -37,7 +37,15 @@ func readPublicKey(pkPathname string) (*ecdsa.PublicKey, error) {
 	if block == nil {
 		return nil, fmt.Errorf("failed to decode PEM block")
 	}
-	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	return DeserializePublicKey(block.Bytes)
+}
+
+func SerializePublicKey(pk *ecdsa.PublicKey) ([]byte, error) {
+	return x509.MarshalPKIXPublicKey(pk)
+}
+
+func DeserializePublicKey(data []byte) (*ecdsa.PublicKey, error) {
+	pub, err := x509.ParsePKIXPublicKey(data)
 	if err != nil {
 		return nil, err
 	}

@@ -76,7 +76,7 @@ func (channel *BCBChannel) BCBroadcast(msg []byte) error {
 	return nil
 }
 
-func (channel *BCBChannel) BEBDeliver(msg []byte) {
+func (channel *BCBChannel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
 	if bcastType(msg[0]) == bcbMsg {
 		slog.Debug("received message in bcb channel", "msg", msg)
 		channel.processMsg(msg[1:])

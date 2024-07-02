@@ -5,6 +5,7 @@ import (
 	"broadcast_channels/crypto"
 	"broadcast_channels/network"
 	"bufio"
+	"crypto/ecdsa"
 	"flag"
 	"github.com/lmittmann/tint"
 	"github.com/magiconair/properties"
@@ -20,7 +21,7 @@ func (co ConcreteObserver) BCBDeliver(msg []byte) {
 	println("BCB Deliver:", string(msg))
 }
 
-func (co ConcreteObserver) BEBDeliver(msg []byte) {
+func (co ConcreteObserver) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
 	println("BEB Deliver:", string(msg))
 }
 
