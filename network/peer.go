@@ -20,20 +20,28 @@ type peer struct {
 func newOutbound(myName, address string, config *tls.Config, sk *ecdsa.PrivateKey) (peer, error) {
 	conn, err := tls.Dial("tcp", address, config)
 	if err != nil {
-		return peer{}, fmt.Errorf("unable to dial while establishing peer connection: %s", err)
+		return peer{}, fmt.Errorf("unable to dial while establishing peer connection: %v", err)
 	}
 	toSend, err := computeInitializationInfo(myName, err, sk)
 	if err != nil {
-		return peer{}, fmt.Errorf("unable to prepare the information to exchange with peer: %s", err)
+		return peer{}, fmt.Errorf("unable to prepare the information to exchange with peer: %v", err)
 	}
 	err = send(conn, toSend)
 	if err != nil {
-		return peer{}, fmt.Errorf("unable to exchange initialization information to peer: %s", err)
+		return peer{}, fmt.Errorf("unable to exchange initialization information to peer: %v", err)
+	}
+	pkBytes, err := receive(conn)
+	if err != nil {
+		return peer{}, fmt.Errorf("unable to receive peer's public key: %v", err)
+	}
+	pk, err := crypto.DeserializePublicKey(pkBytes)
+	if err != nil {
+		return peer{}, fmt.Errorf("unable to deserialize peer's public key: %v", err)
 	}
 	peer := peer{
 		conn: conn,
 		name: address,
-		pk:   &sk.PublicKey,
+		pk:   pk,
 	}
 	return peer, nil
 }
@@ -56,7 +64,7 @@ func computeInitializationInfo(myName string, err error, sk *ecdsa.PrivateKey) (
 	return data, nil
 }
 
-func getInbound(listener net.Listener) (peer, error) {
+func getInbound(listener net.Listener, myPk *ecdsa.PublicKey) (peer, error) {
 	conn, err := listener.Accept()
 	if err != nil {
 		return peer{}, fmt.Errorf("unable to accept inbount connection with peer: %s", err)
@@ -83,6 +91,14 @@ func getInbound(listener net.Listener) (peer, error) {
 	}
 	if !crypto.Verify(pk, sigData, signature) {
 		return peer{}, fmt.Errorf("unable to verify signature of peer")
+	}
+	pkBytes, err := crypto.SerializePublicKey(myPk)
+	if err != nil {
+		return peer{}, fmt.Errorf("unable to serialize my public key to send the peer: %v", err)
+	}
+	err = send(conn, pkBytes)
+	if err != nil {
+		return peer{}, fmt.Errorf("unable to send peer my public key: %v", err)
 	}
 	peer := peer{
 		conn: conn,
