@@ -5,10 +5,10 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/tls"
+	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"net"
-	"unsafe"
 )
 
 type peer struct {
@@ -65,24 +65,24 @@ func getInbound(listener net.Listener) (peer, error) {
 	if err != nil {
 		return peer{}, fmt.Errorf("unable to receive initialization information of peer: %s", err)
 	}
-	name, data, err := readName(data)
+	reader := bytes.NewReader(data)
+	name, nonce, pk, err := readSignatureElements(reader)
 	if err != nil {
-		return peer{}, fmt.Errorf("unable to read name of peer: %s", err)
+		return peer{}, fmt.Errorf("unable to read data elements of peer: %s", err)
 	}
-	nonce, data, err := readNonce(data)
-	if err != nil {
-		return peer{}, fmt.Errorf("unable to read nonce of peer: %s", err)
-	}
-	pk, data, err := readPk(data)
-	if err != nil {
-		return peer{}, fmt.Errorf("unable to read public key of peer: %s", err)
-	}
-	signature, err := computeSignableData(name, nonce, pk)
+	sigData, err := computeSignableData(name, nonce, pk)
 	if err != nil {
 		return peer{}, fmt.Errorf("unable to compute signable data of peer: %s", err)
 	}
-	if !crypto.Verify(pk, signature, data) {
-		return peer{}, fmt.Errorf("peer signature is incorrect")
+	signature := make([]byte, reader.Len())
+	num, err := reader.Read(signature)
+	if err != nil {
+		return peer{}, fmt.Errorf("unable to read signature of peer: %s", err)
+	} else if num != len(signature) {
+		return peer{}, fmt.Errorf("unable to read signature of peer: read %d bytes, expected %d", num, len(signature))
+	}
+	if !crypto.Verify(pk, sigData, signature) {
+		return peer{}, fmt.Errorf("unable to verify signature of peer")
 	}
 	peer := peer{
 		conn: conn,
@@ -90,6 +90,23 @@ func getInbound(listener net.Listener) (peer, error) {
 		pk:   pk,
 	}
 	return peer, nil
+}
+
+func readSignatureElements(reader *bytes.Reader) (string, uint32, *ecdsa.PublicKey, error) {
+	name, err := readName(reader)
+	if err != nil {
+		return "", 0, nil, fmt.Errorf("unable to read name of peer: %s", err)
+	}
+	var nonce uint32
+	err = binary.Read(reader, binary.LittleEndian, &nonce)
+	if err != nil {
+		return "", 0, nil, fmt.Errorf("unable to read nonce of peer: %s", err)
+	}
+	pk, err := readPk(reader)
+	if err != nil {
+		return "", 0, nil, fmt.Errorf("unable to read public key of peer: %s", err)
+	}
+	return name, nonce, pk, nil
 }
 
 func computeSignableData(name string, nonce uint32, pk *ecdsa.PublicKey) ([]byte, error) {
@@ -107,49 +124,38 @@ func computeSignableData(name string, nonce uint32, pk *ecdsa.PublicKey) ([]byte
 	return buf.Bytes(), nil
 }
 
-func readName(bytes []byte) (string, []byte, error) {
-	lenSize := uint32(unsafe.Sizeof(uint32(0)))
-	if lenSize > uint32(len(bytes)) {
-		return "", bytes, fmt.Errorf("not enough bytes to read name length")
-	}
-	nameLen, err := crypto.BytesToInt(bytes[:lenSize])
+func readName(reader *bytes.Reader) (string, error) {
+	var nameLen uint32
+	err := binary.Read(reader, binary.LittleEndian, &nameLen)
 	if err != nil {
-		return "", bytes, fmt.Errorf("unable to read name length of peer: %s", err)
+		return "", fmt.Errorf("unable to read name length of peer: %s", err)
 	}
-	if lenSize+nameLen > uint32(len(bytes)) {
-		return "", bytes, fmt.Errorf("not enough bytes to read name")
+	nameBytes := make([]byte, nameLen)
+	num, err := reader.Read(nameBytes)
+	if err != nil {
+		return "", fmt.Errorf("unable to read name of peer: %s", err)
+	} else if num != int(nameLen) {
+		return "", fmt.Errorf("unable to read name of peer: read %d bytes, expected %d", num, nameLen)
 	}
-	name := string(bytes[lenSize : lenSize+nameLen])
-	return name, bytes[lenSize+nameLen:], nil
+	return string(nameBytes), nil
 }
 
-func readNonce(bytes []byte) (uint32, []byte, error) {
-	lenSize := int(unsafe.Sizeof(uint32(0)))
-	if lenSize > len(bytes) {
-		return 0, bytes, fmt.Errorf("not enough bytes to read nonce")
-	}
-	nonce, err := crypto.BytesToInt(bytes[:lenSize])
+func readPk(reader *bytes.Reader) (*ecdsa.PublicKey, error) {
+	var pkLen uint32
+	err := binary.Read(reader, binary.LittleEndian, &pkLen)
 	if err != nil {
-		return 0, bytes, fmt.Errorf("unable to read nonce of peer: %s", err)
+		return nil, fmt.Errorf("unable to read public key length of peer: %s", err)
 	}
-	return nonce, bytes[lenSize:], nil
-}
-
-func readPk(bytes []byte) (*ecdsa.PublicKey, []byte, error) {
-	lenSize := uint32(unsafe.Sizeof(uint32(0)))
-	if lenSize > uint32(len(bytes)) {
-		return nil, bytes, fmt.Errorf("not enough bytes to read public key length")
-	}
-	pkLen, err := crypto.BytesToInt(bytes[:lenSize])
+	pkBytes := make([]byte, pkLen)
+	num, err := reader.Read(pkBytes)
 	if err != nil {
-		return nil, bytes, fmt.Errorf("unable to read public key length of peer: %s", err)
+		return nil, fmt.Errorf("unable to read public key of peer: %s", err)
+	} else if num != int(pkLen) {
+		return nil, fmt.Errorf("unable to read public key of peer: read %d bytes, expected %d", num, pkLen)
 	}
-	if lenSize+pkLen > uint32(len(bytes)) {
-		return nil, bytes, fmt.Errorf("not enough bytes to read public key")
-	}
-	pk, err := crypto.DeserializePublicKey(bytes[lenSize : lenSize+pkLen])
+	pk, err := crypto.DeserializePublicKey(pkBytes)
 	if err != nil {
-		return nil, bytes, fmt.Errorf("unable to deserialize public key of peer: %s", err)
+		return nil, fmt.Errorf("unable to deserialize public key of peer: %s", err)
 	}
-	return pk, bytes[lenSize+pkLen:], nil
+	return pk, nil
 }
