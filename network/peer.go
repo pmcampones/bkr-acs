@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/tls"
-	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"net"
@@ -96,14 +95,14 @@ func getInbound(listener net.Listener) (peer, error) {
 func computeSignableData(name string, nonce uint32, pk *ecdsa.PublicKey) ([]byte, error) {
 	data := make([]byte, 0)
 	buf := bytes.NewBuffer(data)
-	buf.Write(intToBytes(uint32(len(name))))
+	buf.Write(crypto.IntToBytes(uint32(len(name))))
 	buf.Write([]byte(name))
-	buf.Write(intToBytes(nonce))
+	buf.Write(crypto.IntToBytes(nonce))
 	pkBytes, err := crypto.SerializePublicKey(pk)
 	if err != nil {
 		return nil, fmt.Errorf("unable to serialize public key of peer: %s", err)
 	}
-	buf.Write(intToBytes(uint32(len(pkBytes))))
+	buf.Write(crypto.IntToBytes(uint32(len(pkBytes))))
 	buf.Write(pkBytes)
 	return buf.Bytes(), nil
 }
@@ -113,7 +112,7 @@ func readName(bytes []byte) (string, []byte, error) {
 	if lenSize > uint32(len(bytes)) {
 		return "", bytes, fmt.Errorf("not enough bytes to read name length")
 	}
-	nameLen, err := bytesToInt(bytes[:lenSize])
+	nameLen, err := crypto.BytesToInt(bytes[:lenSize])
 	if err != nil {
 		return "", bytes, fmt.Errorf("unable to read name length of peer: %s", err)
 	}
@@ -129,7 +128,7 @@ func readNonce(bytes []byte) (uint32, []byte, error) {
 	if lenSize > len(bytes) {
 		return 0, bytes, fmt.Errorf("not enough bytes to read nonce")
 	}
-	nonce, err := bytesToInt(bytes[:lenSize])
+	nonce, err := crypto.BytesToInt(bytes[:lenSize])
 	if err != nil {
 		return 0, bytes, fmt.Errorf("unable to read nonce of peer: %s", err)
 	}
@@ -141,7 +140,7 @@ func readPk(bytes []byte) (*ecdsa.PublicKey, []byte, error) {
 	if lenSize > uint32(len(bytes)) {
 		return nil, bytes, fmt.Errorf("not enough bytes to read public key length")
 	}
-	pkLen, err := bytesToInt(bytes[:lenSize])
+	pkLen, err := crypto.BytesToInt(bytes[:lenSize])
 	if err != nil {
 		return nil, bytes, fmt.Errorf("unable to read public key length of peer: %s", err)
 	}
@@ -153,17 +152,4 @@ func readPk(bytes []byte) (*ecdsa.PublicKey, []byte, error) {
 		return nil, bytes, fmt.Errorf("unable to deserialize public key of peer: %s", err)
 	}
 	return pk, bytes[lenSize+pkLen:], nil
-}
-
-func intToBytes(n uint32) []byte {
-	var data [unsafe.Sizeof(n)]byte
-	binary.LittleEndian.PutUint32(data[:], n)
-	return data[:]
-}
-
-func bytesToInt(bytes []byte) (uint32, error) {
-	if len(bytes) != int(unsafe.Sizeof(uint32(0))) {
-		return 0, fmt.Errorf("invalid bytes length to convert to int")
-	}
-	return binary.LittleEndian.Uint32(bytes), nil
 }

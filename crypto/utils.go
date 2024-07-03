@@ -5,10 +5,12 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/binary"
 	"encoding/pem"
 	"fmt"
 	. "github.com/google/uuid"
 	"os"
+	"unsafe"
 )
 
 func BytesToUUID(b []byte) UUID {
@@ -60,4 +62,17 @@ func Sign(sk *ecdsa.PrivateKey, msg []byte) ([]byte, error) {
 func Verify(pk *ecdsa.PublicKey, msg []byte, sig []byte) bool {
 	hash := sha256.Sum256(msg)
 	return ecdsa.VerifyASN1(pk, hash[:], sig)
+}
+
+func IntToBytes(n uint32) []byte {
+	var data [unsafe.Sizeof(n)]byte
+	binary.LittleEndian.PutUint32(data[:], n)
+	return data[:]
+}
+
+func BytesToInt(bytes []byte) (uint32, error) {
+	if len(bytes) != int(unsafe.Sizeof(uint32(0))) {
+		return 0, fmt.Errorf("invalid bytes length to convert to int")
+	}
+	return binary.LittleEndian.Uint32(bytes), nil
 }

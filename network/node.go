@@ -23,8 +23,8 @@ type Node struct {
 }
 
 // Join Creates a new node and adds it to the network
-// Join Receives the address of the current node and the contact of the network
-// Join Returns the node created
+// Receives the address of the current node and the contact of the network
+// Returns the node created
 func Join(id, contact, skPathname, certPathname string) *Node {
 	config := &tls.Config{
 		InsecureSkipVerify: true,
