@@ -3,6 +3,7 @@ package broadcast
 import (
 	"broadcast_channels/crypto"
 	"broadcast_channels/network"
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"fmt"
@@ -63,14 +64,31 @@ func (b *bcbInstance) attachObserver(observer bcbInstanceObserver) {
 
 func (b *bcbInstance) bcbSend(nonce uint32, msg []byte) error {
 	buf := bytes.NewBuffer([]byte{})
-	buf.Write([]byte{byte(genId)})
-	err := binary.Write(buf, binary.LittleEndian, nonce)
+	writer := bufio.NewWriter(buf)
+	_, err := writer.Write([]byte{byte(genId)})
+	if err != nil {
+		return fmt.Errorf("unable to write genId to buffer during bcb send: %v", err)
+	}
+	err = binary.Write(writer, binary.LittleEndian, nonce)
 	if err != nil {
 		return fmt.Errorf("unable to write nonce to buffer during bcb send: %v", err)
 	}
-	buf.Write([]byte{byte(bcbMsg)})
-	buf.Write([]byte{byte(send)})
-	buf.Write(msg)
+	_, err = writer.Write([]byte{byte(bcbMsg)})
+	if err != nil {
+		return fmt.Errorf("unable to write bcbMsg to buffer during bcb send: %v", err)
+	}
+	_, err = writer.Write([]byte{byte(send)})
+	if err != nil {
+		return fmt.Errorf("unable to write send to buffer during bcb send: %v", err)
+	}
+	_, err = writer.Write(msg)
+	if err != nil {
+		return fmt.Errorf("unable to write message to buffer during bcb send: %v", err)
+	}
+	err = writer.Flush()
+	if err != nil {
+		return fmt.Errorf("unable to flush buffer during bcb send: %v", err)
+	}
 	b.network.Broadcast(buf.Bytes())
 	return nil
 }
@@ -105,11 +123,31 @@ func (b *bcbInstance) handleSend(reader *bytes.Reader) error {
 	}
 	b.sendEcho = true
 	buf := bytes.NewBuffer([]byte{})
-	buf.Write([]byte{byte(withId)})
-	buf.Write(b.idBytes)
-	buf.Write([]byte{byte(bcbMsg)})
-	buf.Write([]byte{byte(echo)})
-	buf.Write(msg)
+	writer := bufio.NewWriter(buf)
+	_, err = writer.Write([]byte{byte(withId)})
+	if err != nil {
+		return fmt.Errorf("unable to write withId to buffer during handle send: %v", err)
+	}
+	_, err = writer.Write(b.idBytes)
+	if err != nil {
+		return fmt.Errorf("unable to write broadcast id to buffer during handle send: %v", err)
+	}
+	_, err = writer.Write([]byte{byte(bcbMsg)})
+	if err != nil {
+		return fmt.Errorf("unable to write bcbMsg to buffer during handle send: %v", err)
+	}
+	_, err = writer.Write([]byte{byte(echo)})
+	if err != nil {
+		return fmt.Errorf("unable to write echo to buffer during handle send: %v", err)
+	}
+	_, err = writer.Write(msg)
+	if err != nil {
+		return fmt.Errorf("unable to write message to buffer during handle send: %v", err)
+	}
+	err = writer.Flush()
+	if err != nil {
+		return fmt.Errorf("unable to flush buffer during handle send: %v", err)
+	}
 	b.network.Broadcast(buf.Bytes())
 	return nil
 }
