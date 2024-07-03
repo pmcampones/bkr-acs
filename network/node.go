@@ -42,6 +42,7 @@ func Join(id, contact, skPathname, certPathname string) *Node {
 		config:    config,
 		sk:        sk,
 	}
+	slog.Info("I am joining the network", "id", id, "contact", contact, "pk", sk.PublicKey)
 	isContact := node.amIContact(contact)
 	if !isContact {
 		slog.Debug("I am not the contact")
@@ -76,7 +77,7 @@ func (n *Node) connectToContact(id, contact string) {
 		slog.Error("error connecting to contact", "error", err)
 		panic(err)
 	}
-	slog.Debug("establishing connection with peer", "peer name", peer.name)
+	slog.Debug("establishing connection with peer", "peer name", peer.name, "peer key", *peer.pk)
 	go n.maintainConnection(peer, false)
 }
 
@@ -84,12 +85,12 @@ func (n *Node) listenConnections(address, skPathname, certPathname string, amCon
 	listener := n.setupTLSListener(address, skPathname, certPathname)
 	defer listener.Close()
 	for {
-		peer, err := getInbound(listener)
+		peer, err := getInbound(listener, &n.sk.PublicKey)
 		if err != nil {
 			slog.Warn("error accepting connection with peer", "peer name", peer.name, "error", err)
 			continue
 		}
-		slog.Debug("received connection from peer", "peer name", peer.name)
+		slog.Debug("received connection from peer", "peer name", peer.name, "peer key", *peer.pk)
 		go n.maintainConnection(peer, amContact)
 	}
 }
