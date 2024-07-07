@@ -70,10 +70,7 @@ func testBCB(node *network.Node, skPathname string) {
 	bcbChannel.AttachObserver(observer)
 	input := bufio.NewScanner(os.Stdin)
 	for input.Scan() {
-		err := bcbChannel.BCBroadcast([]byte(input.Text()))
-		if err != nil {
-			return
-		}
+		bcbChannel.BCBroadcast([]byte(input.Text()))
 	}
 }
 
