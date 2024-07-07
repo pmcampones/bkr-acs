@@ -62,6 +62,7 @@ func newBcbInstance(id UUID, n, f uint, network *network.Node) (*bcbInstance, er
 		peersReceived: make(map[ecdsa.PublicKey]bool),
 		network:       network,
 		observers:     make([]bcbInstanceObserver, 0, 1),
+		closeChan:     make(chan struct{}),
 		echoChannel:   echoChannel,
 	}
 	go instance.processEchoes()
