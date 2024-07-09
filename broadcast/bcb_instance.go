@@ -32,7 +32,6 @@ type bcbInstance struct {
 	sentEcho      bool
 	delivered     bool
 	echos         map[UUID]uint
-	msg           map[UUID][]byte
 	peersReceived map[ecdsa.PublicKey]bool
 	network       *network.Node
 	observers     []bcbInstanceObserver
@@ -58,7 +57,6 @@ func newBcbInstance(id UUID, n, f uint, network *network.Node) (*bcbInstance, er
 		n:             n,
 		f:             f,
 		echos:         make(map[UUID]uint),
-		msg:           make(map[UUID][]byte),
 		peersReceived: make(map[ecdsa.PublicKey]bool),
 		network:       network,
 		observers:     make([]bcbInstanceObserver, 0, 1),
@@ -204,7 +202,6 @@ func (b *bcbInstance) processEcho(echo *bytes.Reader, sender *ecdsa.PublicKey) {
 	mid := crypto.BytesToUUID(msg)
 	slog.Debug("processing bcbecho", "Id", b.id, "Echo", echo, "Content id", mid)
 	b.echos[mid]++
-	b.msg[mid] = msg
 	threshold := (b.n + b.f) / 2
 	if b.echos[mid] == threshold {
 		b.delivered = true
