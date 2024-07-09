@@ -39,12 +39,12 @@ type BCBChannel struct {
 	observers []BCBObserver
 	network   *network.Node
 	sk        *ecdsa.PrivateKey
-	tasks     chan<- func() error
+	commands  chan<- func() error
 }
 
 func BCBCreateChannel(node *network.Node, n, f uint, sk ecdsa.PrivateKey) *BCBChannel {
 	observers := make([]BCBObserver, 0)
-	tasks := make(chan func() error)
+	commands := make(chan func() error)
 	channel := &BCBChannel{
 		instances: make(map[UUID]*bcbInstance),
 		finished:  make(map[UUID]bool),
@@ -53,10 +53,10 @@ func BCBCreateChannel(node *network.Node, n, f uint, sk ecdsa.PrivateKey) *BCBCh
 		network:   node,
 		observers: observers,
 		sk:        &sk,
-		tasks:     tasks,
+		commands:  commands,
 	}
 	node.AddObserver(channel)
-	go executorService(tasks)
+	go invoker(commands)
 	return channel
 }
 
@@ -70,7 +70,7 @@ func (channel *BCBChannel) AttachObserver(observer BCBObserver) {
 // It does not ensure the message is delivered by all correct processes. Some may deliver and others don't
 // This function follows the Authenticated Echo Broadcast algorithm, where messages are not signed and the broadcast incurs two communication rounds.
 func (channel *BCBChannel) BCBroadcast(msg []byte) {
-	channel.tasks <- func() error {
+	channel.commands <- func() error {
 		nonce := uint32(rand.Int())
 		id, err := channel.computeBroadcastId(nonce)
 		if err != nil {
@@ -103,7 +103,7 @@ func (channel *BCBChannel) computeBroadcastId(nonce uint32) (UUID, error) {
 }
 
 func (channel *BCBChannel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
-	channel.tasks <- func() error {
+	channel.commands <- func() error {
 		reader := bytes.NewReader(msg)
 		id, err := getInstanceId(reader, sender)
 		if err != nil {
@@ -199,7 +199,7 @@ func (channel *BCBChannel) processMsg(id UUID, reader *bytes.Reader, sender *ecd
 }
 
 func (channel *BCBChannel) bcbInstanceDeliver(id UUID, msg []byte) {
-	channel.tasks <- func() error {
+	channel.commands <- func() error {
 		for _, observer := range channel.observers {
 			observer.BCBDeliver(msg)
 		}
@@ -214,11 +214,11 @@ func (channel *BCBChannel) bcbInstanceDeliver(id UUID, msg []byte) {
 	}
 }
 
-func executorService(tasks <-chan func() error) {
-	for task := range tasks {
-		err := task()
+func invoker(commands <-chan func() error) {
+	for command := range commands {
+		err := command()
 		if err != nil {
-			slog.Error("error executing task", "error", err)
+			slog.Error("error executing command", "error", err)
 		}
 	}
 }
