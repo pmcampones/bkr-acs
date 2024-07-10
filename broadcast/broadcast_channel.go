@@ -181,7 +181,7 @@ func computeInstanceId(nonce uint32, sender *ecdsa.PublicKey) (UUID, error) {
 
 func (channel *BCBChannel) processMsg(id UUID, reader *bytes.Reader, sender *ecdsa.PublicKey) error {
 	if channel.finished[id] {
-		slog.Debug("received message from finished instance", "id", id)
+		slog.Debug("received message from isFinished instance", "id", id)
 		return nil
 	}
 	instance, ok := channel.instances[id]
