@@ -49,7 +49,7 @@ type brbData struct {
 	echoes    map[UUID]uint
 	readies   map[UUID]uint
 	network   *network.Node
-	observers []brbInstanceObserver
+	observers []broadcastInstanceObserver
 }
 
 type msgStruct struct {
@@ -71,7 +71,7 @@ func newBrbInstance(id UUID, n, f uint, network *network.Node) (*brbInstance, er
 		echoes:    make(map[UUID]uint),
 		readies:   make(map[UUID]uint),
 		network:   network,
-		observers: make([]brbInstanceObserver, 0, 1),
+		observers: make([]broadcastInstanceObserver, 0, 1),
 	}
 	ph3 := brbPhase3Handler{
 		&data,
@@ -100,11 +100,11 @@ func newBrbInstance(id UUID, n, f uint, network *network.Node) (*brbInstance, er
 	return instance, nil
 }
 
-func (b *brbInstance) attachObserver(observer brbInstanceObserver) {
+func (b *brbInstance) attachObserver(observer broadcastInstanceObserver) {
 	b.data.observers = append(b.data.observers, observer)
 }
 
-func (b *brbInstance) brbSend(nonce uint32, msg []byte) error {
+func (b *brbInstance) send(nonce uint32, msg []byte) error {
 	buf := bytes.NewBuffer([]byte{})
 	writer := bufio.NewWriter(buf)
 	_, err := writer.Write([]byte{byte(genId)})
@@ -123,7 +123,7 @@ func (b *brbInstance) brbSend(nonce uint32, msg []byte) error {
 	return nil
 }
 
-func (b *brbInstance) bebReceive(reader *bytes.Reader, sender *ecdsa.PublicKey) error {
+func (b *brbInstance) handleMessage(reader *bytes.Reader, sender *ecdsa.PublicKey) error {
 	msg, err := b.deserializeMessage(reader)
 	if err != nil {
 		return fmt.Errorf("unable to deserialize received message")
@@ -396,8 +396,13 @@ func (b *brbPhase3Handler) handleReady(msg []byte, id UUID) error {
 	}
 	if numReadies == 2*b.data.f+1 {
 		for _, observer := range b.data.observers {
-			observer.brbInstanceDeliver(b.data.id, msg)
+			observer.instanceDeliver(b.data.id, msg)
 		}
 	}
 	return nil
+}
+
+func (b *brbInstance) close() {
+	slog.Debug("sending signal to close bcb instance", "Id", b.data.id)
+	b.closeChan <- struct{}{}
 }

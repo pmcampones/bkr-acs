@@ -10,6 +10,7 @@ import (
 	. "github.com/google/uuid"
 	"log/slog"
 	"math/rand"
+	"reflect"
 	"unsafe"
 )
 
@@ -31,8 +32,19 @@ type BCBObserver interface {
 	BCBDeliver(msg []byte)
 }
 
-type BCBChannel struct {
-	instances map[UUID]*bcbInstance
+type broadcastInstanceObserver interface {
+	instanceDeliver(id UUID, msg []byte)
+}
+
+type broadcastInstance interface {
+	attachObserver(observer broadcastInstanceObserver)
+	handleMessage(reader *bytes.Reader, sender *ecdsa.PublicKey) error
+	send(nonce uint32, msg []byte) error
+	close()
+}
+
+type Channel struct {
+	instances map[UUID]broadcastInstance
 	finished  map[UUID]bool
 	n         uint
 	f         uint
@@ -42,11 +54,11 @@ type BCBChannel struct {
 	commands  chan<- func() error
 }
 
-func BCBCreateChannel(node *network.Node, n, f uint, sk ecdsa.PrivateKey) *BCBChannel {
+func CreateChannel(node *network.Node, n, f uint, sk ecdsa.PrivateKey) *Channel {
 	observers := make([]BCBObserver, 0)
 	commands := make(chan func() error)
-	channel := &BCBChannel{
-		instances: make(map[UUID]*bcbInstance),
+	channel := &Channel{
+		instances: make(map[UUID]broadcastInstance),
 		finished:  make(map[UUID]bool),
 		n:         n,
 		f:         f,
@@ -60,7 +72,7 @@ func BCBCreateChannel(node *network.Node, n, f uint, sk ecdsa.PrivateKey) *BCBCh
 	return channel
 }
 
-func (channel *BCBChannel) AttachObserver(observer BCBObserver) {
+func (channel *Channel) AttachObserver(observer BCBObserver) {
 	slog.Info("attaching observer to bcb channel", "observer", observer)
 	channel.observers = append(channel.observers, observer)
 }
@@ -69,29 +81,50 @@ func (channel *BCBChannel) AttachObserver(observer BCBObserver) {
 // This ensures all correct processes that deliver a message, deliver the same message
 // It does not ensure the message is delivered by all correct processes. Some may deliver and others don't
 // This function follows the Authenticated Echo Broadcast algorithm, where messages are not signed and the broadcast incurs two communication rounds.
-func (channel *BCBChannel) BCBroadcast(msg []byte) {
+func (channel *Channel) BCBroadcast(msg []byte) error {
+	nonce := rand.Uint32()
+	id, err := channel.computeBroadcastId(nonce)
+	if err != nil {
+		return fmt.Errorf("channel unable to compute broadcast id: %v", err)
+	}
+	bcbInstance, err := newBcbInstance(id, channel.n, channel.f, channel.network)
+	if err != nil {
+		return fmt.Errorf("bcb channel unable to create bcb instance during bcbsend: %v", err)
+	}
+	channel.broadcast(msg, nonce, id, bcbInstance)
+	return nil
+}
+
+func (channel *Channel) BRBroadcast(msg []byte) error {
+	nonce := rand.Uint32()
+	id, err := channel.computeBroadcastId(nonce)
+	if err != nil {
+		return fmt.Errorf("channel unable to compute broadcast id: %v", err)
+	}
+	brbInstance, err := newBrbInstance(id, channel.n, channel.f, channel.network)
+	if err != nil {
+		return fmt.Errorf("channel unable to create bcb instance during bcbsend: %v", err)
+	}
+	channel.broadcast(msg, nonce, id, brbInstance)
+	return nil
+}
+
+func (channel *Channel) broadcast(msg []byte, nonce uint32, id UUID, instance broadcastInstance) {
 	channel.commands <- func() error {
-		nonce := uint32(rand.Int())
-		id, err := channel.computeBroadcastId(nonce)
-		if err != nil {
-			return fmt.Errorf("bcb channel unable to compute broadcast id: %v", err)
-		}
-		bcbInstance, err := newBcbInstance(id, channel.n, channel.f, channel.network)
-		if err != nil {
-			return fmt.Errorf("bcb channel unable to create bcb instance during bcbsend: %v", err)
-		}
 		slog.Info("sending bcb broadcast", "id", id, "msg", msg)
-		channel.instances[id] = bcbInstance
-		bcbInstance.attachObserver(channel)
-		go bcbInstance.bcbSend(nonce, msg)
-		if err != nil {
-			return fmt.Errorf("bcb channel unable to bcbsend message during broadcast: %v", err)
-		}
+		channel.instances[id] = instance
+		instance.attachObserver(channel)
+		go func() {
+			err := instance.send(nonce, msg)
+			if err != nil {
+				slog.Error("unable to send message", "id", id, "type", reflect.TypeOf(instance))
+			}
+		}()
 		return nil
 	}
 }
 
-func (channel *BCBChannel) computeBroadcastId(nonce uint32) (UUID, error) {
+func (channel *Channel) computeBroadcastId(nonce uint32) (UUID, error) {
 	encodedPk, err := crypto.SerializePublicKey(&channel.sk.PublicKey)
 	if err != nil {
 		return UUID{}, fmt.Errorf("bcb channel unable to serialize public key during broadcast: %v", err)
@@ -102,7 +135,7 @@ func (channel *BCBChannel) computeBroadcastId(nonce uint32) (UUID, error) {
 	return id, nil
 }
 
-func (channel *BCBChannel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
+func (channel *Channel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
 	channel.commands <- func() error {
 		reader := bytes.NewReader(msg)
 		id, err := getInstanceId(reader, sender)
@@ -179,7 +212,7 @@ func computeInstanceId(nonce uint32, sender *ecdsa.PublicKey) (UUID, error) {
 	return id, nil
 }
 
-func (channel *BCBChannel) processMsg(id UUID, reader *bytes.Reader, sender *ecdsa.PublicKey) error {
+func (channel *Channel) processMsg(id UUID, reader *bytes.Reader, sender *ecdsa.PublicKey) error {
 	if channel.finished[id] {
 		slog.Debug("received message from isFinished instance", "id", id)
 		return nil
@@ -194,18 +227,18 @@ func (channel *BCBChannel) processMsg(id UUID, reader *bytes.Reader, sender *ecd
 		channel.instances[id] = instance
 		instance.attachObserver(channel)
 	}
-	go instance.bebReceive(reader, sender)
+	go instance.handleMessage(reader, sender)
 	return nil
 }
 
-func (channel *BCBChannel) bcbInstanceDeliver(id UUID, msg []byte) {
+func (channel *Channel) instanceDeliver(id UUID, msg []byte) {
 	channel.commands <- func() error {
 		for _, observer := range channel.observers {
 			observer.BCBDeliver(msg)
 		}
 		instance, ok := channel.instances[id]
 		if !ok {
-			return fmt.Errorf("bcb channel instance %s not found upon delivery", id)
+			return fmt.Errorf("channel instance %s not found upon delivery", id)
 		}
 		channel.finished[id] = true
 		delete(channel.instances, id)

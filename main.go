@@ -66,11 +66,34 @@ func testBCB(node *network.Node, skPathname string) {
 		return
 	}
 	observer := ConcreteObserver{}
-	bcbChannel := broadcast.BCBCreateChannel(node, 4, 1, *sk)
+	bcbChannel := broadcast.CreateChannel(node, 4, 1, *sk)
 	bcbChannel.AttachObserver(observer)
 	input := bufio.NewScanner(os.Stdin)
 	for input.Scan() {
-		bcbChannel.BCBroadcast([]byte(input.Text()))
+		msg := []byte(input.Text())
+		err := bcbChannel.BCBroadcast(msg)
+		if err != nil {
+			slog.Error("unable to broadcast message", "msg", msg, "error", err)
+		}
+	}
+}
+
+func testBRB(node *network.Node, skPathname string) {
+	sk, err := crypto.ReadPrivateKey(skPathname)
+	if err != nil {
+		slog.Error("Error reading private key", "error", err)
+		return
+	}
+	observer := ConcreteObserver{}
+	bcbChannel := broadcast.CreateChannel(node, 4, 1, *sk)
+	bcbChannel.AttachObserver(observer)
+	input := bufio.NewScanner(os.Stdin)
+	for input.Scan() {
+		msg := []byte(input.Text())
+		err := bcbChannel.BRBroadcast(msg)
+		if err != nil {
+			slog.Error("unable to broadcast message", "msg", msg, "error", err)
+		}
 	}
 }
 

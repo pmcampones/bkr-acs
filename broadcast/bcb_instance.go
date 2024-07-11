@@ -12,10 +12,6 @@ import (
 	"log/slog"
 )
 
-type bcbInstanceObserver interface {
-	bcbInstanceDeliver(id UUID, msg []byte)
-}
-
 type bcb byte
 
 const (
@@ -34,7 +30,7 @@ type bcbInstance struct {
 	echos         map[UUID]uint
 	peersReceived map[ecdsa.PublicKey]bool
 	network       *network.Node
-	observers     []bcbInstanceObserver
+	observers     []broadcastInstanceObserver
 	closeChan     chan struct{}
 	echoChannel   chan struct {
 		*bytes.Reader
@@ -59,7 +55,7 @@ func newBcbInstance(id UUID, n, f uint, network *network.Node) (*bcbInstance, er
 		echos:         make(map[UUID]uint),
 		peersReceived: make(map[ecdsa.PublicKey]bool),
 		network:       network,
-		observers:     make([]bcbInstanceObserver, 0, 1),
+		observers:     make([]broadcastInstanceObserver, 0, 1),
 		closeChan:     make(chan struct{}),
 		echoChannel:   echoChannel,
 	}
@@ -67,46 +63,42 @@ func newBcbInstance(id UUID, n, f uint, network *network.Node) (*bcbInstance, er
 	return instance, nil
 }
 
-func (b *bcbInstance) attachObserver(observer bcbInstanceObserver) {
+func (b *bcbInstance) attachObserver(observer broadcastInstanceObserver) {
 	b.observers = append(b.observers, observer)
 }
 
-func (b *bcbInstance) bcbSend(nonce uint32, msg []byte) {
+func (b *bcbInstance) send(nonce uint32, msg []byte) error {
 	buf := bytes.NewBuffer([]byte{})
 	writer := bufio.NewWriter(buf)
 	_, err := writer.Write([]byte{byte(genId)})
 	if err != nil {
-		slog.Error("unable to write genId to buffer during bcb bcbsend", "error", err)
-		return
+		return fmt.Errorf("unable to write genId to buffer: %v", err)
 	}
 	err = binary.Write(writer, binary.LittleEndian, nonce)
 	if err != nil {
-		slog.Error("unable to write nonce to buffer during bcb bcbsend", "error", err)
-		return
+		return fmt.Errorf("unable to write nonce to buffer: %v", err)
 	}
 	_, err = writer.Write([]byte{byte(bcbMsg)})
 	if err != nil {
-		slog.Error("unable to write bcbMsg to buffer during bcb bcbsend", "error", err)
-		return
+		return fmt.Errorf("unable to write bcbMsg to buffer: %v", err)
 	}
 	_, err = writer.Write([]byte{byte(bcbsend)})
 	if err != nil {
-		slog.Error("unable to write bcbsend to buffer during bcb bcbsend", "error", err)
-		return
+		return fmt.Errorf("unable to write bcbsend to buffer: %v", err)
 	}
 	_, err = writer.Write(msg)
 	if err != nil {
-		slog.Error("unable to write message to buffer during bcb bcbsend", "error", err)
-		return
+		return fmt.Errorf("unable to write message to buffer: %v", err)
 	}
 	err = writer.Flush()
 	if err != nil {
-		slog.Error("unable to flush buffer during bcb bcbsend", "error", err)
+		return fmt.Errorf("unable to flush buffer: %v", err)
 	}
 	b.network.Broadcast(buf.Bytes())
+	return nil
 }
 
-func (b *bcbInstance) bebReceive(reader *bytes.Reader, sender *ecdsa.PublicKey) {
+func (b *bcbInstance) handleMessage(reader *bytes.Reader, sender *ecdsa.PublicKey) error {
 	typeByte, err := reader.ReadByte()
 	if err != nil {
 		slog.Error("unable to read type byte from message during beb receive", "error", err)
@@ -126,6 +118,7 @@ func (b *bcbInstance) bebReceive(reader *bytes.Reader, sender *ecdsa.PublicKey) 
 	default:
 		slog.Error("unhandled default case in received message in bcb instance", "opcode", msgType)
 	}
+	return nil
 }
 
 func (b *bcbInstance) handleSend(reader *bytes.Reader) error {
@@ -206,7 +199,7 @@ func (b *bcbInstance) processEcho(echo *bytes.Reader, sender *ecdsa.PublicKey) {
 	if b.echos[mid] == threshold {
 		b.delivered = true
 		for _, observer := range b.observers {
-			go observer.bcbInstanceDeliver(b.id, msg)
+			go observer.instanceDeliver(b.id, msg)
 		}
 	}
 }
