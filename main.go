@@ -44,7 +44,7 @@ func main() {
 		return
 	}
 	node := network.Join(*address, contact, *skPathname, *certPathname)
-	testBCB(node, *skPathname)
+	testBRB(node, *skPathname)
 	//testBEB(node)
 }
 
@@ -66,12 +66,12 @@ func testBCB(node *network.Node, skPathname string) {
 		return
 	}
 	observer := ConcreteObserver{}
-	bcbChannel := broadcast.CreateChannel(node, 4, 1, *sk)
-	bcbChannel.AttachObserver(observer)
+	channel := broadcast.CreateChannel(node, 4, 1, *sk)
+	channel.AttachObserver(observer)
 	input := bufio.NewScanner(os.Stdin)
 	for input.Scan() {
 		msg := []byte(input.Text())
-		err := bcbChannel.BCBroadcast(msg)
+		err := channel.BCBroadcast(msg)
 		if err != nil {
 			slog.Error("unable to broadcast message", "msg", msg, "error", err)
 		}
@@ -85,12 +85,12 @@ func testBRB(node *network.Node, skPathname string) {
 		return
 	}
 	observer := ConcreteObserver{}
-	bcbChannel := broadcast.CreateChannel(node, 4, 1, *sk)
-	bcbChannel.AttachObserver(observer)
+	channel := broadcast.CreateChannel(node, 4, 1, *sk)
+	channel.AttachObserver(observer)
 	input := bufio.NewScanner(os.Stdin)
 	for input.Scan() {
 		msg := []byte(input.Text())
-		err := bcbChannel.BRBroadcast(msg)
+		err := channel.BRBroadcast(msg)
 		if err != nil {
 			slog.Error("unable to broadcast message", "msg", msg, "error", err)
 		}

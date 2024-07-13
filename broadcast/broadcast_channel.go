@@ -111,7 +111,7 @@ func (channel *Channel) BRBroadcast(msg []byte) error {
 
 func (channel *Channel) broadcast(msg []byte, nonce uint32, id UUID, instance broadcastInstance) {
 	channel.commands <- func() error {
-		slog.Info("sending bcb broadcast", "id", id, "msg", msg)
+		slog.Info("sending broadcast", "id", id, "msg", msg)
 		channel.instances[id] = instance
 		instance.attachObserver(channel)
 		go func() {
@@ -136,22 +136,21 @@ func (channel *Channel) computeBroadcastId(nonce uint32) (UUID, error) {
 }
 
 func (channel *Channel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
+	slog.Debug("received message from network", "sender", sender)
 	channel.commands <- func() error {
 		reader := bytes.NewReader(msg)
 		id, err := getInstanceId(reader, sender)
 		if err != nil {
 			return fmt.Errorf("unable to get instance id from message during bcb delivery: %v", err)
 		}
-		bcastTp, err := reader.ReadByte()
+		bType, err := reader.ReadByte()
 		if err != nil {
 			return fmt.Errorf("unable to read broadcast type from message during bcb delivery: %v", err)
 		}
-		if bcastType(bcastTp) == bcbMsg {
-			slog.Debug("received message in bcb channel", "msg", msg)
-			err = channel.processMsg(id, reader, sender)
-			if err != nil {
-				return fmt.Errorf("unable to process message during bcb delivery: %v", err)
-			}
+		slog.Debug("processing message", "id", id)
+		err = channel.processMsg(id, bcastType(bType), reader, sender)
+		if err != nil {
+			return fmt.Errorf("unable to process message during bcb delivery: %v", err)
 		}
 		return nil
 	}
@@ -212,26 +211,60 @@ func computeInstanceId(nonce uint32, sender *ecdsa.PublicKey) (UUID, error) {
 	return id, nil
 }
 
-func (channel *Channel) processMsg(id UUID, reader *bytes.Reader, sender *ecdsa.PublicKey) error {
+func (channel *Channel) processMsg(id UUID, bType bcastType, reader *bytes.Reader, sender *ecdsa.PublicKey) error {
 	if channel.finished[id] {
-		slog.Debug("received message from isFinished instance", "id", id)
+		slog.Debug("received message from finished instance", "id", id)
 		return nil
 	}
 	instance, ok := channel.instances[id]
 	if !ok {
 		var err error // Declare err here to avoid shadowing the instance variable
-		instance, err = newBcbInstance(id, channel.n, channel.f, channel.network)
+		// Need to read the first byte to determine whether the instance to be instantiated is BCB or BRB
+		switch bType {
+		case bcbMsg:
+			instance, err = newBcbInstance(id, channel.n, channel.f, channel.network)
+		case brbMsg:
+			instance, err = newBrbInstance(id, channel.n, channel.f, channel.network)
+		default:
+			return fmt.Errorf("received unknown broadcast type %v", bType)
+		}
 		if err != nil {
-			return fmt.Errorf("unable to create new bcb instance %s upon receiving a message: %v", id, err)
+			return fmt.Errorf("unable to create new instance %s upon receiving a message: %v", id, err)
 		}
 		channel.instances[id] = instance
 		instance.attachObserver(channel)
 	}
-	go instance.handleMessage(reader, sender)
+	go func() {
+		err := instance.handleMessage(reader, sender)
+		if err != nil {
+			slog.Error("unable to handle received message", "id", id, "sender", sender, "error", err)
+		}
+	}()
 	return nil
 }
 
+func (channel *Channel) newBroadcastInstance(id UUID, bType bcastType) (broadcastInstance, error) {
+	switch bType {
+	case bcbMsg:
+		instance, err := newBcbInstance(id, channel.n, channel.f, channel.network)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create new BCB instance: %v", err)
+		}
+		return instance, nil
+	case brbMsg:
+		instance, err := newBrbInstance(id, channel.n, channel.f, channel.network)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create new BRB instance: %v", err)
+		}
+		return instance, nil
+	default:
+		return nil, fmt.Errorf("received unknown broadcast message type")
+	}
+	panic("unimplemented")
+}
+
 func (channel *Channel) instanceDeliver(id UUID, msg []byte) {
+	slog.Debug("delivering message from broadcast instance", "id", id)
 	channel.commands <- func() error {
 		for _, observer := range channel.observers {
 			observer.BCBDeliver(msg)
