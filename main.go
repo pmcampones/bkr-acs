@@ -21,7 +21,7 @@ func (co ConcreteObserver) BCBDeliver(msg []byte) {
 	println("BCB Deliver:", string(msg))
 }
 
-func (co ConcreteObserver) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
+func (co ConcreteObserver) BEBDeliver(msg []byte, _ *ecdsa.PublicKey) {
 	println("BEB Deliver:", string(msg))
 }
 
