@@ -92,7 +92,7 @@ func newBrbInstance(id UUID, n, f uint, network *network.Node) (*brbInstance, er
 		closeChan:     closeChan,
 		concreteState: &ph1,
 	}
-	go instance.executorService(commands, closeChan)
+	go instance.invoker(commands, closeChan)
 	return instance, nil
 }
 
@@ -202,7 +202,7 @@ func (b *brbInstance) handleReady(msg []byte, id UUID, sender *ecdsa.PublicKey) 
 
 }
 
-func (b *brbInstance) executorService(commands <-chan func() error, closeChan <-chan struct{}) {
+func (b *brbInstance) invoker(commands <-chan func() error, closeChan <-chan struct{}) {
 	for {
 		select {
 		case command := <-commands:

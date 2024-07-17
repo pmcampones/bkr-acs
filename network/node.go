@@ -4,6 +4,7 @@ import (
 	"broadcast_channels/crypto"
 	"crypto/ecdsa"
 	"crypto/tls"
+	"fmt"
 	"log/slog"
 	"net"
 	"sync"
@@ -25,14 +26,14 @@ type Node struct {
 // Join Creates a new node and adds it to the network
 // Receives the address of the current node and the contact of the network
 // Returns the node created
-func Join(id, contact, skPathname, certPathname string) *Node {
-	config := &tls.Config{
-		InsecureSkipVerify: true,
+func Join(id, contact, skPathname, certPathname string) (*Node, error) {
+	config, err := computeConfig(certPathname, skPathname)
+	if err != nil {
+		return nil, fmt.Errorf("unable to compute configuration: %v", err)
 	}
 	sk, err := crypto.ReadPrivateKey(skPathname)
 	if err != nil {
-		slog.Error("error reading private key", "error", err)
-		panic(err)
+		return nil, fmt.Errorf("unable to read private key: %v", err)
 	}
 	node := Node{
 		id:        id,
@@ -50,8 +51,8 @@ func Join(id, contact, skPathname, certPathname string) *Node {
 	} else {
 		slog.Debug("I am the contact")
 	}
-	go node.listenConnections(id, skPathname, certPathname, isContact)
-	return &node
+	go node.listenConnections(id, isContact)
+	return &node, nil
 }
 
 func (n *Node) AddObserver(observer NodeObserver) {
@@ -81,8 +82,8 @@ func (n *Node) connectToContact(id, contact string) {
 	go n.maintainConnection(peer, false)
 }
 
-func (n *Node) listenConnections(address, skPathname, certPathname string, amContact bool) {
-	listener := n.setupTLSListener(address, skPathname, certPathname)
+func (n *Node) listenConnections(address string, amContact bool) {
+	listener := n.setupTLSListener(address)
 	defer listener.Close()
 	for {
 		peer, err := getInbound(listener, &n.sk.PublicKey)
@@ -95,22 +96,25 @@ func (n *Node) listenConnections(address, skPathname, certPathname string, amCon
 	}
 }
 
-func (n *Node) setupTLSListener(address string, skPathname string, certPathname string) net.Listener {
-	cert, err := tls.LoadX509KeyPair(certPathname, skPathname)
-	if err != nil {
-		slog.Error("error loading certificate and key",
-			"error", err,
-			"skPathname", skPathname,
-			"certPathname", certPathname)
-		panic(err)
-	}
-	config := &tls.Config{Certificates: []tls.Certificate{cert}}
-	listener, err := tls.Listen("tcp", address, config)
+func (n *Node) setupTLSListener(address string) net.Listener {
+	listener, err := tls.Listen("tcp", address, n.config)
 	if err != nil {
 		slog.Error("error listening on address", "address", address, "error", err)
 		panic(err)
 	}
 	return listener
+}
+
+func computeConfig(certPathname string, skPathname string) (*tls.Config, error) {
+	cert, err := tls.LoadX509KeyPair(certPathname, skPathname)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load certificate and private key: %v", err)
+	}
+	config := &tls.Config{
+		InsecureSkipVerify: true,
+		Certificates:       []tls.Certificate{cert},
+	}
+	return config, nil
 }
 
 func (n *Node) amIContact(contact string) bool {

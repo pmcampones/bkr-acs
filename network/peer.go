@@ -43,6 +43,7 @@ func newOutbound(myName, address string, config *tls.Config, sk *ecdsa.PrivateKe
 		name: address,
 		pk:   pk,
 	}
+
 	return peer, nil
 }
 

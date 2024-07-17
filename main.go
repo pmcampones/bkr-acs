@@ -43,7 +43,11 @@ func main() {
 		slog.Error("Error setting my index", "error", err)
 		return
 	}
-	node := network.Join(*address, contact, *skPathname, *certPathname)
+	node, err := network.Join(*address, contact, *skPathname, *certPathname)
+	if err != nil {
+		slog.Error("Error joining network", "error", err)
+		return
+	}
 	testBRB(node, *skPathname)
 	//testBEB(node)
 }
