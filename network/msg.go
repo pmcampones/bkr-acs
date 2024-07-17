@@ -3,6 +3,7 @@ package network
 import (
 	"bufio"
 	"encoding/binary"
+	"fmt"
 	"net"
 )
 
@@ -17,14 +18,18 @@ func send(conn net.Conn, msg []byte) error {
 	writer := bufio.NewWriter(conn)
 	err := binary.Write(writer, binary.LittleEndian, uint32(len(msg)))
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to write message length to buffer: %v", err)
 	}
 	_, err = writer.Write(msg)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to write message to buffer: %v", err)
 	}
 	// Don't defer Flush() to ensure the error message is returned if it fails
-	return writer.Flush()
+	err = writer.Flush()
+	if err != nil {
+		return fmt.Errorf("unable to flush buffer: %v", err)
+	}
+	return nil
 }
 
 func receive(conn net.Conn) ([]byte, error) {
@@ -32,9 +37,14 @@ func receive(conn net.Conn) ([]byte, error) {
 	reader := bufio.NewReader(conn)
 	err := binary.Read(reader, binary.LittleEndian, &length)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to read message length from buffer: %v", err)
 	}
 	msg := make([]byte, length)
-	_, err = reader.Read(msg)
+	num, err := reader.Read(msg)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read message from buffer: %v", err)
+	} else if num != int(length) {
+		return nil, fmt.Errorf("unable to read message from buffer: read %d bytes, expected %d", num, length)
+	}
 	return msg, err
 }
