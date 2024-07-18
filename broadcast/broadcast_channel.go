@@ -130,7 +130,10 @@ func (channel *Channel) computeBroadcastId(nonce uint32) (UUID, error) {
 		return UUID{}, fmt.Errorf("bcb channel unable to serialize public key during broadcast: %v", err)
 	}
 	buf := bytes.NewBuffer(encodedPk)
-	buf.Write(crypto.IntToBytes(nonce))
+	err = binary.Write(buf, binary.LittleEndian, nonce)
+	if err != nil {
+		return UUID{}, fmt.Errorf("unable to write nonce to buffer during broadcast: %v", err)
+	}
 	id := crypto.BytesToUUID(buf.Bytes())
 	return id, nil
 }
@@ -206,7 +209,10 @@ func computeInstanceId(nonce uint32, sender *ecdsa.PublicKey) (UUID, error) {
 		return Nil, fmt.Errorf("unable to serialize public key during broadcast: %v", err)
 	}
 	buf := bytes.NewBuffer(encodedPk)
-	buf.Write(crypto.IntToBytes(nonce))
+	err = binary.Write(buf, binary.LittleEndian, nonce)
+	if err != nil {
+		return UUID{}, fmt.Errorf("unable to write nonce to buffer: %v", err)
+	}
 	id := crypto.BytesToUUID(buf.Bytes())
 	return id, nil
 }
@@ -260,7 +266,6 @@ func (channel *Channel) newBroadcastInstance(id UUID, bType bcastType) (broadcas
 	default:
 		return nil, fmt.Errorf("received unknown broadcast message type")
 	}
-	panic("unimplemented")
 }
 
 func (channel *Channel) instanceDeliver(id UUID, msg []byte) {
