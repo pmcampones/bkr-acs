@@ -237,7 +237,7 @@ func (channel *Channel) processMsg(id UUID, bType bcastType, reader *bytes.Reade
 	go func() {
 		err := instance.handleMessage(reader, sender)
 		if err != nil {
-			slog.Error("unable to handle received message", "id", id, "sender", sender, "error", err)
+			slog.Warn("unable to handle received message", "id", id, "sender", sender, "error", err)
 		}
 	}()
 	return nil

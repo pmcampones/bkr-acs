@@ -177,6 +177,7 @@ func (b *brbInstance) handleEcho(msg []byte, id UUID, sender *ecdsa.PublicKey) {
 			return fmt.Errorf("already received echo from peer %s", *sender)
 		}
 		b.data.echoes[id]++
+		b.peersEchoed[*sender] = true
 		err := b.concreteState.handleEcho(msg, id)
 		if err != nil {
 			return fmt.Errorf("unable to handle echo: %v", err)
@@ -193,6 +194,7 @@ func (b *brbInstance) handleReady(msg []byte, id UUID, sender *ecdsa.PublicKey) 
 			return fmt.Errorf("already received ready from peer %s", *sender)
 		}
 		b.data.readies[id]++
+		b.peersReadied[*sender] = true
 		err := b.concreteState.handleReady(msg, id)
 		if err != nil {
 			return fmt.Errorf("unable to handle ready: %v", err)
@@ -238,6 +240,7 @@ func (b *brbPhase1Handler) handleSend(msg []byte) error {
 		return b.nextPhase.handleSend(msg)
 	} else {
 		slog.Debug("processing send message on phase 1")
+		b.isFinished = true
 		return b.sendEcho(msg)
 	}
 }

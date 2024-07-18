@@ -56,7 +56,7 @@ func setupLogger() {
 	// set global logger with custom options
 	slog.SetDefault(slog.New(
 		tint.NewHandler(os.Stdout, &tint.Options{
-			Level:      slog.LevelDebug,
+			Level:      slog.LevelWarn,
 			TimeFormat: time.Kitchen,
 		}),
 	))
