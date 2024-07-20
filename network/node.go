@@ -1,7 +1,6 @@
 package network
 
 import (
-	"broadcast_channels/crypto"
 	"crypto/ecdsa"
 	"crypto/tls"
 	"fmt"
@@ -26,15 +25,8 @@ type Node struct {
 // Join Creates a new node and adds it to the network
 // Receives the address of the current node and the contact of the network
 // Returns the node created
-func Join(id, contact, skPathname, certPathname string) (*Node, error) {
-	config, err := computeConfig(certPathname, skPathname)
-	if err != nil {
-		return nil, fmt.Errorf("unable to compute configuration: %v", err)
-	}
-	sk, err := crypto.ReadPrivateKey(skPathname)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read private key: %v", err)
-	}
+func Join(id, contact string, sk *ecdsa.PrivateKey, cert *tls.Certificate) (*Node, error) {
+	config := computeConfig(cert)
 	node := Node{
 		id:        id,
 		peersLock: sync.RWMutex{},
@@ -107,17 +99,13 @@ func (n *Node) setupTLSListener(address string) net.Listener {
 	return listener
 }
 
-func computeConfig(certPathname string, skPathname string) (*tls.Config, error) {
-	cert, err := tls.LoadX509KeyPair(certPathname, skPathname)
-	if err != nil {
-		return nil, fmt.Errorf("unable to load certificate and private key: %v", err)
-	}
+func computeConfig(cert *tls.Certificate) *tls.Config {
 	config := &tls.Config{
 		InsecureSkipVerify: true,
-		Certificates:       []tls.Certificate{cert},
+		Certificates:       []tls.Certificate{*cert},
 		ClientAuth:         tls.RequestClientCert,
 	}
-	return config, nil
+	return config
 }
 
 func (n *Node) amIContact(contact string) bool {

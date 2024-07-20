@@ -6,7 +6,9 @@ import (
 	"broadcast_channels/network"
 	"bufio"
 	"crypto/ecdsa"
+	"crypto/tls"
 	"flag"
+	"fmt"
 	"github.com/lmittmann/tint"
 	"github.com/magiconair/properties"
 	"log/slog"
@@ -34,17 +36,31 @@ func main() {
 	props := properties.MustLoadFile(*propsPathname, properties.UTF8)
 	contact := props.GetString("contact", "localhost:6000")
 	setupLogger()
-	node, err := network.Join(*address, contact, *skPathname, *certPathname)
+	node, err := makeNode(*address, contact, *skPathname, *certPathname)
 	if err != nil {
 		slog.Error("Error joining network", "error", err)
 		return
 	}
 	testBRB(node, *skPathname)
-	//testBEB(node)
+}
+
+func makeNode(address, contact, skPathname, certPathname string) (*network.Node, error) {
+	sk, err := crypto.ReadPrivateKey(skPathname)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read private key: %v", err)
+	}
+	cert, err := tls.LoadX509KeyPair(certPathname, skPathname)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read the certificate: %v", err)
+	}
+	node, err := network.Join(address, contact, sk, &cert)
+	if err != nil {
+		return nil, fmt.Errorf("unable to join the network: %v", err)
+	}
+	return node, nil
 }
 
 func setupLogger() {
-	// set global logger with custom options
 	slog.SetDefault(slog.New(
 		tint.NewHandler(os.Stdout, &tint.Options{
 			Level:      slog.LevelWarn,
