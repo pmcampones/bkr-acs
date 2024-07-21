@@ -110,7 +110,7 @@ func testBRB(node *network.Node, skPathname string) {
 
 func testBEB(node *network.Node) {
 	observer := ConcreteObserver{}
-	node.AddObserver(observer)
+	node.AttachMessageObserver(observer)
 	input := bufio.NewScanner(os.Stdin)
 	for input.Scan() {
 		node.Broadcast([]byte(input.Text()))

@@ -9,17 +9,23 @@ import (
 	"sync"
 )
 
-type NodeObserver interface {
+type NodeMessageObserver interface {
 	BEBDeliver(msg []byte, sender *ecdsa.PublicKey)
 }
 
+type MembershipObserver interface {
+	NotifyPeerUp(p *peer)
+	NotifyPeerDown(p *peer)
+}
+
 type Node struct {
-	id        string
-	peersLock sync.RWMutex
-	peers     map[string]*peer
-	observers []NodeObserver
-	config    *tls.Config
-	sk        *ecdsa.PrivateKey
+	id           string
+	peersLock    sync.RWMutex
+	peers        map[string]*peer
+	msgObservers []NodeMessageObserver
+	memObservers []MembershipObserver
+	config       *tls.Config
+	sk           *ecdsa.PrivateKey
 }
 
 // Join Creates a new node and adds it to the network
@@ -28,12 +34,13 @@ type Node struct {
 func Join(id, contact string, sk *ecdsa.PrivateKey, cert *tls.Certificate) (*Node, error) {
 	config := computeConfig(cert)
 	node := Node{
-		id:        id,
-		peersLock: sync.RWMutex{},
-		peers:     make(map[string]*peer),
-		observers: make([]NodeObserver, 0),
-		config:    config,
-		sk:        sk,
+		id:           id,
+		peersLock:    sync.RWMutex{},
+		peers:        make(map[string]*peer),
+		msgObservers: make([]NodeMessageObserver, 0),
+		memObservers: make([]MembershipObserver, 0),
+		config:       config,
+		sk:           sk,
 	}
 	slog.Info("I am joining the network", "id", id, "contact", contact, "pk", sk.PublicKey)
 	isContact := node.amIContact(contact)
@@ -46,12 +53,17 @@ func Join(id, contact string, sk *ecdsa.PrivateKey, cert *tls.Certificate) (*Nod
 	} else {
 		slog.Debug("I am the contact")
 	}
-	go node.listenConnections(id, isContact)
+	listener := node.setupTLSListener(id)
+	go node.listenConnections(listener, isContact)
 	return &node, nil
 }
 
-func (n *Node) AddObserver(observer NodeObserver) {
-	n.observers = append(n.observers, observer)
+func (n *Node) AttachMessageObserver(observer NodeMessageObserver) {
+	n.msgObservers = append(n.msgObservers, observer)
+}
+
+func (n *Node) AttachMembershipObserver(observer MembershipObserver) {
+	n.memObservers = append(n.memObservers, observer)
 }
 
 func (n *Node) Broadcast(msg []byte) {
@@ -77,8 +89,7 @@ func (n *Node) connectToContact(id, contact string) error {
 	return nil
 }
 
-func (n *Node) listenConnections(address string, amContact bool) {
-	listener := n.setupTLSListener(address)
+func (n *Node) listenConnections(listener net.Listener, amContact bool) {
 	for {
 		peer, err := getInbound(listener)
 		if err != nil {
@@ -123,6 +134,9 @@ func (n *Node) maintainConnection(peer peer, amContact bool) {
 			return
 		}
 	}
+	for _, obs := range n.memObservers {
+		obs.NotifyPeerUp(&peer)
+	}
 	n.readFromConnection(peer)
 }
 
@@ -149,6 +163,9 @@ func (n *Node) sendMembership(peer peer) error {
 }
 
 func (n *Node) closeConnection(peer peer) {
+	for _, obs := range n.memObservers {
+		obs.NotifyPeerDown(&peer)
+	}
 	err := peer.conn.Close()
 	if err != nil {
 		slog.Warn("error closing connection", "peer name", peer.name, "error", err)
@@ -176,7 +193,7 @@ func (n *Node) processMessage(msg []byte, sender *ecdsa.PublicKey) {
 	case membership:
 		n.processMembershipMsg(content)
 	case generic:
-		for _, observer := range n.observers {
+		for _, observer := range n.msgObservers {
 			observer.BEBDeliver(content, sender)
 		}
 	default:

@@ -67,7 +67,7 @@ func CreateChannel(node *network.Node, n, f uint, sk ecdsa.PrivateKey) *Channel 
 		sk:        &sk,
 		commands:  commands,
 	}
-	node.AddObserver(channel)
+	node.AttachMessageObserver(channel)
 	go invoker(commands)
 	return channel
 }
