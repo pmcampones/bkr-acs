@@ -14,14 +14,7 @@ import (
 	"unsafe"
 )
 
-type bcastType byte
-
 type idHandling byte
-
-const (
-	bcbMsg bcastType = 'A' + iota
-	brbMsg
-)
 
 const (
 	genId idHandling = 'a' + iota
@@ -36,15 +29,8 @@ type broadcastInstanceObserver interface {
 	instanceDeliver(id UUID, msg []byte)
 }
 
-type broadcastInstance interface {
-	attachObserver(observer broadcastInstanceObserver)
-	handleMessage(reader *bytes.Reader, sender *ecdsa.PublicKey) error
-	send(nonce uint32, msg []byte) error
-	close()
-}
-
 type Channel struct {
-	instances map[UUID]broadcastInstance
+	instances map[UUID]*brbInstance
 	finished  map[UUID]bool
 	n         uint
 	f         uint
@@ -58,7 +44,7 @@ func CreateChannel(node *network.Node, n, f uint, sk ecdsa.PrivateKey) *Channel 
 	observers := make([]BCBObserver, 0)
 	commands := make(chan func() error)
 	channel := &Channel{
-		instances: make(map[UUID]broadcastInstance),
+		instances: make(map[UUID]*brbInstance),
 		finished:  make(map[UUID]bool),
 		n:         n,
 		f:         f,
@@ -77,24 +63,6 @@ func (channel *Channel) AttachObserver(observer BCBObserver) {
 	channel.observers = append(channel.observers, observer)
 }
 
-// BCBroadcast broadcasts a message to all nodes in the network satisfying the Byzantine Consistent Broadcast properties
-// This ensures all correct processes that deliver a message, deliver the same message
-// It does not ensure the message is delivered by all correct processes. Some may deliver and others don't
-// This function follows the Authenticated Echo Broadcast algorithm, where messages are not signed and the broadcast incurs two communication rounds.
-func (channel *Channel) BCBroadcast(msg []byte) error {
-	nonce := rand.Uint32()
-	id, err := channel.computeBroadcastId(nonce)
-	if err != nil {
-		return fmt.Errorf("channel unable to compute broadcast id: %v", err)
-	}
-	bcbInstance, err := newBcbInstance(id, channel.n, channel.f, channel.network)
-	if err != nil {
-		return fmt.Errorf("bcb channel unable to create bcb instance during bcbsend: %v", err)
-	}
-	channel.broadcast(msg, nonce, id, bcbInstance)
-	return nil
-}
-
 func (channel *Channel) BRBroadcast(msg []byte) error {
 	nonce := rand.Uint32()
 	id, err := channel.computeBroadcastId(nonce)
@@ -109,7 +77,7 @@ func (channel *Channel) BRBroadcast(msg []byte) error {
 	return nil
 }
 
-func (channel *Channel) broadcast(msg []byte, nonce uint32, id UUID, instance broadcastInstance) {
+func (channel *Channel) broadcast(msg []byte, nonce uint32, id UUID, instance *brbInstance) {
 	channel.commands <- func() error {
 		slog.Info("sending broadcast", "id", id, "msg", msg)
 		channel.instances[id] = instance
@@ -146,12 +114,8 @@ func (channel *Channel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
 		if err != nil {
 			return fmt.Errorf("unable to get instance id from message during bcb delivery: %v", err)
 		}
-		bType, err := reader.ReadByte()
-		if err != nil {
-			return fmt.Errorf("unable to read broadcast type from message during bcb delivery: %v", err)
-		}
 		slog.Debug("processing message", "id", id)
-		err = channel.processMsg(id, bcastType(bType), reader, sender)
+		err = channel.processMsg(id, reader, sender)
 		if err != nil {
 			return fmt.Errorf("unable to process message during bcb delivery: %v", err)
 		}
@@ -217,7 +181,7 @@ func computeInstanceId(nonce uint32, sender *ecdsa.PublicKey) (UUID, error) {
 	return id, nil
 }
 
-func (channel *Channel) processMsg(id UUID, bType bcastType, reader *bytes.Reader, sender *ecdsa.PublicKey) error {
+func (channel *Channel) processMsg(id UUID, reader *bytes.Reader, sender *ecdsa.PublicKey) error {
 	if channel.finished[id] {
 		slog.Debug("received message from finished instance", "id", id)
 		return nil
@@ -225,15 +189,7 @@ func (channel *Channel) processMsg(id UUID, bType bcastType, reader *bytes.Reade
 	instance, ok := channel.instances[id]
 	if !ok {
 		var err error // Declare err here to avoid shadowing the instance variable
-		// Need to read the first byte to determine whether the instance to be instantiated is BCB or BRB
-		switch bType {
-		case bcbMsg:
-			instance, err = newBcbInstance(id, channel.n, channel.f, channel.network)
-		case brbMsg:
-			instance, err = newBrbInstance(id, channel.n, channel.f, channel.network)
-		default:
-			return fmt.Errorf("received unknown broadcast type %v", bType)
-		}
+		instance, err = newBrbInstance(id, channel.n, channel.f, channel.network)
 		if err != nil {
 			return fmt.Errorf("unable to create new instance %s upon receiving a message: %v", id, err)
 		}
@@ -247,25 +203,6 @@ func (channel *Channel) processMsg(id UUID, bType bcastType, reader *bytes.Reade
 		}
 	}()
 	return nil
-}
-
-func (channel *Channel) newBroadcastInstance(id UUID, bType bcastType) (broadcastInstance, error) {
-	switch bType {
-	case bcbMsg:
-		instance, err := newBcbInstance(id, channel.n, channel.f, channel.network)
-		if err != nil {
-			return nil, fmt.Errorf("unable to create new BCB instance: %v", err)
-		}
-		return instance, nil
-	case brbMsg:
-		instance, err := newBrbInstance(id, channel.n, channel.f, channel.network)
-		if err != nil {
-			return nil, fmt.Errorf("unable to create new BRB instance: %v", err)
-		}
-		return instance, nil
-	default:
-		return nil, fmt.Errorf("received unknown broadcast message type")
-	}
 }
 
 func (channel *Channel) instanceDeliver(id UUID, msg []byte) {

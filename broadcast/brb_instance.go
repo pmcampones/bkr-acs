@@ -374,11 +374,7 @@ func sendMessage(msg []byte, msgType brb, b *brbData) error {
 }
 
 func buildMessageContent(writer *bufio.Writer, msg []byte, msgType brb) error {
-	_, err := writer.Write([]byte{byte(brbMsg)})
-	if err != nil {
-		return fmt.Errorf("unable to write bcbMsg to buffer: %v", err)
-	}
-	_, err = writer.Write([]byte{byte(msgType)})
+	_, err := writer.Write([]byte{byte(msgType)})
 	if err != nil {
 		return fmt.Errorf("unable to write bcbready to buffer: %v", err)
 	}
