@@ -1,54 +1,39 @@
 package secretSharing
 
 import (
-	"fmt"
+	"crypto/rand"
+	"github.com/cloudflare/circl/group"
+	"github.com/cloudflare/circl/secretsharing"
 	"github.com/samber/lo"
-	"go.dedis.ch/kyber/v4"
-	"go.dedis.ch/kyber/v4/group/edwards25519"
-	"go.dedis.ch/kyber/v4/share"
-	"go.dedis.ch/kyber/v4/xof/blake2xb"
 )
 
-var suite = edwards25519.NewBlakeSHA256Ed25519WithRand(blake2xb.New(nil))
-
 type PointShare struct {
-	idx   int
-	point kyber.Point
+	id    group.Scalar
+	point group.Element
 }
 
-// Should not need this if the pull request to Kyber is merged
-func ToScalar(val int64) kyber.Scalar {
-	return suite.Scalar().SetInt64(val)
+func ShareSecret(threshold uint, nodes uint, secret group.Scalar) []secretsharing.Share {
+	secretSharing := secretsharing.New(rand.Reader, threshold, secret)
+	return secretSharing.Share(nodes)
 }
 
-func ShareSecret(t, n int, secret kyber.Scalar) []*share.PriShare {
-	f := share.NewPriPoly(suite, t, secret, suite.RandomStream())
-	shares := make([]*share.PriShare, n)
-	for i := 0; i < n; i++ {
-		shares[i] = f.Eval(i + 1)
+func RecoverSecret(threshold uint, shares []secretsharing.Share) (group.Scalar, error) {
+	return secretsharing.Recover(threshold, shares)
+}
+
+func ShareToPoint(share secretsharing.Share, base group.Element) PointShare {
+	return PointShare{
+		id:    share.ID,
+		point: base.Mul(base, share.Value),
 	}
-	return shares
 }
 
-func RecoverSecret(shares []*share.PriShare, t, n int) (kyber.Scalar, error) {
-	secret, err := share.RecoverSecret(suite, shares, t, n)
-	if err != nil {
-		return nil, fmt.Errorf("unable to recover secret: %v", err)
-	}
-	return secret, nil
-}
-
-func ShareToPoint(shares *share.PriShare, base kyber.Point) PointShare {
-	return PointShare{shares.I, base.Mul(shares.V, base)}
-}
-
-func RecoverSecretFromPoints(hiddenShares []PointShare) kyber.Point {
-	indices := make([]int, len(hiddenShares))
-	for i, point := range hiddenShares {
-		indices[i] = point.idx
-	}
-	lagrangeCoefficients := lo.Map(indices, func(i, _ int) kyber.Scalar { return lagrangeCoefficient(i, indices) })
-	terms := lo.ZipBy2(hiddenShares, lagrangeCoefficients, func(share PointShare, coeff kyber.Scalar) kyber.Point { return share.point.Mul(coeff, share.point) })
+func RecoverSecretFromPoints(shares []PointShare) group.Element {
+	indices := lo.Map(shares, func(share PointShare, _ int) group.Scalar { return share.id })
+	coefficients := lo.Map(indices, func(i group.Scalar, _ int) group.Scalar { return lagrangeCoefficient(i, indices) })
+	terms := lo.ZipBy2(shares, coefficients, func(share PointShare, coeff group.Scalar) group.Element {
+		return share.point.Mul(share.point, coeff)
+	})
 	res := terms[0]
 	for i := 1; i < len(terms); i++ {
 		res = res.Add(res, terms[i])
@@ -56,11 +41,13 @@ func RecoverSecretFromPoints(hiddenShares []PointShare) kyber.Point {
 	return res
 }
 
-func lagrangeCoefficient(i int, indices []int) kyber.Scalar {
-	filteredIndices := lo.Filter(indices, func(j int, _ int) bool { return i != j })
-	numerators := lo.Reduce(filteredIndices, func(acc, j, _ int) int { return acc * -j }, 1)
-	denominators := lo.Reduce(filteredIndices, func(acc, j, _ int) int { return acc * (i - j) }, 1)
-	scalarNum := ToScalar(int64(numerators))
-	scalarDenom := ToScalar(int64(denominators))
-	return scalarNum.Div(scalarNum, scalarDenom)
+func lagrangeCoefficient(i group.Scalar, indices []group.Scalar) group.Scalar {
+	filteredIndices := lo.Filter(indices, func(j group.Scalar, _ int) bool { return !i.IsEqual(j) })
+	numerators := lo.Reduce(filteredIndices, func(acc group.Scalar, j group.Scalar, _ int) group.Scalar {
+		return acc.Mul(j.Neg(j), acc)
+	}, group.Ristretto255.NewScalar().SetUint64(uint64(1)))
+	denominators := lo.Reduce(filteredIndices, func(acc group.Scalar, j group.Scalar, _ int) group.Scalar {
+		return acc.Mul(acc, i.Sub(i, j))
+	}, group.Ristretto255.NewScalar().SetUint64(uint64(1)))
+	return numerators.Mul(numerators, denominators.Inv(denominators))
 }
