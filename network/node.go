@@ -79,6 +79,14 @@ func (n *Node) Broadcast(msg []byte) {
 	}
 }
 
+func (n *Node) Unicast(msg []byte, p *peer) {
+	toSend := append([]byte{byte(generic)}, msg...)
+	err := send(p.conn, toSend)
+	if err != nil {
+		slog.Warn("error sending to connection", "peer name", p.name, "error", err)
+	}
+}
+
 func (n *Node) connectToContact(id, contact string) error {
 	peer, err := newOutbound(id, contact, n.config)
 	if err != nil {

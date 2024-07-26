@@ -9,6 +9,7 @@ import (
 	"github.com/magiconair/properties/assert"
 	"sync"
 	"testing"
+	"time"
 )
 
 type testMsgObserver struct {
@@ -25,7 +26,7 @@ func (to *testMsgObserver) BEBDeliver(msg []byte, _ *ecdsa.PublicKey) {
 }
 
 type testMemObserver struct {
-	peers       map[string]bool
+	peers       map[string]*peer
 	upBarrier   chan struct{}
 	downBarrier chan struct{}
 	lock        sync.Mutex
@@ -34,14 +35,14 @@ type testMemObserver struct {
 func (to *testMemObserver) NotifyPeerUp(p *peer) {
 	to.lock.Lock()
 	defer to.lock.Unlock()
-	to.peers[p.name] = true
+	to.peers[p.name] = p
 	to.upBarrier <- struct{}{}
 }
 
 func (to *testMemObserver) NotifyPeerDown(p *peer) {
 	to.lock.Lock()
 	defer to.lock.Unlock()
-	to.peers[p.name] = false
+	to.peers[p.name] = p
 	to.downBarrier <- struct{}{}
 }
 
@@ -193,6 +194,37 @@ func TestShouldBroadcastManyNodesManyMessages(t *testing.T) {
 	}
 }
 
+func TestShouldUnicastSingleMessage(t *testing.T) {
+	contact := "localhost:6000"
+	peer1Name := "localhost:6001"
+	peer2Name := "localhost:6002"
+	node0, memObs, msgObs0, err := makeNode(contact, contact, 10, 10)
+	if err != nil {
+		t.Fatalf("unable to create node sender: %v", err)
+	}
+	_, _, msgObs1, err := makeNode(peer1Name, contact, 10, 10)
+	if err != nil {
+		t.Fatalf("unable to create node receiver: %v", err)
+	}
+	_, _, msgObs2, err := makeNode(peer2Name, contact, 10, 10)
+	if err != nil {
+		t.Fatalf("unable to create node receiver: %v", err)
+	}
+	msg := []byte("hello")
+	<-memObs.upBarrier
+	<-memObs.upBarrier
+	peer1 := memObs.peers[peer1Name]
+	if peer1 == nil {
+		t.Fatalf("unable to find peer1: %v", peer1Name)
+	}
+	node0.Unicast(msg, peer1)
+	time.Sleep(1 * time.Second)
+	assert.Equal(t, len(msgObs0.delivered), 0)
+	assert.Equal(t, len(msgObs1.delivered), 1)
+	assert.Equal(t, len(msgObs2.delivered), 0)
+	assert.Equal(t, msgObs1.delivered[string(msg)], true)
+}
+
 func makeNode(address, contact string, bufferMsg, bufferMem int) (*Node, *testMemObserver, *testMsgObserver, error) {
 	sk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -207,7 +239,7 @@ func makeNode(address, contact string, bufferMsg, bufferMem int) (*Node, *testMe
 		return nil, nil, nil, fmt.Errorf("unable to join the network: %v", err)
 	}
 	memObs := testMemObserver{
-		peers:     make(map[string]bool),
+		peers:     make(map[string]*peer),
 		upBarrier: make(chan struct{}, bufferMsg),
 	}
 	node.AttachMembershipObserver(&memObs)
