@@ -2,6 +2,8 @@ package secretSharing
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
+	"fmt"
 	"github.com/cloudflare/circl/group"
 	"github.com/cloudflare/circl/secretsharing"
 	"github.com/samber/lo"
@@ -50,4 +52,16 @@ func lagrangeCoefficient(i group.Scalar, indices []group.Scalar) group.Scalar {
 		return acc.Mul(acc, i.Sub(i, j))
 	}, group.Ristretto255.NewScalar().SetUint64(uint64(1)))
 	return numerators.Mul(numerators, denominators.Inv(denominators))
+}
+
+// HashPointToBool hashes a point to a boolean value
+// Not sure if this is secure and unbiased.
+func HashPointToBool(point group.Element) (bool, error) {
+	pointMarshal, err := point.MarshalBinary()
+	if err != nil {
+		return false, fmt.Errorf("unable to generate bytes from point: %v", err)
+	}
+	hashed := sha256.Sum256(pointMarshal)
+	sum := lo.Reduce(hashed[:], func(acc int, b byte, _ int) int { return acc + int(b) }, 0)
+	return sum%2 == 0, nil
 }
