@@ -76,6 +76,30 @@ func TestDLEquivalence(t *testing.T) {
 	fmt.Printf("Verification: %+v\n", rtn)
 }
 
+func TestDLEquivalenceManyShares(t *testing.T) {
+	nodes := uint(50)
+	threshold := uint(20)
+	g := group.Ristretto255
+	dst := "Zero"
+	params := dleq.Params{G: g, H: crypto.SHA256, DST: []byte(dst)}
+	prover := dleq.Prover{Params: params}
+	verifier := dleq.Verifier{Params: params}
+	secret := g.NewScalar().SetUint64(1234567890)
+	commitBase := g.HashToElement([]byte("commit"), []byte("point"))
+	randomBase := g.HashToElement([]byte("randomBase"), []byte("1"))
+	shares := ShareSecret(threshold, nodes, secret)
+	rnd := g.HashToScalar([]byte("randomVal"), []byte("1"))
+	for _, share := range shares {
+		fmt.Println("Share idx:", share.ID)
+		hiddenShare := g.NewElement().Mul(randomBase, share.Value)
+		commitment := g.NewElement().Mul(commitBase, share.Value)
+		proof, err := prover.ProveWithRandomness(share.Value, randomBase, hiddenShare, commitBase, commitment, rnd)
+		require.NoError(t, err)
+		res := verifier.Verify(randomBase, hiddenShare, commitBase, commitment, proof)
+		assert.Equal(t, res, true)
+	}
+}
+
 func TestHashPointToBool(t *testing.T) {
 	g := group.Ristretto255
 	point := g.HashToElement([]byte("base"), []byte("point"))

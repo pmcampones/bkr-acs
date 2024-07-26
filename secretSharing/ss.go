@@ -9,7 +9,16 @@ import (
 	"github.com/samber/lo"
 )
 
+// PointShare is a secret share hidden in a group operation.
+// This is used in the coin tossing scheme to hide the secret while making it usable as a randomness source.
 type PointShare struct {
+	id    group.Scalar
+	point group.Element
+}
+
+// PointCommit is a secret commitment hidden in a group operation.
+// This value is unique for each node and is used verify a PointShare with the same idx is correct using a DLEQ proof.
+type PointCommit struct {
 	id    group.Scalar
 	point group.Element
 }
