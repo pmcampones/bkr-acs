@@ -107,3 +107,13 @@ func TestHashPointToBool(t *testing.T) {
 	require.NoError(t, err)
 	fmt.Println(b)
 }
+
+func TestMarshalAndUnmarshal(t *testing.T) {
+	g := group.Ristretto255
+	ogShare := secretsharing.Share{ID: g.NewScalar().SetUint64(1), Value: g.NewScalar().SetUint64(2)}
+	shareBytes, err := marshalShare(ogShare)
+	require.NoError(t, err)
+	recovShare, err := unmarshalShare(shareBytes)
+	require.NoError(t, err)
+	assert.Equal(t, ogShare, recovShare)
+}

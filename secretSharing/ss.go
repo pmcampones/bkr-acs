@@ -1,6 +1,7 @@
 package secretSharing
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"github.com/cloudflare/circl/secretsharing"
 	"github.com/samber/lo"
 )
+
+const SCALAR_SIZE = 32
 
 // PointShare is a secret share hidden in a group operation.
 // This is used in the coin tossing scheme to hide the secret while making it usable as a randomness source.
@@ -73,4 +76,42 @@ func HashPointToBool(point group.Element) (bool, error) {
 	hashed := sha256.Sum256(pointMarshal)
 	sum := lo.Reduce(hashed[:], func(acc int, b byte, _ int) int { return acc + int(b) }, 0)
 	return sum%2 == 0, nil
+}
+
+func marshalShare(share secretsharing.Share) ([]byte, error) {
+	idBytes, err := share.ID.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal share ID: %v", err)
+	}
+	valueBytes, err := share.Value.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal share value: %v", err)
+	}
+	return append(idBytes, valueBytes...), nil
+}
+
+func unmarshalShare(shareBytes []byte) (secretsharing.Share, error) {
+	buffer := make([]byte, SCALAR_SIZE)
+	reader := bytes.NewReader(shareBytes)
+	num, err := reader.Read(buffer)
+	if err != nil {
+		return secretsharing.Share{}, fmt.Errorf("unable to read share ID bytes: %v", err)
+	} else if num != SCALAR_SIZE {
+		return secretsharing.Share{}, fmt.Errorf("unable to read share ID bytes: read %d bytes, expected %d", num, SCALAR_SIZE)
+	}
+	id := group.Ristretto255.NewScalar()
+	if err := id.UnmarshalBinary(buffer); err != nil {
+		return secretsharing.Share{}, fmt.Errorf("unable to unmarshal share ID: %v", err)
+	}
+	num, err = reader.Read(buffer)
+	if err != nil {
+		return secretsharing.Share{}, fmt.Errorf("unable to read share Value bytes: %v", err)
+	} else if num != SCALAR_SIZE {
+		return secretsharing.Share{}, fmt.Errorf("unable to read share Value bytes: read %d bytes, expected %d", num, SCALAR_SIZE)
+	}
+	value := group.Ristretto255.NewScalar()
+	if err := value.UnmarshalBinary(buffer); err != nil {
+		return secretsharing.Share{}, fmt.Errorf("unable to unmarshal share value: %v", err)
+	}
+	return secretsharing.Share{ID: id, Value: value}, nil
 }
