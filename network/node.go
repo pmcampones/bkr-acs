@@ -79,11 +79,11 @@ func (n *Node) Broadcast(msg []byte) {
 	}
 }
 
-func (n *Node) Unicast(msg []byte, p *peer) {
+func (n *Node) Unicast(msg []byte, c net.Conn) {
 	toSend := append([]byte{byte(generic)}, msg...)
-	err := send(p.conn, toSend)
+	err := send(c, toSend)
 	if err != nil {
-		slog.Warn("error sending to connection", "peer name", p.name, "error", err)
+		slog.Warn("error sending to connection", "conn", c.RemoteAddr(), "error", err)
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 	"github.com/samber/lo"
 )
 
-const SCALAR_SIZE = 32
+const scalarSize = 32
 
 // PointShare is a secret share hidden in a group operation.
 // This is used in the coin tossing scheme to hide the secret while making it usable as a randomness source.
@@ -91,13 +91,13 @@ func marshalShare(share secretsharing.Share) ([]byte, error) {
 }
 
 func unmarshalShare(shareBytes []byte) (secretsharing.Share, error) {
-	buffer := make([]byte, SCALAR_SIZE)
+	buffer := make([]byte, scalarSize)
 	reader := bytes.NewReader(shareBytes)
 	num, err := reader.Read(buffer)
 	if err != nil {
 		return secretsharing.Share{}, fmt.Errorf("unable to read share ID bytes: %v", err)
-	} else if num != SCALAR_SIZE {
-		return secretsharing.Share{}, fmt.Errorf("unable to read share ID bytes: read %d bytes, expected %d", num, SCALAR_SIZE)
+	} else if num != scalarSize {
+		return secretsharing.Share{}, fmt.Errorf("unable to read share ID bytes: read %d bytes, expected %d", num, scalarSize)
 	}
 	id := group.Ristretto255.NewScalar()
 	if err := id.UnmarshalBinary(buffer); err != nil {
@@ -106,8 +106,8 @@ func unmarshalShare(shareBytes []byte) (secretsharing.Share, error) {
 	num, err = reader.Read(buffer)
 	if err != nil {
 		return secretsharing.Share{}, fmt.Errorf("unable to read share Value bytes: %v", err)
-	} else if num != SCALAR_SIZE {
-		return secretsharing.Share{}, fmt.Errorf("unable to read share Value bytes: read %d bytes, expected %d", num, SCALAR_SIZE)
+	} else if num != scalarSize {
+		return secretsharing.Share{}, fmt.Errorf("unable to read share Value bytes: read %d bytes, expected %d", num, scalarSize)
 	}
 	value := group.Ristretto255.NewScalar()
 	if err := value.UnmarshalBinary(buffer); err != nil {

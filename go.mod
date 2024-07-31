@@ -1,4 +1,4 @@
-module broadcast_channels
+module pace
 
 go 1.22
 

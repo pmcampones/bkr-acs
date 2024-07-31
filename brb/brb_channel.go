@@ -1,8 +1,6 @@
-package broadcast
+package brb
 
 import (
-	"broadcast_channels/crypto"
-	"broadcast_channels/network"
 	"bytes"
 	"crypto/ecdsa"
 	"encoding/binary"
@@ -10,6 +8,8 @@ import (
 	. "github.com/google/uuid"
 	"log/slog"
 	"math/rand"
+	"pace/crypto"
+	"pace/network"
 	"reflect"
 	"unsafe"
 )
@@ -67,7 +67,7 @@ func (channel *Channel) BRBroadcast(msg []byte) error {
 	nonce := rand.Uint32()
 	id, err := channel.computeBroadcastId(nonce)
 	if err != nil {
-		return fmt.Errorf("channel unable to compute broadcast id: %v", err)
+		return fmt.Errorf("channel unable to compute brb id: %v", err)
 	}
 	brbInstance, err := newBrbInstance(id, channel.n, channel.f, channel.network)
 	if err != nil {
@@ -79,7 +79,7 @@ func (channel *Channel) BRBroadcast(msg []byte) error {
 
 func (channel *Channel) broadcast(msg []byte, nonce uint32, id UUID, instance *brbInstance) {
 	channel.commands <- func() error {
-		slog.Info("sending broadcast", "id", id, "msg", msg)
+		slog.Info("sending brb", "id", id, "msg", msg)
 		channel.instances[id] = instance
 		instance.attachObserver(channel)
 		go func() {
@@ -95,12 +95,12 @@ func (channel *Channel) broadcast(msg []byte, nonce uint32, id UUID, instance *b
 func (channel *Channel) computeBroadcastId(nonce uint32) (UUID, error) {
 	encodedPk, err := crypto.SerializePublicKey(&channel.sk.PublicKey)
 	if err != nil {
-		return UUID{}, fmt.Errorf("bcb channel unable to serialize public key during broadcast: %v", err)
+		return UUID{}, fmt.Errorf("bcb channel unable to serialize public key during brb: %v", err)
 	}
 	buf := bytes.NewBuffer(encodedPk)
 	err = binary.Write(buf, binary.LittleEndian, nonce)
 	if err != nil {
-		return UUID{}, fmt.Errorf("unable to write nonce to buffer during broadcast: %v", err)
+		return UUID{}, fmt.Errorf("unable to write nonce to buffer during brb: %v", err)
 	}
 	id := crypto.BytesToUUID(buf.Bytes())
 	return id, nil
@@ -170,7 +170,7 @@ func processIdGeneration(reader *bytes.Reader, sender *ecdsa.PublicKey) (UUID, e
 func computeInstanceId(nonce uint32, sender *ecdsa.PublicKey) (UUID, error) {
 	encodedPk, err := crypto.SerializePublicKey(sender)
 	if err != nil {
-		return Nil, fmt.Errorf("unable to serialize public key during broadcast: %v", err)
+		return Nil, fmt.Errorf("unable to serialize public key during brb: %v", err)
 	}
 	buf := bytes.NewBuffer(encodedPk)
 	err = binary.Write(buf, binary.LittleEndian, nonce)
@@ -206,7 +206,7 @@ func (channel *Channel) processMsg(id UUID, reader *bytes.Reader, sender *ecdsa.
 }
 
 func (channel *Channel) instanceDeliver(id UUID, msg []byte) {
-	slog.Debug("delivering message from broadcast instance", "id", id)
+	slog.Debug("delivering message from brb instance", "id", id)
 	channel.commands <- func() error {
 		for _, observer := range channel.observers {
 			observer.BCBDeliver(msg)

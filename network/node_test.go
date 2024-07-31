@@ -1,12 +1,12 @@
 package network
 
 import (
-	"broadcast_channels/crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
 	"github.com/magiconair/properties/assert"
+	"pace/crypto"
 	"sync"
 	"testing"
 	"time"
@@ -177,7 +177,7 @@ func TestShouldBroadcastManyNodesManyMessages(t *testing.T) {
 			node.Broadcast(msg)
 		}
 	}
-	fmt.Println("Messages broadcast")
+	fmt.Println("Messages networkChannel")
 	for _, msgOb := range msgObs {
 		for j := 0; j < numMsgs*numNodes; j++ {
 			<-msgOb.barrier
@@ -217,7 +217,7 @@ func TestShouldUnicastSingleMessage(t *testing.T) {
 	if peer1 == nil {
 		t.Fatalf("unable to find peer1: %v", peer1Name)
 	}
-	node0.Unicast(msg, peer1)
+	node0.Unicast(msg, peer1.conn)
 	time.Sleep(1 * time.Second)
 	assert.Equal(t, len(msgObs0.delivered), 0)
 	assert.Equal(t, len(msgObs1.delivered), 1)

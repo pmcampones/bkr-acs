@@ -1,8 +1,6 @@
-package broadcast
+package brb
 
 import (
-	"broadcast_channels/crypto"
-	"broadcast_channels/network"
 	"bufio"
 	"bytes"
 	"crypto/ecdsa"
@@ -10,6 +8,8 @@ import (
 	"fmt"
 	. "github.com/google/uuid"
 	"log/slog"
+	"pace/crypto"
+	"pace/network"
 )
 
 // brbState defines the functionalities required for handling the brb messages depending on the current phase of the algorithm.
@@ -363,7 +363,7 @@ func sendMessage(msg []byte, msgType brb, b *brbData) error {
 	}
 	_, err = writer.Write(b.idBytes)
 	if err != nil {
-		return fmt.Errorf("unable to write broadcast id to buffer: %v", err)
+		return fmt.Errorf("unable to write brb id to buffer: %v", err)
 	}
 	err = buildMessageContent(writer, msg, msgType)
 	if err != nil {

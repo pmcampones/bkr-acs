@@ -1,9 +1,6 @@
 package main
 
 import (
-	"broadcast_channels/broadcast"
-	"broadcast_channels/crypto"
-	"broadcast_channels/network"
 	"bufio"
 	"crypto/ecdsa"
 	"crypto/tls"
@@ -13,6 +10,9 @@ import (
 	"github.com/magiconair/properties"
 	"log/slog"
 	"os"
+	"pace/brb"
+	"pace/crypto"
+	"pace/network"
 	"time"
 )
 
@@ -77,14 +77,14 @@ func testBRB(node *network.Node, skPathname string) {
 		return
 	}
 	observer := ConcreteObserver{}
-	channel := broadcast.CreateChannel(node, 4, 1, *sk)
+	channel := brb.CreateChannel(node, 4, 1, *sk)
 	channel.AttachObserver(observer)
 	input := bufio.NewScanner(os.Stdin)
 	for input.Scan() {
 		msg := []byte(input.Text())
 		err := channel.BRBroadcast(msg)
 		if err != nil {
-			slog.Error("unable to broadcast message", "msg", msg, "error", err)
+			slog.Error("unable to networkChannel message", "msg", msg, "error", err)
 		}
 	}
 }
