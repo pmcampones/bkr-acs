@@ -21,55 +21,57 @@ const (
 	withId
 )
 
-type BCBObserver interface {
-	BCBDeliver(msg []byte)
+type BRBObserver interface {
+	BRBDeliver(msg []byte)
 }
 
 type broadcastInstanceObserver interface {
 	instanceDeliver(id UUID, msg []byte)
 }
 
-type Channel struct {
-	instances map[UUID]*brbInstance
-	finished  map[UUID]bool
-	n         uint
-	f         uint
-	observers []BCBObserver
-	network   *network.Node
-	sk        *ecdsa.PrivateKey
-	commands  chan<- func() error
+type BRBChannel struct {
+	instances  map[UUID]*brbInstance
+	finished   map[UUID]bool
+	n          uint
+	f          uint
+	observers  []BRBObserver
+	network    *network.Node
+	sk         *ecdsa.PrivateKey
+	commands   chan<- func() error
+	listenCode byte
 }
 
-func CreateChannel(node *network.Node, n, f uint, sk ecdsa.PrivateKey) *Channel {
-	observers := make([]BCBObserver, 0)
+func CreateBRBChannel(node *network.Node, n, f uint, sk ecdsa.PrivateKey, listenCode byte) *BRBChannel {
+	observers := make([]BRBObserver, 0)
 	commands := make(chan func() error)
-	channel := &Channel{
-		instances: make(map[UUID]*brbInstance),
-		finished:  make(map[UUID]bool),
-		n:         n,
-		f:         f,
-		network:   node,
-		observers: observers,
-		sk:        &sk,
-		commands:  commands,
+	channel := &BRBChannel{
+		instances:  make(map[UUID]*brbInstance),
+		finished:   make(map[UUID]bool),
+		n:          n,
+		f:          f,
+		network:    node,
+		observers:  observers,
+		sk:         &sk,
+		commands:   commands,
+		listenCode: listenCode,
 	}
 	node.AttachMessageObserver(channel)
 	go invoker(commands)
 	return channel
 }
 
-func (channel *Channel) AttachObserver(observer BCBObserver) {
+func (channel *BRBChannel) AttachObserver(observer BRBObserver) {
 	slog.Info("attaching observer to bcb channel", "observer", observer)
 	channel.observers = append(channel.observers, observer)
 }
 
-func (channel *Channel) BRBroadcast(msg []byte) error {
+func (channel *BRBChannel) BRBroadcast(msg []byte) error {
 	nonce := rand.Uint32()
 	id, err := channel.computeBroadcastId(nonce)
 	if err != nil {
 		return fmt.Errorf("channel unable to compute brb id: %v", err)
 	}
-	brbInstance, err := newBrbInstance(id, channel.n, channel.f, channel.network)
+	brbInstance, err := newBrbInstance(id, channel.n, channel.f, channel.network, channel.listenCode)
 	if err != nil {
 		return fmt.Errorf("channel unable to create bcb instance during bcbsend: %v", err)
 	}
@@ -77,7 +79,7 @@ func (channel *Channel) BRBroadcast(msg []byte) error {
 	return nil
 }
 
-func (channel *Channel) broadcast(msg []byte, nonce uint32, id UUID, instance *brbInstance) {
+func (channel *BRBChannel) broadcast(msg []byte, nonce uint32, id UUID, instance *brbInstance) {
 	channel.commands <- func() error {
 		slog.Info("sending brb", "id", id, "msg", msg)
 		channel.instances[id] = instance
@@ -92,7 +94,7 @@ func (channel *Channel) broadcast(msg []byte, nonce uint32, id UUID, instance *b
 	}
 }
 
-func (channel *Channel) computeBroadcastId(nonce uint32) (UUID, error) {
+func (channel *BRBChannel) computeBroadcastId(nonce uint32) (UUID, error) {
 	encodedPk, err := crypto.SerializePublicKey(&channel.sk.PublicKey)
 	if err != nil {
 		return UUID{}, fmt.Errorf("bcb channel unable to serialize public key during brb: %v", err)
@@ -106,20 +108,26 @@ func (channel *Channel) computeBroadcastId(nonce uint32) (UUID, error) {
 	return id, nil
 }
 
-func (channel *Channel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
-	slog.Debug("received message from network", "sender", sender)
-	channel.commands <- func() error {
+func (channel *BRBChannel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
+	if msg[0] == channel.listenCode {
+		slog.Debug("received message from network", "sender", sender)
+		msg = msg[1:]
 		reader := bytes.NewReader(msg)
 		id, err := getInstanceId(reader, sender)
 		if err != nil {
-			return fmt.Errorf("unable to get instance id from message during bcb delivery: %v", err)
+			slog.Error("unable to get instance id from message during bcb delivery", "error", err)
+		} else {
+			channel.commands <- func() error {
+				slog.Debug("processing message", "id", id)
+				err = channel.processMsg(id, reader, sender)
+				if err != nil {
+					return fmt.Errorf("unable to process message during bcb delivery: %v", err)
+				}
+				return nil
+			}
 		}
-		slog.Debug("processing message", "id", id)
-		err = channel.processMsg(id, reader, sender)
-		if err != nil {
-			return fmt.Errorf("unable to process message during bcb delivery: %v", err)
-		}
-		return nil
+	} else {
+		slog.Debug("received message was not for me", "sender", sender, "code", msg[0])
 	}
 }
 
@@ -181,7 +189,7 @@ func computeInstanceId(nonce uint32, sender *ecdsa.PublicKey) (UUID, error) {
 	return id, nil
 }
 
-func (channel *Channel) processMsg(id UUID, reader *bytes.Reader, sender *ecdsa.PublicKey) error {
+func (channel *BRBChannel) processMsg(id UUID, reader *bytes.Reader, sender *ecdsa.PublicKey) error {
 	if channel.finished[id] {
 		slog.Debug("received message from finished instance", "id", id)
 		return nil
@@ -189,7 +197,7 @@ func (channel *Channel) processMsg(id UUID, reader *bytes.Reader, sender *ecdsa.
 	instance, ok := channel.instances[id]
 	if !ok {
 		var err error // Declare err here to avoid shadowing the instance variable
-		instance, err = newBrbInstance(id, channel.n, channel.f, channel.network)
+		instance, err = newBrbInstance(id, channel.n, channel.f, channel.network, channel.listenCode)
 		if err != nil {
 			return fmt.Errorf("unable to create new instance %s upon receiving a message: %v", id, err)
 		}
@@ -205,11 +213,11 @@ func (channel *Channel) processMsg(id UUID, reader *bytes.Reader, sender *ecdsa.
 	return nil
 }
 
-func (channel *Channel) instanceDeliver(id UUID, msg []byte) {
+func (channel *BRBChannel) instanceDeliver(id UUID, msg []byte) {
 	slog.Debug("delivering message from brb instance", "id", id)
 	channel.commands <- func() error {
 		for _, observer := range channel.observers {
-			observer.BCBDeliver(msg)
+			observer.BRBDeliver(msg)
 		}
 		instance, ok := channel.instances[id]
 		if !ok {

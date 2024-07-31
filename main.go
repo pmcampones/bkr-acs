@@ -19,7 +19,7 @@ import (
 type ConcreteObserver struct {
 }
 
-func (co ConcreteObserver) BCBDeliver(msg []byte) {
+func (co ConcreteObserver) BRBDeliver(msg []byte) {
 	println("BCB Deliver:", string(msg))
 }
 
@@ -77,7 +77,7 @@ func testBRB(node *network.Node, skPathname string) {
 		return
 	}
 	observer := ConcreteObserver{}
-	channel := brb.CreateChannel(node, 4, 1, *sk)
+	channel := brb.CreateBRBChannel(node, 4, 1, *sk, 'A')
 	channel.AttachObserver(observer)
 	input := bufio.NewScanner(os.Stdin)
 	for input.Scan() {

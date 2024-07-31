@@ -38,14 +38,15 @@ type brbInstance struct {
 }
 
 type brbData struct {
-	id        UUID
-	idBytes   []byte
-	n         uint
-	f         uint
-	echoes    map[UUID]uint
-	readies   map[UUID]uint
-	network   *network.Node
-	observers []broadcastInstanceObserver
+	id         UUID
+	idBytes    []byte
+	n          uint
+	f          uint
+	echoes     map[UUID]uint
+	readies    map[UUID]uint
+	network    *network.Node
+	observers  []broadcastInstanceObserver
+	listenCode byte
 }
 
 type msgStruct struct {
@@ -54,20 +55,21 @@ type msgStruct struct {
 	kind    brb
 }
 
-func newBrbInstance(id UUID, n, f uint, network *network.Node) (*brbInstance, error) {
+func newBrbInstance(id UUID, n, f uint, network *network.Node, listenCode byte) (*brbInstance, error) {
 	idBytes, err := id.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("unable to create brb instance due to error in unmarshaling idBytes")
 	}
 	data := brbData{
-		id:        id,
-		idBytes:   idBytes,
-		n:         n,
-		f:         f,
-		echoes:    make(map[UUID]uint),
-		readies:   make(map[UUID]uint),
-		network:   network,
-		observers: make([]broadcastInstanceObserver, 0, 1),
+		id:         id,
+		idBytes:    idBytes,
+		n:          n,
+		f:          f,
+		echoes:     make(map[UUID]uint),
+		readies:    make(map[UUID]uint),
+		network:    network,
+		observers:  make([]broadcastInstanceObserver, 0, 1),
+		listenCode: listenCode,
 	}
 	ph3 := brbPhase3Handler{
 		&data,
@@ -104,7 +106,11 @@ func (b *brbInstance) send(nonce uint32, msg []byte) error {
 	slog.Debug("broadcasting message", "msg", msg)
 	buf := bytes.NewBuffer([]byte{})
 	writer := bufio.NewWriter(buf)
-	_, err := writer.Write([]byte{byte(genId)})
+	_, err := writer.Write([]byte{b.data.listenCode})
+	if err != nil {
+		return fmt.Errorf("unable to write the listen code for the brb channel: %v", err)
+	}
+	_, err = writer.Write([]byte{byte(genId)})
 	if err != nil {
 		return fmt.Errorf("unable to write genId to buffer during b brbsend: %v", err)
 	}
@@ -357,7 +363,11 @@ func (b *brbPhase2Handler) sendReady(msg []byte) error {
 func sendMessage(msg []byte, msgType brb, b *brbData) error {
 	buf := bytes.NewBuffer([]byte{})
 	writer := bufio.NewWriter(buf)
-	_, err := writer.Write([]byte{byte(withId)})
+	_, err := writer.Write([]byte{b.listenCode})
+	if err != nil {
+		return fmt.Errorf("unable to write the listen code for the brb channel: %v", err)
+	}
+	_, err = writer.Write([]byte{byte(withId)})
 	if err != nil {
 		return fmt.Errorf("unable to write withId to buffer: %v", err)
 	}
