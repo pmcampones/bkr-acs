@@ -122,7 +122,10 @@ func (b *brbInstance) send(nonce uint32, msg []byte) error {
 	if err != nil {
 		return fmt.Errorf("unable to build message content: %v", err)
 	}
-	b.data.network.Broadcast(buf.Bytes())
+	err = b.data.network.Broadcast(buf.Bytes())
+	if err != nil {
+		return fmt.Errorf("unable to broadcast message: %v", err)
+	}
 	return nil
 }
 
@@ -379,7 +382,10 @@ func sendMessage(msg []byte, msgType brb, b *brbData) error {
 	if err != nil {
 		return fmt.Errorf("unable to write message content: %v", err)
 	}
-	b.network.Broadcast(buf.Bytes())
+	err = b.network.Broadcast(buf.Bytes())
+	if err != nil {
+		return fmt.Errorf("unable to broadcast message: %v", err)
+	}
 	return nil
 }
 

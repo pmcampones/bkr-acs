@@ -20,6 +20,8 @@ type MembershipObserver interface {
 
 type Node struct {
 	id           string
+	isContact    bool
+	hasJoined    bool
 	peersLock    sync.RWMutex
 	peers        map[string]*Peer
 	msgObservers []NodeMessageObserver
@@ -28,13 +30,13 @@ type Node struct {
 	sk           *ecdsa.PrivateKey
 }
 
-// Join Creates a new node and adds it to the network
-// Receives the address of the current node and the contact of the network
-// Returns the node created
-func Join(id, contact string, sk *ecdsa.PrivateKey, cert *tls.Certificate) (*Node, error) {
+func NewNode(id, contact string, sk *ecdsa.PrivateKey, cert *tls.Certificate) *Node {
 	config := computeConfig(cert)
+	isContact := id == contact
 	node := Node{
 		id:           id,
+		isContact:    isContact,
+		hasJoined:    false,
 		peersLock:    sync.RWMutex{},
 		peers:        make(map[string]*Peer),
 		msgObservers: make([]NodeMessageObserver, 0),
@@ -42,20 +44,28 @@ func Join(id, contact string, sk *ecdsa.PrivateKey, cert *tls.Certificate) (*Nod
 		config:       config,
 		sk:           sk,
 	}
-	slog.Info("I am joining the network", "id", id, "contact", contact, "pk", sk.PublicKey)
-	isContact := node.amIContact(contact)
-	if !isContact {
+	listener := node.setupTLSListener(id)
+	go node.listenConnections(listener, isContact)
+	return &node
+}
+
+// Join adds a new node to the network
+func (n *Node) Join(contact string) error {
+	if n.hasJoined {
+		return fmt.Errorf("node has already joined the network")
+	}
+	slog.Info("I am joining the network", "contact", contact)
+	if !n.isContact {
 		slog.Debug("I am not the contact")
-		err := node.connectToContact(id, contact)
+		err := n.connectToContact(contact)
 		if err != nil {
-			return nil, fmt.Errorf("unable to connect to contact: %v", err)
+			return fmt.Errorf("unable to connect to contact: %v", err)
 		}
 	} else {
 		slog.Debug("I am the contact")
 	}
-	listener := node.setupTLSListener(id)
-	go node.listenConnections(listener, isContact)
-	return &node, nil
+	n.hasJoined = true
+	return nil
 }
 
 func (n *Node) AttachMessageObserver(observer NodeMessageObserver) {
@@ -66,7 +76,10 @@ func (n *Node) AttachMembershipObserver(observer MembershipObserver) {
 	n.memObservers = append(n.memObservers, observer)
 }
 
-func (n *Node) Broadcast(msg []byte) {
+func (n *Node) Broadcast(msg []byte) error {
+	if !n.hasJoined {
+		return fmt.Errorf("node has not joined the network")
+	}
 	toSend := append([]byte{byte(generic)}, msg...)
 	go n.processMessage(toSend, &n.sk.PublicKey)
 	n.peersLock.RLock()
@@ -77,18 +90,23 @@ func (n *Node) Broadcast(msg []byte) {
 			slog.Warn("error sending to connection", "Peer name", peer.name, "error", err)
 		}
 	}
+	return nil
 }
 
-func (n *Node) Unicast(msg []byte, c net.Conn) {
+func (n *Node) Unicast(msg []byte, c net.Conn) error {
+	if !n.hasJoined {
+		return fmt.Errorf("node has not joined the network")
+	}
 	toSend := append([]byte{byte(generic)}, msg...)
 	err := send(c, toSend)
 	if err != nil {
 		slog.Warn("error sending to connection", "Conn", c.RemoteAddr(), "error", err)
 	}
+	return nil
 }
 
-func (n *Node) connectToContact(id, contact string) error {
-	peer, err := newOutbound(id, contact, n.config)
+func (n *Node) connectToContact(contact string) error {
+	peer, err := newOutbound(n.id, contact, n.config)
 	if err != nil {
 		return fmt.Errorf("unable to connect to contact: %v", err)
 	}
@@ -125,10 +143,6 @@ func computeConfig(cert *tls.Certificate) *tls.Config {
 		ClientAuth:         tls.RequestClientCert,
 	}
 	return config
-}
-
-func (n *Node) amIContact(contact string) bool {
-	return n.id == contact
 }
 
 func (n *Node) maintainConnection(peer Peer, amContact bool) {

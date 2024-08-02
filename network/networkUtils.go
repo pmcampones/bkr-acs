@@ -52,10 +52,7 @@ func MakeNode(address, contact string, bufferMsg, bufferMem int) (*Node, *TestMe
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("unable to create cert: %v", err)
 	}
-	node, err := Join(address, contact, sk, cert)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("unable to join the network: %v", err)
-	}
+	node := NewNode(address, contact, sk, cert)
 	memObs := TestMemObserver{
 		Peers:     make(map[string]*Peer),
 		UpBarrier: make(chan struct{}, bufferMsg),
@@ -66,5 +63,9 @@ func MakeNode(address, contact string, bufferMsg, bufferMem int) (*Node, *TestMe
 		barrier:   make(chan struct{}, bufferMem),
 	}
 	node.AttachMessageObserver(&msgObs)
+	err = node.Join(contact)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("unable to join the network: %v", err)
+	}
 	return node, &memObs, &msgObs, nil
 }

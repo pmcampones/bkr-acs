@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"crypto/ecdsa"
 	"crypto/tls"
 	"flag"
 	"fmt"
@@ -16,15 +15,28 @@ import (
 	"time"
 )
 
+type MembershipBarrier struct {
+	nodesWaiting int
+	barrier      chan struct{}
+}
+
+func (mb *MembershipBarrier) NotifyPeerUp(p *network.Peer) {
+	mb.nodesWaiting--
+	slog.Debug("Node went up", "peer", p)
+	if mb.nodesWaiting == 0 {
+		mb.barrier <- struct{}{}
+	}
+}
+
+func (mb *MembershipBarrier) NotifyPeerDown(p *network.Peer) {
+	slog.Warn("Node went down", "peer", p)
+}
+
 type ConcreteObserver struct {
 }
 
 func (co ConcreteObserver) BRBDeliver(msg []byte) {
-	println("BCB Deliver:", string(msg))
-}
-
-func (co ConcreteObserver) BEBDeliver(msg []byte, _ *ecdsa.PublicKey) {
-	println("BEB Deliver:", string(msg))
+	println("BRB Deliver:", string(msg))
 }
 
 func main() {
@@ -33,15 +45,29 @@ func main() {
 	skPathname := flag.String("sk", "sk.pem", "pathname of the private key")
 	certPathname := flag.String("cert", "cert.pem", "pathname of the certificate")
 	flag.Parse()
-	props := properties.MustLoadFile(*propsPathname, properties.UTF8)
-	contact := props.GetString("contact", "localhost:6000")
 	setupLogger()
+	props := properties.MustLoadFile(*propsPathname, properties.UTF8)
+	contact := props.MustGetString("contact")
 	node, err := makeNode(*address, contact, *skPathname, *certPathname)
 	if err != nil {
-		slog.Error("Error joining network", "error", err)
-		return
+		panic(fmt.Errorf("error creating node: %v", err))
+	}
+	numNodes := props.MustGetInt("num_nodes")
+	err = joinNetwork(node, contact, numNodes)
+	if err != nil {
+		panic(err)
 	}
 	testBRB(node, *skPathname)
+}
+
+func setupLogger() {
+	slog.SetDefault(slog.New(
+		tint.NewHandler(os.Stdout, &tint.Options{
+			Level:      slog.LevelInfo,
+			TimeFormat: time.Kitchen,
+		}),
+	))
+	slog.Info("Set up logger")
 }
 
 func makeNode(address, contact, skPathname, certPathname string) (*network.Node, error) {
@@ -53,21 +79,24 @@ func makeNode(address, contact, skPathname, certPathname string) (*network.Node,
 	if err != nil {
 		return nil, fmt.Errorf("unable to read the certificate: %v", err)
 	}
-	node, err := network.Join(address, contact, sk, &cert)
-	if err != nil {
-		return nil, fmt.Errorf("unable to join the network: %v", err)
-	}
+	node := network.NewNode(address, contact, sk, &cert)
 	return node, nil
 }
 
-func setupLogger() {
-	slog.SetDefault(slog.New(
-		tint.NewHandler(os.Stdout, &tint.Options{
-			Level:      slog.LevelWarn,
-			TimeFormat: time.Kitchen,
-		}),
-	))
-	slog.Info("Set up logger")
+func joinNetwork(node *network.Node, contact string, numNodes int) error {
+	memBarrier := MembershipBarrier{
+		nodesWaiting: numNodes - 1,
+		barrier:      make(chan struct{}),
+	}
+	node.AttachMembershipObserver(&memBarrier)
+	err := node.Join(contact)
+	if err != nil {
+		return fmt.Errorf("error joining network: %v", err)
+	}
+	slog.Info("Waiting for all nodes to join")
+	<-memBarrier.barrier
+	slog.Info("All nodes have joined")
+	return nil
 }
 
 func testBRB(node *network.Node, skPathname string) {
