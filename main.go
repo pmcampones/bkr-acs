@@ -17,6 +17,9 @@ import (
 	"time"
 )
 
+const dealCode = 'D'
+const brbCode = 'R'
+
 type MembershipBarrier struct {
 	nodesWaiting int
 	connections  []net.Conn
@@ -56,13 +59,18 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("error creating node: %v", err))
 	}
+	dealObs := secretSharing.DealObserver{
+		Code:     dealCode,
+		DealChan: make(chan *secretSharing.Deal),
+	}
+	node.AttachMessageObserver(&dealObs)
 	numNodes := props.MustGetInt("num_nodes")
 	connections, err := joinNetwork(node, contact, numNodes)
 	if err != nil {
 		panic(err)
 	}
 	threshold := props.MustGetInt("threshold")
-	_, err = getDeal(node, connections, threshold, *address == contact)
+	_, err = getDeal(node, connections, threshold, *address == contact, &dealObs)
 	if err != nil {
 		panic(err)
 	}
@@ -72,7 +80,7 @@ func main() {
 func setupLogger() {
 	slog.SetDefault(slog.New(
 		tint.NewHandler(os.Stdout, &tint.Options{
-			Level:      slog.LevelInfo,
+			Level:      slog.LevelWarn,
 			TimeFormat: time.Kitchen,
 		}),
 	))
@@ -108,16 +116,10 @@ func joinNetwork(node *network.Node, contact string, numNodes int) ([]net.Conn, 
 	return memBarrier.connections, nil
 }
 
-func getDeal(node *network.Node, connections []net.Conn, threshold int, isContact bool) (*secretSharing.Deal, error) {
-	dealCode := 'D'
-	obs := secretSharing.DealObserver{
-		Code:     byte(dealCode),
-		DealChan: make(chan *secretSharing.Deal),
-	}
-	node.AttachMessageObserver(&obs)
+func getDeal(node *network.Node, connections []net.Conn, threshold int, isContact bool, obs *secretSharing.DealObserver) (*secretSharing.Deal, error) {
 	if isContact {
 		slog.Info("Distributing Deals")
-		err := secretSharing.ShareDeals(uint(threshold), node, connections, byte(dealCode), &obs)
+		err := secretSharing.ShareDeals(uint(threshold), node, connections, byte(dealCode), obs)
 		if err != nil {
 			return nil, fmt.Errorf("error sharing deals: %v", err)
 		}
@@ -134,7 +136,7 @@ func testBRB(node *network.Node, skPathname string) {
 		return
 	}
 	observer := ConcreteObserver{}
-	channel := brb.CreateBRBChannel(node, 4, 1, *sk, 'A')
+	channel := brb.CreateBRBChannel(node, 4, 1, *sk, brbCode)
 	channel.AttachObserver(observer)
 	input := bufio.NewScanner(os.Stdin)
 	for input.Scan() {
