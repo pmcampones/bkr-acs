@@ -1,13 +1,13 @@
 package network
 
 import (
-	"broadcast_channels/crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/tls"
 	"fmt"
 	"github.com/magiconair/properties/assert"
+	"pace/crypto"
 	"testing"
 	"time"
 )
@@ -31,7 +31,7 @@ func TestShouldEstablishCorrectConnection(t *testing.T) {
 		}
 		inboundPeer, err := getInbound(listener)
 		if err != nil {
-			t.Errorf("unable to get inbound peer: %v", err)
+			t.Errorf("unable to get inbound Peer: %v", err)
 			return
 		}
 		assert.Equal(t, inboundPeer.name, client)
@@ -40,7 +40,7 @@ func TestShouldEstablishCorrectConnection(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	outboundPeer, err := newOutbound(client, server, clientConfig)
 	if err != nil {
-		t.Fatalf("unable to create outbound peer: %v", err)
+		t.Fatalf("unable to create outbound Peer: %v", err)
 	}
 	assert.Equal(t, outboundPeer.name, server)
 	assert.Equal(t, *outboundPeer.pk, serverSk.PublicKey)

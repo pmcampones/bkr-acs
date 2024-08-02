@@ -7,51 +7,51 @@ import (
 	"net"
 )
 
-type peer struct {
-	conn net.Conn
+type Peer struct {
+	Conn net.Conn
 	name string
 	pk   *ecdsa.PublicKey
 }
 
-func newOutbound(myName, address string, config *tls.Config) (peer, error) {
+func newOutbound(myName, address string, config *tls.Config) (Peer, error) {
 	conn, err := tls.Dial("tcp", address, config)
 	if err != nil {
-		return peer{}, fmt.Errorf("unable to dial while establishing peer connection: %v", err)
+		return Peer{}, fmt.Errorf("unable to dial while establishing Peer connection: %v", err)
 	}
 	err = send(conn, []byte(myName))
 	if err != nil {
-		return peer{}, fmt.Errorf("unable to send name of peer: %v", err)
+		return Peer{}, fmt.Errorf("unable to send name of Peer: %v", err)
 	}
 	certs := conn.ConnectionState().PeerCertificates
 	if len(certs) == 0 {
-		return peer{}, fmt.Errorf("no certificates found in connection")
+		return Peer{}, fmt.Errorf("no certificates found in connection")
 	}
 	pk := certs[0].PublicKey.(*ecdsa.PublicKey)
-	peer := peer{
-		conn: conn,
+	peer := Peer{
+		Conn: conn,
 		name: address,
 		pk:   pk,
 	}
 	return peer, nil
 }
 
-func getInbound(listener net.Listener) (peer, error) {
+func getInbound(listener net.Listener) (Peer, error) {
 	conn, err := listener.Accept()
 	if err != nil {
-		return peer{}, fmt.Errorf("unable to accept inbount connection with peer: %s", err)
+		return Peer{}, fmt.Errorf("unable to accept inbount connection with Peer: %s", err)
 	}
 	nameBytes, err := receive(conn)
 	if err != nil {
-		return peer{}, fmt.Errorf("unable to receive initialization information of peer: %s", err)
+		return Peer{}, fmt.Errorf("unable to receive initialization information of Peer: %s", err)
 	}
 	name := string(nameBytes)
 	certs := conn.(*tls.Conn).ConnectionState().PeerCertificates
 	if len(certs) == 0 {
-		return peer{}, fmt.Errorf("no certificates found in connection")
+		return Peer{}, fmt.Errorf("no certificates found in connection")
 	}
 	pk := certs[0].PublicKey.(*ecdsa.PublicKey)
-	peer := peer{
-		conn: conn,
+	peer := Peer{
+		Conn: conn,
 		name: name,
 		pk:   pk,
 	}

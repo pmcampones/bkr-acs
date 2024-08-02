@@ -11,6 +11,8 @@ import (
 )
 
 const scalarSize = 32
+const shareSize = scalarSize * 2
+const pointSize = scalarSize
 
 // PointShare is a secret share hidden in a group operation.
 // This is used in the coin tossing scheme to hide the secret while making it usable as a randomness source.
