@@ -8,21 +8,25 @@ import (
 	"github.com/lmittmann/tint"
 	"github.com/magiconair/properties"
 	"log/slog"
+	"net"
 	"os"
 	"pace/brb"
 	"pace/crypto"
 	"pace/network"
+	"pace/secretSharing"
 	"time"
 )
 
 type MembershipBarrier struct {
 	nodesWaiting int
+	connections  []net.Conn
 	barrier      chan struct{}
 }
 
 func (mb *MembershipBarrier) NotifyPeerUp(p *network.Peer) {
 	mb.nodesWaiting--
 	slog.Debug("Node went up", "peer", p)
+	mb.connections = append(mb.connections, p.Conn)
 	if mb.nodesWaiting == 0 {
 		mb.barrier <- struct{}{}
 	}
@@ -53,7 +57,12 @@ func main() {
 		panic(fmt.Errorf("error creating node: %v", err))
 	}
 	numNodes := props.MustGetInt("num_nodes")
-	err = joinNetwork(node, contact, numNodes)
+	connections, err := joinNetwork(node, contact, numNodes)
+	if err != nil {
+		panic(err)
+	}
+	threshold := props.MustGetInt("threshold")
+	_, err = getDeal(node, connections, threshold, *address == contact)
 	if err != nil {
 		panic(err)
 	}
@@ -83,7 +92,7 @@ func makeNode(address, contact, skPathname, certPathname string) (*network.Node,
 	return node, nil
 }
 
-func joinNetwork(node *network.Node, contact string, numNodes int) error {
+func joinNetwork(node *network.Node, contact string, numNodes int) ([]net.Conn, error) {
 	memBarrier := MembershipBarrier{
 		nodesWaiting: numNodes - 1,
 		barrier:      make(chan struct{}),
@@ -91,12 +100,31 @@ func joinNetwork(node *network.Node, contact string, numNodes int) error {
 	node.AttachMembershipObserver(&memBarrier)
 	err := node.Join(contact)
 	if err != nil {
-		return fmt.Errorf("error joining network: %v", err)
+		return nil, fmt.Errorf("error joining network: %v", err)
 	}
 	slog.Info("Waiting for all nodes to join")
 	<-memBarrier.barrier
 	slog.Info("All nodes have joined")
-	return nil
+	return memBarrier.connections, nil
+}
+
+func getDeal(node *network.Node, connections []net.Conn, threshold int, isContact bool) (*secretSharing.Deal, error) {
+	dealCode := 'D'
+	obs := secretSharing.DealObserver{
+		Code:     byte(dealCode),
+		DealChan: make(chan *secretSharing.Deal),
+	}
+	node.AttachMessageObserver(&obs)
+	if isContact {
+		slog.Info("Distributing Deals")
+		err := secretSharing.ShareDeals(uint(threshold), node, connections, byte(dealCode), &obs)
+		if err != nil {
+			return nil, fmt.Errorf("error sharing deals: %v", err)
+		}
+	}
+	deal := <-obs.DealChan
+	fmt.Println("Deal:", deal)
+	return deal, nil
 }
 
 func testBRB(node *network.Node, skPathname string) {

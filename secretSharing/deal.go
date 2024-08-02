@@ -18,17 +18,22 @@ type Deal struct {
 	commit *group.Element
 }
 
-type dealObserver struct {
-	code     byte
-	dealChan chan *Deal
+type DealObserver struct {
+	Code         byte
+	DealChan     chan *Deal
+	hasBeenDealt bool
 }
 
-func (do *dealObserver) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
-	if msg[0] == do.code {
+func (do *DealObserver) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
+	slog.Info("received message", "sender", sender, "Code", msg[0])
+	if msg[0] == do.Code {
+		if do.hasBeenDealt {
+			slog.Error("deal already received")
+		}
 		share, commit := unmarshalDeal(msg)
 		do.genDeal(&share, &commit)
 	} else {
-		slog.Debug("received message was not for me", "sender", sender, "code", msg[0])
+		slog.Debug("received message was not for me", "sender", sender, "Code", msg[0])
 	}
 }
 
@@ -49,16 +54,17 @@ func unmarshalDeal(msg []byte) (secretsharing.Share, group.Element) {
 	return share, commit
 }
 
-func (do *dealObserver) genDeal(share *secretsharing.Share, commitBase *group.Element) {
+func (do *DealObserver) genDeal(share *secretsharing.Share, commitBase *group.Element) {
 	commit := group.Ristretto255.NewElement().Mul(*commitBase, share.Value)
 	deal := &Deal{
 		share:  share,
 		commit: &commit,
 	}
-	do.dealChan <- deal
+	do.hasBeenDealt = true
+	do.DealChan <- deal
 }
 
-func shareDeals(threshold uint, node *network.Node, peers []net.Conn, dealCode byte, obs *dealObserver) error {
+func ShareDeals(threshold uint, node *network.Node, peers []net.Conn, dealCode byte, obs *DealObserver) error {
 	g := group.Ristretto255
 	secret := g.RandomScalar(rand.Reader)
 	commitBase := g.RandomElement(rand.Reader)
@@ -82,7 +88,7 @@ func shareDeal(node *network.Node, peer net.Conn, share secretsharing.Share, mar
 	writer := bufio.NewWriter(buf)
 	err := writer.WriteByte(dealCode)
 	if err != nil {
-		return fmt.Errorf("unable to write deal code: %v", err)
+		return fmt.Errorf("unable to write deal Code: %v", err)
 	}
 	marshaledShare, err := marshalShare(share)
 	if err != nil {
@@ -100,6 +106,9 @@ func shareDeal(node *network.Node, peer net.Conn, share secretsharing.Share, mar
 	if err != nil {
 		return fmt.Errorf("unable to flush writer: %v", err)
 	}
-	node.Unicast(buf.Bytes(), peer)
+	err = node.Unicast(buf.Bytes(), peer)
+	if err != nil {
+		return fmt.Errorf("unable to send deal to peer: %v", err)
+	}
 	return nil
 }
