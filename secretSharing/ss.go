@@ -41,15 +41,16 @@ func RecoverSecret(threshold uint, shares []secretsharing.Share) (group.Scalar, 
 func ShareToPoint(share secretsharing.Share, base group.Element) PointShare {
 	return PointShare{
 		id:    share.ID,
-		point: base.Mul(base, share.Value),
+		point: group.Ristretto255.Identity().Mul(base, share.Value),
 	}
 }
 
 func RecoverSecretFromPoints(shares []PointShare) group.Element {
+	g := group.Ristretto255
 	indices := lo.Map(shares, func(share PointShare, _ int) group.Scalar { return share.id })
 	coefficients := lo.Map(indices, func(i group.Scalar, _ int) group.Scalar { return lagrangeCoefficient(i, indices) })
 	terms := lo.ZipBy2(shares, coefficients, func(share PointShare, coeff group.Scalar) group.Element {
-		return share.point.Mul(share.point, coeff)
+		return g.Identity().Mul(share.point, coeff)
 	})
 	res := terms[0]
 	for i := 1; i < len(terms); i++ {
@@ -59,12 +60,13 @@ func RecoverSecretFromPoints(shares []PointShare) group.Element {
 }
 
 func lagrangeCoefficient(i group.Scalar, indices []group.Scalar) group.Scalar {
+	g := group.Ristretto255
 	filteredIndices := lo.Filter(indices, func(j group.Scalar, _ int) bool { return !i.IsEqual(j) })
 	numerators := lo.Reduce(filteredIndices, func(acc group.Scalar, j group.Scalar, _ int) group.Scalar {
-		return acc.Mul(j.Neg(j), acc)
-	}, group.Ristretto255.NewScalar().SetUint64(uint64(1)))
+		return g.NewScalar().Mul(g.NewScalar().Neg(j), acc)
+	}, g.NewScalar().SetUint64(uint64(1)))
 	denominators := lo.Reduce(filteredIndices, func(acc group.Scalar, j group.Scalar, _ int) group.Scalar {
-		return acc.Mul(acc, i.Sub(i, j))
+		return g.NewScalar().Mul(acc, g.NewScalar().Sub(i, j))
 	}, group.Ristretto255.NewScalar().SetUint64(uint64(1)))
 	return numerators.Mul(numerators, denominators.Inv(denominators))
 }

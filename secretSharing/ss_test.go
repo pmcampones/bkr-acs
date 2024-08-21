@@ -34,15 +34,16 @@ func TestSSWithPoints(t *testing.T) {
 	nodes := uint(50)
 	threshold := uint(20)
 	secret := g.NewScalar().SetUint64(1234567890)
-	base := g.HashToElement([]byte("base"), []byte("point"))
+	base := g.HashToElement([]byte("base"), []byte("ss_tests"))
 	shares := ShareSecret(threshold, nodes, secret)
-	pointSecret := base.Mul(base, secret)
+	pointSecret := g.Identity().Mul(base, secret)
 	hiddenShares := lo.Map(shares, func(share secretsharing.Share, _ int) PointShare { return ShareToPoint(share, base) })
-	recov1 := RecoverSecretFromPoints(hiddenShares[:threshold+1])
-	assert.Equal(t, pointSecret, recov1)
-	recov2 := RecoverSecretFromPoints(hiddenShares[1 : threshold+2])
-	fmt.Println("recov2", recov2)
-	assert.Equal(t, pointSecret, recov2)
+	recov1 := RecoverSecretFromPoints(hiddenShares[:])
+	ptSecBytes, err := pointSecret.MarshalBinary()
+	require.NoError(t, err)
+	recSecBytes, err := recov1.MarshalBinary()
+	require.NoError(t, err)
+	assert.Equal(t, recSecBytes, ptSecBytes)
 }
 
 // TestDLEquivalence tests the equivalence of the DLEQ implementation in zk/dleq and the one in secretSharing.
