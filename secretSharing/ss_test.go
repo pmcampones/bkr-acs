@@ -117,3 +117,19 @@ func TestMarshalAndUnmarshal(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ogShare, recovShare)
 }
+
+func TestMarshalPointShare(t *testing.T) {
+	g := group.Ristretto255
+	base := g.HashToElement([]byte("base"), []byte("point"))
+	share := PointShare{id: g.NewScalar().SetUint64(1), point: base}
+	shareBytes, err := marshalPointShare(share)
+	require.NoError(t, err)
+	recovShare, err := unmarshalPointShare(shareBytes)
+	require.NoError(t, err)
+	assert.Equal(t, share.id, recovShare.id)
+	sharePtBytes, err := share.point.MarshalBinary()
+	require.NoError(t, err)
+	recovPtBytes, err := recovShare.point.MarshalBinary()
+	require.NoError(t, err)
+	assert.Equal(t, sharePtBytes, recovPtBytes)
+}

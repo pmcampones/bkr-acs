@@ -11,8 +11,9 @@ import (
 )
 
 const scalarSize = 32
+const pointSize = 32
 const shareSize = scalarSize * 2
-const pointSize = scalarSize
+const pointShareSize = scalarSize + pointSize
 
 // PointShare is a secret share hidden in a group operation.
 // This is used in the coin tossing scheme to hide the secret while making it usable as a randomness source.
@@ -93,6 +94,9 @@ func marshalShare(share secretsharing.Share) ([]byte, error) {
 }
 
 func unmarshalShare(shareBytes []byte) (secretsharing.Share, error) {
+	if len(shareBytes) != shareSize {
+		return secretsharing.Share{}, fmt.Errorf("argument has incorrect size: got %d bytes, expected %d", len(shareBytes), shareSize)
+	}
 	buffer := make([]byte, scalarSize)
 	reader := bytes.NewReader(shareBytes)
 	num, err := reader.Read(buffer)
@@ -116,4 +120,46 @@ func unmarshalShare(shareBytes []byte) (secretsharing.Share, error) {
 		return secretsharing.Share{}, fmt.Errorf("unable to unmarshal share value: %v", err)
 	}
 	return secretsharing.Share{ID: id, Value: value}, nil
+}
+
+func marshalPointShare(share PointShare) ([]byte, error) {
+	idBytes, err := share.id.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal share ID: %v", err)
+	}
+	pointBytes, err := share.point.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal share value: %v", err)
+	}
+	return append(idBytes, pointBytes...), nil
+}
+
+func unmarshalPointShare(shareBytes []byte) (PointShare, error) {
+	if len(shareBytes) != pointShareSize {
+		return PointShare{}, fmt.Errorf("argument has incorrect size: got %d bytes, expected %d", len(shareBytes), pointShareSize)
+	}
+	idBuffer := make([]byte, scalarSize)
+	reader := bytes.NewReader(shareBytes)
+	num, err := reader.Read(idBuffer)
+	if err != nil {
+		return PointShare{}, fmt.Errorf("unable to read share ID bytes: %v", err)
+	} else if num != scalarSize {
+		return PointShare{}, fmt.Errorf("unable to read share ID bytes: read %d bytes, expected %d", num, scalarSize)
+	}
+	id := group.Ristretto255.NewScalar()
+	if err := id.UnmarshalBinary(idBuffer); err != nil {
+		return PointShare{}, fmt.Errorf("unable to unmarshal share ID: %v", err)
+	}
+	pointBuffer := make([]byte, pointSize)
+	num, err = reader.Read(pointBuffer)
+	if err != nil {
+		return PointShare{}, fmt.Errorf("unable to read share Value bytes: %v", err)
+	} else if num != pointSize {
+		return PointShare{}, fmt.Errorf("unable to read share Value bytes: read %d bytes, expected %d", num, pointSize)
+	}
+	point := group.Ristretto255.NewElement()
+	if err := point.UnmarshalBinary(pointBuffer); err != nil {
+		return PointShare{}, fmt.Errorf("unable to unmarshal share value: %v", err)
+	}
+	return PointShare{id: id, point: point}, nil
 }
