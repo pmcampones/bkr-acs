@@ -125,7 +125,7 @@ func getDeal(node *network.Node, connections []net.Conn, threshold int, isContac
 		}
 	}
 	deal := <-obs.DealChan
-	fmt.Println("Deal:", deal)
+	slog.Info("My deal:", deal)
 	return deal, nil
 }
 

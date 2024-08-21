@@ -14,8 +14,9 @@ import (
 )
 
 type Deal struct {
-	share  *secretsharing.Share
-	commit *group.Element
+	share      *secretsharing.Share
+	commitBase *group.Element
+	commit     *group.Element
 }
 
 type DealObserver struct {
@@ -57,8 +58,9 @@ func unmarshalDeal(msg []byte) (secretsharing.Share, group.Element) {
 func (do *DealObserver) genDeal(share *secretsharing.Share, commitBase *group.Element) {
 	commit := group.Ristretto255.NewElement().Mul(*commitBase, share.Value)
 	deal := &Deal{
-		share:  share,
-		commit: &commit,
+		share:      share,
+		commitBase: commitBase,
+		commit:     &commit,
 	}
 	do.hasBeenDealt = true
 	do.DealChan <- deal
@@ -94,7 +96,7 @@ func shareDeal(node *network.Node, peer net.Conn, share secretsharing.Share, mar
 	if err != nil {
 		return fmt.Errorf("unable to marshal share: %v", err)
 	}
-	_, err = writer.Write(marshaledShare)
+	_, err = writer.Write(marshaledShare[:])
 	if err != nil {
 		return fmt.Errorf("unable to write share: %v", err)
 	}
