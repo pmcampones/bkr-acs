@@ -41,8 +41,8 @@ func (ct *CoinToss) AttachObserver(observer coinObserver) {
 	ct.observers = append(ct.observers, observer)
 }
 
-func (ct *CoinToss) tossCoin() (PointShare, error) {
-	return ShareToPoint(*ct.deal.share, ct.base), nil
+func (ct *CoinToss) tossCoin() PointShare {
+	return ShareToPoint(*ct.deal.share, ct.base)
 }
 
 func (ct *CoinToss) getShare(shareBytes []byte) error {
@@ -61,7 +61,6 @@ func (ct *CoinToss) processShare(share PointShare) error {
 	ct.hiddenShares = append(ct.hiddenShares, share)
 	if len(ct.hiddenShares) == int(ct.threshold)+1 {
 		secretPoint := RecoverSecretFromPoints(ct.hiddenShares)
-		fmt.Println("secretPoint:", secretPoint)
 		coinToss, err := HashPointToBool(secretPoint)
 		if err != nil {
 			return fmt.Errorf("unable to hash point to bool: %v", err)
