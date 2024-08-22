@@ -56,7 +56,7 @@ func unmarshalDeal(msg []byte) (secretsharing.Share, group.Element) {
 }
 
 func (do *DealObserver) genDeal(share *secretsharing.Share, commitBase *group.Element) {
-	commit := group.Ristretto255.NewElement().Mul(*commitBase, share.Value)
+	commit := mulPoint(*commitBase, share.Value)
 	deal := &Deal{
 		share:      share,
 		commitBase: commitBase,
