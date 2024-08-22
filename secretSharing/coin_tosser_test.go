@@ -36,9 +36,13 @@ func TestAllSeeSameCoinToss(t *testing.T) {
 		})
 		obs := mockCoinObs{make(chan bool)}
 		coinTossings[0].AttachObserver(&obs)
-		coinShares := lo.Map(coinTossings, func(coinToss coinToss, _ int) PointShare { return coinToss.tossCoin() })
+		coinShares := lo.Map(coinTossings, func(coinToss coinToss, _ int) coinTossShare {
+			ct, err := coinToss.tossCoin()
+			require.NoError(t, err)
+			return ct
+		})
 		for _, coinShare := range coinShares {
-			err = coinTossings[0].processShare(coinShare)
+			err = coinTossings[0].processShare(coinShare.ptShare)
 			require.NoError(t, err)
 		}
 		toss := <-obs.channel
@@ -63,9 +67,13 @@ func TestAllSeeSameCoinTossWithSerialization(t *testing.T) {
 		})
 		obs := mockCoinObs{make(chan bool)}
 		coinTossings[0].AttachObserver(&obs)
-		coinShares := lo.Map(coinTossings, func(coinToss coinToss, _ int) PointShare { return coinToss.tossCoin() })
+		coinShares := lo.Map(coinTossings, func(coinToss coinToss, _ int) coinTossShare {
+			ct, err := coinToss.tossCoin()
+			require.NoError(t, err)
+			return ct
+		})
 		for _, coinShare := range coinShares {
-			shareBytes, err := marshalPointShare(coinShare)
+			shareBytes, err := marshalCoinTossShare(coinShare)
 			pk, err := crypto.GenPK()
 			require.NoError(t, err)
 			err = coinTossings[0].getShare(shareBytes, *pk)

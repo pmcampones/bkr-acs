@@ -1,15 +1,24 @@
 package secretSharing
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"fmt"
 	"github.com/cloudflare/circl/group"
+	"github.com/cloudflare/circl/zk/dleq"
 	. "github.com/google/uuid"
 	"log/slog"
 )
 
+const dleqDst = "DLEQ"
+
 type coinObserver interface {
 	observeCoin(id UUID, toss bool)
+}
+
+type coinTossShare struct {
+	ptShare PointShare
+	proof   dleq.Proof
 }
 
 type coinToss struct {
@@ -45,22 +54,47 @@ func (ct *coinToss) AttachObserver(observer coinObserver) {
 	ct.observers = append(ct.observers, observer)
 }
 
-func (ct *coinToss) tossCoin() PointShare {
-	return ShareToPoint(*ct.deal.share, ct.base)
+// Go does not allow structs as const values, so this is here to replace it :(
+func getDLEQParams() dleq.Params {
+	return dleq.Params{G: group.Ristretto255, H: crypto.SHA256, DST: []byte(dleqDst)}
+}
+
+func (ct *coinToss) tossCoin() (coinTossShare, error) {
+	share := ShareToPoint(*ct.deal.share, ct.base)
+	proof, err := ct.genProof(share.point)
+	if err != nil {
+		return coinTossShare{}, fmt.Errorf("unable to generate proof: %v", err)
+	}
+	return coinTossShare{ptShare: share, proof: proof}, nil
+}
+
+func (ct *coinToss) genProof(valToProve group.Element) (dleq.Proof, error) {
+	idBytes, err := ct.id.MarshalBinary()
+	if err != nil {
+		return dleq.Proof{}, fmt.Errorf("unable to marshal id: %v", err)
+	}
+	params := getDLEQParams()
+	seed := group.Ristretto255.HashToScalar(idBytes, []byte("dleqSeed"))
+	prover := dleq.Prover{Params: params}
+	proof, err := prover.ProveWithRandomness(ct.deal.share.Value, ct.base, valToProve, *ct.deal.commitBase, *ct.deal.commit, seed)
+	if err != nil {
+		return dleq.Proof{}, fmt.Errorf("unable to generate proof: %v", err)
+	}
+	return *proof, nil
 }
 
 func (ct *coinToss) getShare(shareBytes []byte, sender ecdsa.PublicKey) error {
-	share, err := unmarshalPointShare(shareBytes)
-	//todo: check if the share is valid
+	ctShare, err := unmarshalCoinTossShare(shareBytes)
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal share: %v", err)
 	}
+	//todo: check if the share is valid
 	ct.commands <- func() error {
 		if ct.peersReceived[sender] {
 			return fmt.Errorf("peer %v already sent share", sender)
 		}
 		ct.peersReceived[sender] = true
-		return ct.processShare(share)
+		return ct.processShare(ctShare.ptShare)
 	}
 	return nil
 }
@@ -78,6 +112,31 @@ func (ct *coinToss) processShare(share PointShare) error {
 		}
 	}
 	return nil
+}
+
+func marshalCoinTossShare(share coinTossShare) ([]byte, error) {
+	ptShareBytes, err := marshalPointShare(share.ptShare)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal point share: %v", err)
+	}
+	proofBytes, err := share.proof.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal proof: %v", err)
+	}
+	return append(ptShareBytes, proofBytes...), nil
+}
+
+func unmarshalCoinTossShare(shareBytes []byte) (coinTossShare, error) {
+	ptShare, err := unmarshalPointShare(shareBytes[:pointShareSize])
+	if err != nil {
+		return coinTossShare{}, fmt.Errorf("unable to unmarshal point share: %v", err)
+	}
+	proof := dleq.Proof{}
+	err = proof.UnmarshalBinary(getDLEQParams().G, shareBytes[pointShareSize:])
+	if err != nil {
+		return coinTossShare{}, fmt.Errorf("unable to unmarshal proof: %v", err)
+	}
+	return coinTossShare{ptShare: ptShare, proof: proof}, nil
 }
 
 func (ct *coinToss) invoker(commands <-chan func() error, closeChan <-chan struct{}) {
