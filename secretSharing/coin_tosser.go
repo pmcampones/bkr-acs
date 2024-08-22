@@ -1,6 +1,7 @@
 package secretSharing
 
 import (
+	"crypto/ecdsa"
 	"fmt"
 	"github.com/cloudflare/circl/group"
 	. "github.com/google/uuid"
@@ -11,53 +12,60 @@ type coinObserver interface {
 	observeCoin(id UUID, toss bool)
 }
 
-type CoinToss struct {
-	id           UUID
-	threshold    uint
-	base         group.Element
-	deal         *Deal
-	hiddenShares []PointShare
-	observers    []coinObserver
-	commands     chan<- func() error
-	closeChan    chan struct{}
+type coinToss struct {
+	id            UUID
+	threshold     uint
+	base          group.Element
+	deal          *Deal
+	hiddenShares  []PointShare
+	observers     []coinObserver
+	peersReceived map[ecdsa.PublicKey]bool
+	commands      chan<- func() error
+	closeChan     chan struct{}
 }
 
-func newCoinToss(id UUID, threshold uint, base group.Element, deal *Deal) *CoinToss {
+func newCoinToss(id UUID, threshold uint, base group.Element, deal *Deal) *coinToss {
 	commands := make(chan func() error)
-	ct := &CoinToss{
-		id:           id,
-		threshold:    threshold,
-		base:         base,
-		deal:         deal,
-		hiddenShares: make([]PointShare, 0),
-		commands:     commands,
-		closeChan:    make(chan struct{}),
+	ct := &coinToss{
+		id:            id,
+		threshold:     threshold,
+		base:          base,
+		deal:          deal,
+		hiddenShares:  make([]PointShare, 0),
+		observers:     make([]coinObserver, 0),
+		peersReceived: make(map[ecdsa.PublicKey]bool),
+		commands:      commands,
+		closeChan:     make(chan struct{}),
 	}
 	go ct.invoker(commands, ct.closeChan)
 	return ct
 }
 
-func (ct *CoinToss) AttachObserver(observer coinObserver) {
+func (ct *coinToss) AttachObserver(observer coinObserver) {
 	ct.observers = append(ct.observers, observer)
 }
 
-func (ct *CoinToss) tossCoin() PointShare {
+func (ct *coinToss) tossCoin() PointShare {
 	return ShareToPoint(*ct.deal.share, ct.base)
 }
 
-func (ct *CoinToss) getShare(shareBytes []byte) error {
+func (ct *coinToss) getShare(shareBytes []byte, sender ecdsa.PublicKey) error {
 	share, err := unmarshalPointShare(shareBytes)
 	//todo: check if the share is valid
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal share: %v", err)
 	}
 	ct.commands <- func() error {
+		if ct.peersReceived[sender] {
+			return fmt.Errorf("peer %v already sent share", sender)
+		}
+		ct.peersReceived[sender] = true
 		return ct.processShare(share)
 	}
 	return nil
 }
 
-func (ct *CoinToss) processShare(share PointShare) error {
+func (ct *coinToss) processShare(share PointShare) error {
 	ct.hiddenShares = append(ct.hiddenShares, share)
 	if len(ct.hiddenShares) == int(ct.threshold)+1 {
 		secretPoint := RecoverSecretFromPoints(ct.hiddenShares)
@@ -72,7 +80,7 @@ func (ct *CoinToss) processShare(share PointShare) error {
 	return nil
 }
 
-func (ct *CoinToss) invoker(commands <-chan func() error, closeChan <-chan struct{}) {
+func (ct *coinToss) invoker(commands <-chan func() error, closeChan <-chan struct{}) {
 	for {
 		select {
 		case command := <-commands:
@@ -87,7 +95,7 @@ func (ct *CoinToss) invoker(commands <-chan func() error, closeChan <-chan struc
 	}
 }
 
-func (ct *CoinToss) close() {
+func (ct *coinToss) close() {
 	slog.Debug("sending signal to close bcb instance", "Id", ct.id)
 	ct.closeChan <- struct{}{}
 }

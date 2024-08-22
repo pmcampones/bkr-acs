@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
+	"pace/crypto"
 	"testing"
 )
 
@@ -30,12 +31,12 @@ func TestAllSeeSameCoinToss(t *testing.T) {
 		base := g.HashToElement([]byte(seed), []byte("test_coin"))
 		controlToss, err := HashPointToBool(g.NewElement().Mul(base, secret))
 		require.NoError(t, err)
-		coinTossings := lo.Map(deals, func(deal *Deal, _ int) CoinToss {
+		coinTossings := lo.Map(deals, func(deal *Deal, _ int) coinToss {
 			return *newCoinToss(uuid.New(), threshold, base, deal)
 		})
 		obs := mockCoinObs{make(chan bool)}
 		coinTossings[0].AttachObserver(&obs)
-		coinShares := lo.Map(coinTossings, func(coinToss CoinToss, _ int) PointShare { return coinToss.tossCoin() })
+		coinShares := lo.Map(coinTossings, func(coinToss coinToss, _ int) PointShare { return coinToss.tossCoin() })
 		for _, coinShare := range coinShares {
 			err = coinTossings[0].processShare(coinShare)
 			require.NoError(t, err)
@@ -57,15 +58,17 @@ func TestAllSeeSameCoinTossWithSerialization(t *testing.T) {
 		base := g.HashToElement([]byte(seed), []byte("test_coin"))
 		controlToss, err := HashPointToBool(g.NewElement().Mul(base, secret))
 		require.NoError(t, err)
-		coinTossings := lo.Map(deals, func(deal *Deal, _ int) CoinToss {
+		coinTossings := lo.Map(deals, func(deal *Deal, _ int) coinToss {
 			return *newCoinToss(uuid.New(), threshold, base, deal)
 		})
 		obs := mockCoinObs{make(chan bool)}
 		coinTossings[0].AttachObserver(&obs)
-		coinShares := lo.Map(coinTossings, func(coinToss CoinToss, _ int) PointShare { return coinToss.tossCoin() })
+		coinShares := lo.Map(coinTossings, func(coinToss coinToss, _ int) PointShare { return coinToss.tossCoin() })
 		for _, coinShare := range coinShares {
 			shareBytes, err := marshalPointShare(coinShare)
-			err = coinTossings[0].getShare(shareBytes)
+			pk, err := crypto.GenPK()
+			require.NoError(t, err)
+			err = coinTossings[0].getShare(shareBytes, *pk)
 			require.NoError(t, err)
 		}
 		toss := <-obs.channel

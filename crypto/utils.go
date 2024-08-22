@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
@@ -72,4 +73,16 @@ func MakeSelfSignedCert(sk *ecdsa.PrivateKey) (*tls.Certificate, error) {
 		PrivateKey:  sk,
 		Leaf:        cert,
 	}, nil
+}
+
+func GenKey() (*ecdsa.PrivateKey, error) {
+	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+}
+
+func GenPK() (*ecdsa.PublicKey, error) {
+	sk, err := GenKey()
+	if err != nil {
+		return nil, err
+	}
+	return &sk.PublicKey, nil
 }

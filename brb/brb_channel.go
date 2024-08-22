@@ -42,7 +42,6 @@ type BRBChannel struct {
 }
 
 func CreateBRBChannel(node *network.Node, n, f uint, sk ecdsa.PrivateKey, listenCode byte) *BRBChannel {
-	observers := make([]BRBObserver, 0)
 	commands := make(chan func() error)
 	channel := &BRBChannel{
 		instances:  make(map[UUID]*brbInstance),
@@ -50,7 +49,7 @@ func CreateBRBChannel(node *network.Node, n, f uint, sk ecdsa.PrivateKey, listen
 		n:          n,
 		f:          f,
 		network:    node,
-		observers:  observers,
+		observers:  make([]BRBObserver, 0),
 		sk:         &sk,
 		commands:   commands,
 		listenCode: listenCode,
