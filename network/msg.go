@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"unsafe"
 )
@@ -41,15 +42,6 @@ func receive(conn net.Conn) ([]byte, error) {
 		return nil, fmt.Errorf("unable to read message length from buffer: %v", err)
 	}
 	msg := make([]byte, length)
-	curr := msg
-	bytesRead := 0
-	for bytesRead < int(length) {
-		num, err := conn.Read(curr)
-		if err != nil {
-			return nil, fmt.Errorf("unable to read message from buffer: %v", err)
-		}
-		curr = curr[num:]
-		bytesRead += num
-	}
+	_, err = io.ReadFull(conn, msg)
 	return msg, err
 }
