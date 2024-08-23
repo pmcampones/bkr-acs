@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
-	"pace/crypto"
+	"pace/utils"
 	"testing"
 )
 
@@ -74,7 +74,7 @@ func TestAllSeeSameCoinTossWithSerialization(t *testing.T) {
 		})
 		for _, coinShare := range coinShares {
 			shareBytes, err := marshalCoinTossShare(coinShare)
-			pk, err := crypto.GenPK()
+			pk, err := utils.GenPK()
 			require.NoError(t, err)
 			err = coinTossings[0].getShare(shareBytes, *pk)
 			require.NoError(t, err)
@@ -89,9 +89,9 @@ func makeDeals(shares []secretsharing.Share) []*Deal {
 	return lo.Map(shares, func(share secretsharing.Share, _ int) *Deal {
 		commit := group.Ristretto255.NewElement().Mul(commitBase, share.Value)
 		return &Deal{
-			share:      &share,
-			commitBase: &commitBase,
-			commit:     &commit,
+			share:      share,
+			commitBase: commitBase,
+			commit:     commit,
 		}
 	})
 }

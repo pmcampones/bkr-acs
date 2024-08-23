@@ -5,7 +5,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
-	"pace/crypto"
+	"pace/utils"
 	"sync"
 )
 
@@ -48,7 +48,7 @@ func MakeNode(address, contact string, bufferMsg, bufferMem int) (*Node, *TestMe
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("unable to generate key: %v", err)
 	}
-	cert, err := crypto.MakeSelfSignedCert(sk)
+	cert, err := utils.MakeSelfSignedCert(sk)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("unable to create cert: %v", err)
 	}

@@ -14,8 +14,8 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"pace/crypto"
 	"pace/network"
+	"pace/utils"
 )
 
 type Deal struct {
@@ -75,8 +75,8 @@ func (do *DealObserver) genDeal(share *secretsharing.Share, commitBase group.Ele
 	}
 	for _, tuple := range commits {
 		commit, pk := tuple.Unpack()
-		pkBytes, _ := crypto.SerializePublicKey(&pk)
-		id := crypto.BytesToUUID(pkBytes)
+		pkBytes, _ := utils.SerializePublicKey(&pk)
+		id := utils.BytesToUUID(pkBytes)
 		deal.peerCommits[id] = commit
 	}
 	do.hasBeenDealt = true
@@ -141,7 +141,7 @@ func serializeCommitments(commits []lo.Tuple2[group.Element, ecdsa.PublicKey]) (
 		if err != nil {
 			return nil, fmt.Errorf("unable to write the %d-th commit point: %v", i, err)
 		}
-		pkBytes, err := crypto.SerializePublicKey(&pk)
+		pkBytes, err := utils.SerializePublicKey(&pk)
 		if err != nil {
 			return nil, fmt.Errorf("unable to marshal %d-th public key: %v", i, err)
 		}
@@ -189,7 +189,7 @@ func deserializeCommitments(data []byte) ([]lo.Tuple2[group.Element, ecdsa.Publi
 		if err != nil {
 			return nil, fmt.Errorf("unable to read %d-th commit pk: %v", i, err)
 		}
-		pk, err := crypto.DeserializePublicKey(pkBytes)
+		pk, err := utils.DeserializePublicKey(pkBytes)
 		if err != nil {
 			return nil, fmt.Errorf("unable to deserialize %d-th commit pk: %v ", i, err)
 		}

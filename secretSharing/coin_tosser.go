@@ -28,7 +28,7 @@ type coinToss struct {
 	deal          *Deal
 	hiddenShares  []PointShare
 	observers     []coinObserver
-	peersReceived map[ecdsa.PublicKey]bool
+	peersReceived map[UUID]bool
 	commands      chan<- func() error
 	closeChan     chan struct{}
 }
@@ -42,7 +42,7 @@ func newCoinToss(id UUID, threshold uint, base group.Element, deal *Deal) *coinT
 		deal:          deal,
 		hiddenShares:  make([]PointShare, 0),
 		observers:     make([]coinObserver, 0),
-		peersReceived: make(map[ecdsa.PublicKey]bool),
+		peersReceived: make(map[UUID]bool),
 		commands:      commands,
 		closeChan:     make(chan struct{}),
 	}
@@ -60,7 +60,7 @@ func getDLEQParams() dleq.Params {
 }
 
 func (ct *coinToss) tossCoin() (coinTossShare, error) {
-	share := ShareToPoint(*ct.deal.share, ct.base)
+	share := ShareToPoint(ct.deal.share, ct.base)
 	proof, err := ct.genProof(share.point)
 	if err != nil {
 		return coinTossShare{}, fmt.Errorf("unable to generate proof: %v", err)
@@ -76,7 +76,7 @@ func (ct *coinToss) genProof(valToProve group.Element) (dleq.Proof, error) {
 	params := getDLEQParams()
 	seed := group.Ristretto255.HashToScalar(idBytes, []byte("dleqSeed"))
 	prover := dleq.Prover{Params: params}
-	proof, err := prover.ProveWithRandomness(ct.deal.share.Value, ct.base, valToProve, *ct.deal.commitBase, *ct.deal.commit, seed)
+	proof, err := prover.ProveWithRandomness(ct.deal.share.Value, ct.base, valToProve, ct.deal.commitBase, ct.deal.commit, seed)
 	if err != nil {
 		return dleq.Proof{}, fmt.Errorf("unable to generate proof: %v", err)
 	}
@@ -88,8 +88,13 @@ func (ct *coinToss) getShare(shareBytes []byte, sender ecdsa.PublicKey) error {
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal share: %v", err)
 	}
-	//todo: check if the share is valid
+	/*proof := ctShare.proof
+	verifier := dleq.Verifier{Params: getDLEQParams()}
+	if !verifier.Verify(ct.base, ctShare.ptShare.point, *ct.deal.commitBase, *ct.deal.commit, &proof) {
+		return fmt.Errorf("invalid proof")
+	}*/
 	ct.commands <- func() error {
+		senderBytes, err := crypto.SerializePublicKey(&sender)
 		if ct.peersReceived[sender] {
 			return fmt.Errorf("peer %v already sent share", sender)
 		}

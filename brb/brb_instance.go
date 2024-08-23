@@ -8,8 +8,8 @@ import (
 	"fmt"
 	. "github.com/google/uuid"
 	"log/slog"
-	"pace/crypto"
 	"pace/network"
+	"pace/utils"
 )
 
 // brbState defines the functionalities required for handling the brb messages depending on the current phase of the algorithm.
@@ -160,7 +160,7 @@ func (b *brbInstance) deserializeMessage(reader *bytes.Reader) (msgStruct, error
 	} else if num != len(msg) {
 		return msgStruct{}, fmt.Errorf("could not read full message content")
 	}
-	msgId := crypto.BytesToUUID(msg)
+	msgId := utils.BytesToUUID(msg)
 	msgStrct := msgStruct{
 		msgId, msg, brb(typeByte),
 	}

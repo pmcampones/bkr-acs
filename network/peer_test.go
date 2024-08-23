@@ -7,7 +7,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/magiconair/properties/assert"
-	"pace/crypto"
+	"pace/utils"
 	"testing"
 	"time"
 )
@@ -51,7 +51,7 @@ func makeTLSConfig() (*tls.Config, *ecdsa.PrivateKey, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to generate key: %v", err)
 	}
-	cert, err := crypto.MakeSelfSignedCert(sk)
+	cert, err := utils.MakeSelfSignedCert(sk)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to create cert: %v", err)
 	}

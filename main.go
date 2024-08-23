@@ -11,9 +11,9 @@ import (
 	"net"
 	"os"
 	"pace/brb"
-	"pace/crypto"
 	"pace/network"
 	"pace/secretSharing"
+	"pace/utils"
 	"time"
 )
 
@@ -88,7 +88,7 @@ func setupLogger() {
 }
 
 func makeNode(address, contact, skPathname, certPathname string) (*network.Node, error) {
-	sk, err := crypto.ReadPrivateKey(skPathname)
+	sk, err := utils.ReadPrivateKey(skPathname)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read private key: %v", err)
 	}
@@ -130,7 +130,7 @@ func getDeal(node *network.Node, connections []net.Conn, threshold int, isContac
 }
 
 func testBRB(node *network.Node, skPathname string) {
-	sk, err := crypto.ReadPrivateKey(skPathname)
+	sk, err := utils.ReadPrivateKey(skPathname)
 	if err != nil {
 		slog.Error("Error reading private key", "error", err)
 		return

@@ -8,8 +8,8 @@ import (
 	. "github.com/google/uuid"
 	"log/slog"
 	"math/rand"
-	"pace/crypto"
 	"pace/network"
+	"pace/utils"
 	"reflect"
 	"unsafe"
 )
@@ -94,7 +94,7 @@ func (channel *BRBChannel) broadcast(msg []byte, nonce uint32, id UUID, instance
 }
 
 func (channel *BRBChannel) computeBroadcastId(nonce uint32) (UUID, error) {
-	encodedPk, err := crypto.SerializePublicKey(&channel.sk.PublicKey)
+	encodedPk, err := utils.SerializePublicKey(&channel.sk.PublicKey)
 	if err != nil {
 		return UUID{}, fmt.Errorf("bcb channel unable to serialize public key during brb: %v", err)
 	}
@@ -103,7 +103,7 @@ func (channel *BRBChannel) computeBroadcastId(nonce uint32) (UUID, error) {
 	if err != nil {
 		return UUID{}, fmt.Errorf("unable to write nonce to buffer during brb: %v", err)
 	}
-	id := crypto.BytesToUUID(buf.Bytes())
+	id := utils.BytesToUUID(buf.Bytes())
 	return id, nil
 }
 
@@ -175,7 +175,7 @@ func processIdGeneration(reader *bytes.Reader, sender *ecdsa.PublicKey) (UUID, e
 }
 
 func computeInstanceId(nonce uint32, sender *ecdsa.PublicKey) (UUID, error) {
-	encodedPk, err := crypto.SerializePublicKey(sender)
+	encodedPk, err := utils.SerializePublicKey(sender)
 	if err != nil {
 		return Nil, fmt.Errorf("unable to serialize public key during brb: %v", err)
 	}
@@ -184,7 +184,7 @@ func computeInstanceId(nonce uint32, sender *ecdsa.PublicKey) (UUID, error) {
 	if err != nil {
 		return UUID{}, fmt.Errorf("unable to write nonce to buffer: %v", err)
 	}
-	id := crypto.BytesToUUID(buf.Bytes())
+	id := utils.BytesToUUID(buf.Bytes())
 	return id, nil
 }
 

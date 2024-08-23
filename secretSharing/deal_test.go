@@ -7,8 +7,8 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 	"maps"
-	"pace/crypto"
 	"pace/network"
+	"pace/utils"
 	"slices"
 	"testing"
 )
@@ -60,7 +60,7 @@ func TestSerializeAndDeserializeCommits(t *testing.T) {
 	}
 	pks := make([]ecdsa.PublicKey, numCommits)
 	for i := 0; i < numCommits; i++ {
-		pk, err := crypto.GenPK()
+		pk, err := utils.GenPK()
 		require.NoError(t, err)
 		pks[i] = *pk
 	}
