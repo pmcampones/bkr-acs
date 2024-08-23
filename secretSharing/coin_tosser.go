@@ -8,6 +8,7 @@ import (
 	"github.com/cloudflare/circl/zk/dleq"
 	. "github.com/google/uuid"
 	"log/slog"
+	"pace/utils"
 )
 
 const dleqDst = "DLEQ"
@@ -94,11 +95,15 @@ func (ct *coinToss) getShare(shareBytes []byte, sender ecdsa.PublicKey) error {
 		return fmt.Errorf("invalid proof")
 	}*/
 	ct.commands <- func() error {
-		senderBytes, err := crypto.SerializePublicKey(&sender)
-		if ct.peersReceived[sender] {
+		senderBytes, err := utils.SerializePublicKey(&sender)
+		if err != nil {
+			return fmt.Errorf("unable to serialize sender public key: %v", err)
+		}
+		id := utils.BytesToUUID(senderBytes)
+		if ct.peersReceived[id] {
 			return fmt.Errorf("peer %v already sent share", sender)
 		}
-		ct.peersReceived[sender] = true
+		ct.peersReceived[id] = true
 		return ct.processShare(ctShare.ptShare)
 	}
 	return nil
