@@ -30,8 +30,8 @@ const (
 
 type brbInstance struct {
 	data          *brbData
-	peersEchoed   map[ecdsa.PublicKey]bool
-	peersReadied  map[ecdsa.PublicKey]bool
+	peersEchoed   map[UUID]bool
+	peersReadied  map[UUID]bool
 	commands      chan<- func() error
 	closeChan     chan<- struct{}
 	concreteState brbState
@@ -88,8 +88,8 @@ func newBrbInstance(id UUID, n, f uint, network *network.Node, listenCode byte) 
 	closeChan := make(chan struct{})
 	instance := &brbInstance{
 		data:          &data,
-		peersEchoed:   make(map[ecdsa.PublicKey]bool),
-		peersReadied:  make(map[ecdsa.PublicKey]bool),
+		peersEchoed:   make(map[UUID]bool),
+		peersReadied:  make(map[UUID]bool),
 		commands:      commands,
 		closeChan:     closeChan,
 		concreteState: &ph1,
@@ -139,9 +139,15 @@ func (b *brbInstance) handleMessage(reader *bytes.Reader, sender *ecdsa.PublicKe
 	case brbsend:
 		b.handleSend(msg.content)
 	case brbecho:
-		b.handleEcho(msg.content, msg.id, sender)
+		err := b.handleEcho(msg.content, msg.id, sender)
+		if err != nil {
+			return fmt.Errorf("unable to handle echo: %v", err)
+		}
 	case brbready:
-		b.handleReady(msg.content, msg.id, sender)
+		err := b.handleReady(msg.content, msg.id, sender)
+		if err != nil {
+			return fmt.Errorf("unable to handle ready: %v", err)
+		}
 	default:
 		panic("unhandled default case")
 	}
@@ -178,39 +184,48 @@ func (b *brbInstance) handleSend(msg []byte) {
 	}
 }
 
-func (b *brbInstance) handleEcho(msg []byte, id UUID, sender *ecdsa.PublicKey) {
+func (b *brbInstance) handleEcho(msg []byte, id UUID, sender *ecdsa.PublicKey) error {
 	slog.Debug("submitting echo message handling command")
+	senderId, err := utils.PkToUUID(sender)
+	if err != nil {
+		return fmt.Errorf("unable to get sender id: %v", err)
+	}
 	b.commands <- func() error {
-		ok := b.peersEchoed[*sender]
+		ok := b.peersEchoed[senderId]
 		if ok {
 			return fmt.Errorf("already received echo from peer %s", *sender)
 		}
 		b.data.echoes[id]++
-		b.peersEchoed[*sender] = true
+		b.peersEchoed[senderId] = true
 		err := b.concreteState.handleEcho(msg, id)
 		if err != nil {
 			return fmt.Errorf("unable to handle echo: %v", err)
 		}
 		return nil
 	}
+	return nil
 }
 
-func (b *brbInstance) handleReady(msg []byte, id UUID, sender *ecdsa.PublicKey) {
+func (b *brbInstance) handleReady(msg []byte, id UUID, sender *ecdsa.PublicKey) error {
 	slog.Debug("submitting ready message handling command")
+	senderId, err := utils.PkToUUID(sender)
+	if err != nil {
+		return fmt.Errorf("unable to get sender id: %v", err)
+	}
 	b.commands <- func() error {
-		ok := b.peersReadied[*sender]
+		ok := b.peersReadied[senderId]
 		if ok {
 			return fmt.Errorf("already received ready from peer %s", *sender)
 		}
 		b.data.readies[id]++
-		b.peersReadied[*sender] = true
+		b.peersReadied[senderId] = true
 		err := b.concreteState.handleReady(msg, id)
 		if err != nil {
 			return fmt.Errorf("unable to handle ready: %v", err)
 		}
 		return nil
 	}
-
+	return nil
 }
 
 func (b *brbInstance) invoker(commands <-chan func() error, closeChan <-chan struct{}) {

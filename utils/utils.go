@@ -94,3 +94,11 @@ func GenPK() (*ecdsa.PublicKey, error) {
 	}
 	return &sk.PublicKey, nil
 }
+
+func PkToUUID(pk *ecdsa.PublicKey) (UUID, error) {
+	pkBytes, err := SerializePublicKey(pk)
+	if err != nil {
+		return UUID{}, fmt.Errorf("unable to serialize public key: %v", err)
+	}
+	return BytesToUUID(pkBytes), nil
+}

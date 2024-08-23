@@ -89,21 +89,20 @@ func (ct *coinToss) getShare(shareBytes []byte, sender ecdsa.PublicKey) error {
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal share: %v", err)
 	}
+	senderId, err := utils.PkToUUID(&sender)
+	if err != nil {
+		return fmt.Errorf("unable to get sender id: %v", err)
+	}
 	/*proof := ctShare.proof
 	verifier := dleq.Verifier{Params: getDLEQParams()}
 	if !verifier.Verify(ct.base, ctShare.ptShare.point, *ct.deal.commitBase, *ct.deal.commit, &proof) {
 		return fmt.Errorf("invalid proof")
 	}*/
 	ct.commands <- func() error {
-		senderBytes, err := utils.SerializePublicKey(&sender)
-		if err != nil {
-			return fmt.Errorf("unable to serialize sender public key: %v", err)
-		}
-		id := utils.BytesToUUID(senderBytes)
-		if ct.peersReceived[id] {
+		if ct.peersReceived[senderId] {
 			return fmt.Errorf("peer %v already sent share", sender)
 		}
-		ct.peersReceived[id] = true
+		ct.peersReceived[senderId] = true
 		return ct.processShare(ctShare.ptShare)
 	}
 	return nil
