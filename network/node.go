@@ -110,7 +110,7 @@ func (n *Node) connectToContact(contact string) error {
 	if err != nil {
 		return fmt.Errorf("unable to connect to contact: %v", err)
 	}
-	slog.Debug("establishing connection with Peer", "Peer name", peer.name, "Peer key", *peer.pk)
+	slog.Debug("establishing connection with Peer", "Peer name", peer.name, "Peer key", *peer.Pk)
 	go n.maintainConnection(peer, false)
 	return nil
 }
@@ -122,7 +122,7 @@ func (n *Node) listenConnections(listener net.Listener, amContact bool) {
 			slog.Warn("error accepting connection with Peer", "Peer name", peer.name, "error", err)
 			continue
 		}
-		slog.Debug("received connection from Peer", "Peer name", peer.name, "Peer key", *peer.pk)
+		slog.Debug("received connection from Peer", "Peer name", peer.name, "Peer key", *peer.Pk)
 		go n.maintainConnection(peer, amContact)
 	}
 }
@@ -204,7 +204,7 @@ func (n *Node) readFromConnection(peer Peer) {
 			slog.Error("error reading from connection", "Peer name", peer.name, "error", err)
 			return
 		}
-		go n.processMessage(msg, peer.pk)
+		go n.processMessage(msg, peer.Pk)
 	}
 }
 
@@ -230,4 +230,8 @@ func (n *Node) processMembershipMsg(msg []byte) {
 		slog.Warn("error connecting to Peer", "error", err)
 	}
 	n.maintainConnection(outbound, false)
+}
+
+func (n *Node) GetPk() *ecdsa.PublicKey {
+	return &n.sk.PublicKey
 }

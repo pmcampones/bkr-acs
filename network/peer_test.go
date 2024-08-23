@@ -35,7 +35,7 @@ func TestShouldEstablishCorrectConnection(t *testing.T) {
 			return
 		}
 		assert.Equal(t, inboundPeer.name, client)
-		assert.Equal(t, *inboundPeer.pk, clientSk.PublicKey)
+		assert.Equal(t, *inboundPeer.Pk, clientSk.PublicKey)
 	}()
 	time.Sleep(1 * time.Second)
 	outboundPeer, err := newOutbound(client, server, clientConfig)
@@ -43,7 +43,7 @@ func TestShouldEstablishCorrectConnection(t *testing.T) {
 		t.Fatalf("unable to create outbound Peer: %v", err)
 	}
 	assert.Equal(t, outboundPeer.name, server)
-	assert.Equal(t, *outboundPeer.pk, serverSk.PublicKey)
+	assert.Equal(t, *outboundPeer.Pk, serverSk.PublicKey)
 }
 
 func makeTLSConfig() (*tls.Config, *ecdsa.PrivateKey, error) {

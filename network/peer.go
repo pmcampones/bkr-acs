@@ -10,7 +10,7 @@ import (
 type Peer struct {
 	Conn net.Conn
 	name string
-	pk   *ecdsa.PublicKey
+	Pk   *ecdsa.PublicKey
 }
 
 func newOutbound(myName, address string, config *tls.Config) (Peer, error) {
@@ -30,7 +30,7 @@ func newOutbound(myName, address string, config *tls.Config) (Peer, error) {
 	peer := Peer{
 		Conn: conn,
 		name: address,
-		pk:   pk,
+		Pk:   pk,
 	}
 	return peer, nil
 }
@@ -53,7 +53,7 @@ func getInbound(listener net.Listener) (Peer, error) {
 	peer := Peer{
 		Conn: conn,
 		name: name,
-		pk:   pk,
+		Pk:   pk,
 	}
 	return peer, nil
 }
