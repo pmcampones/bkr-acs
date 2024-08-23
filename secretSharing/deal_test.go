@@ -1,10 +1,15 @@
 package secretSharing
 
 import (
+	"crypto/ecdsa"
 	"fmt"
+	"github.com/cloudflare/circl/group"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
-	"net"
+	"maps"
+	"pace/crypto"
 	"pace/network"
+	"slices"
 	"testing"
 )
 
@@ -19,12 +24,8 @@ func TestDeals(t *testing.T) {
 	require.NoError(t, err)
 	<-memObs.UpBarrier
 	<-memObs.UpBarrier
-	peers := memObs.Peers
-	connList := make([]net.Conn, 0, len(peers))
-	for _, peer := range peers {
-		connList = append(connList, peer.Conn)
-	}
-	err = ShareDeals(1, dealer, connList, dealCode, obs0)
+	peers := slices.Collect(maps.Values(memObs.Peers))
+	err = ShareDeals(1, dealer, peers, dealCode, obs0)
 	deal0 := <-obs0.DealChan
 	require.NoError(t, err)
 	require.NotNil(t, deal0)
@@ -37,6 +38,50 @@ func TestDeals(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, deal2)
 	fmt.Println("deal2", deal2)
+	commits1 := deal1.peerCommits
+	commits2 := deal2.peerCommits
+	require.Equal(t, len(commits1), len(commits2))
+	for pk, pt1 := range commits1 {
+		pt2, ok := commits2[pk]
+		require.True(t, ok)
+		pt1Bytes, err := pt1.MarshalBinary()
+		require.NoError(t, err)
+		pt2Bytes, err := pt2.MarshalBinary()
+		require.Equal(t, pt1Bytes, pt2Bytes)
+	}
+}
+
+func TestSerializeAndDeserializeCommits(t *testing.T) {
+	numCommits := 100
+	points := make([]group.Element, numCommits)
+	for i := 0; i < numCommits; i++ {
+		seed := []byte(fmt.Sprintf("point_%d", i))
+		points[i] = group.Ristretto255.HashToElement(seed, []byte("test_commit_serialize"))
+	}
+	pks := make([]ecdsa.PublicKey, numCommits)
+	for i := 0; i < numCommits; i++ {
+		pk, err := crypto.GenPK()
+		require.NoError(t, err)
+		pks[i] = *pk
+	}
+	commits := lo.Zip2(points, pks)
+	serialized, err := serializeCommitments(commits)
+	require.NoError(t, err)
+	deserialized, err := deserializeCommitments(serialized)
+	require.NoError(t, err)
+	recovPts, recovPKs := lo.Unzip2(deserialized)
+	for i, ptTuple := range lo.Zip2(points, recovPts) {
+		og, recov := ptTuple.Unpack()
+		ogBytes, err := og.MarshalBinary()
+		require.NoError(t, err)
+		recovBytes, err := recov.MarshalBinary()
+		require.NoError(t, err)
+		require.Equal(t, ogBytes, recovBytes, "point %d", i)
+	}
+	for i, pkTuple := range lo.Zip2(pks, recovPKs) {
+		og, recov := pkTuple.Unpack()
+		require.Equal(t, og, recov, "pk %d", i)
+	}
 }
 
 func makeDealNode(address, contact string, bufferMsg, bufferMem int) (*network.Node, *network.TestMemObserver, *DealObserver, error) {

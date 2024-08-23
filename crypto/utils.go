@@ -38,6 +38,14 @@ func SerializePublicKey(pk *ecdsa.PublicKey) ([]byte, error) {
 	return x509.MarshalPKIXPublicKey(pk)
 }
 
+func DeserializePublicKey(data []byte) (*ecdsa.PublicKey, error) {
+	pub, err := x509.ParsePKIXPublicKey(data)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse public key from data: %v", err)
+	}
+	return pub.(*ecdsa.PublicKey), nil
+}
+
 // MakeSelfSignedCert Code shamelessly stolen from https://golang.org/src/crypto/tls/generate_cert.go
 func MakeSelfSignedCert(sk *ecdsa.PrivateKey) (*tls.Certificate, error) {
 	notBefore := time.Now()
