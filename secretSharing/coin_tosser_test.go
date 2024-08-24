@@ -73,8 +73,7 @@ func TestAllSeeSameCoinTossWithSerialization(t *testing.T) {
 		})
 		for _, tuple := range lo.Zip2(pkIds, coinShares) {
 			pk, coinShare := tuple.Unpack()
-			shareBytes, err := marshalCoinTossShare(coinShare)
-			err = coinTossings[0].getShare(shareBytes, pk)
+			err = coinTossings[0].getShare(coinShare, pk)
 			require.NoError(t, err)
 		}
 		toss := <-obs.channel

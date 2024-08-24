@@ -82,11 +82,7 @@ func (ct *coinToss) genProof(valToProve group.Element) (dleq.Proof, error) {
 	return *proof, nil
 }
 
-func (ct *coinToss) getShare(shareBytes []byte, senderId UUID) error {
-	ctShare, err := unmarshalCoinTossShare(shareBytes)
-	if err != nil {
-		return fmt.Errorf("unable to unmarshal share: %v", err)
-	}
+func (ct *coinToss) getShare(ctShare coinTossShare, senderId UUID) error {
 	isValid, err := ct.isTossValid(ctShare, senderId)
 	if err != nil {
 		return fmt.Errorf("unable to validate share: %v", err)
