@@ -11,7 +11,6 @@ import (
 	"pace/network"
 	"pace/utils"
 	"reflect"
-	"unsafe"
 )
 
 type idHandling byte
@@ -139,26 +138,10 @@ func getInstanceId(reader *bytes.Reader, sender *ecdsa.PublicKey) (UUID, error) 
 	case genId:
 		return processIdGeneration(reader, sender)
 	case withId:
-		return extractIdFromMessage(reader)
+		return utils.ExtractIdFromMessage(reader)
 	default:
 		return Nil, fmt.Errorf("unhandled default case in instance id computation")
 	}
-}
-
-func extractIdFromMessage(reader *bytes.Reader) (UUID, error) {
-	idLen := unsafe.Sizeof(UUID{})
-	idBytes := make([]byte, idLen)
-	num, err := reader.Read(idBytes)
-	if err != nil {
-		return Nil, fmt.Errorf("unable to read idBytes from message during instance idBytes computation: %v", err)
-	} else if num != int(idLen) {
-		return Nil, fmt.Errorf("unable to read idBytes from message during instance idBytes computation: read %d bytes, expected %d", num, idLen)
-	}
-	id, err := FromBytes(idBytes)
-	if err != nil {
-		return Nil, fmt.Errorf("unable to convert idBytes to UUID during instance idBytes computation: %v", err)
-	}
-	return id, nil
 }
 
 func processIdGeneration(reader *bytes.Reader, sender *ecdsa.PublicKey) (UUID, error) {
