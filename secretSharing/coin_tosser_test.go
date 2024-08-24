@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"github.com/cloudflare/circl/group"
 	"github.com/cloudflare/circl/secretsharing"
-	"github.com/google/uuid"
+	. "github.com/google/uuid"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
-	"pace/utils"
 	"testing"
 )
 
@@ -15,7 +14,7 @@ type mockCoinObs struct {
 	channel chan bool
 }
 
-func (m *mockCoinObs) observeCoin(_ uuid.UUID, toss bool) {
+func (m *mockCoinObs) observeCoin(_ UUID, toss bool) {
 	m.channel <- toss
 }
 
@@ -25,14 +24,14 @@ func TestAllSeeSameCoinToss(t *testing.T) {
 	threshold := uint(2)
 	secret := g.NewScalar().SetUint64(1234567890)
 	shares := ShareSecret(threshold, nodes, secret)
-	deals := makeDeals(shares)
+	_, deals := makeDeals(shares)
 	for i := 0; i < 100; i++ {
 		seed := fmt.Sprintf("base_%d", i)
 		base := g.HashToElement([]byte(seed), []byte("test_coin"))
 		controlToss, err := HashPointToBool(g.NewElement().Mul(base, secret))
 		require.NoError(t, err)
 		coinTossings := lo.Map(deals, func(deal *Deal, _ int) coinToss {
-			return *newCoinToss(uuid.New(), threshold, base, deal)
+			return *newCoinToss(New(), threshold, base, *deal)
 		})
 		obs := mockCoinObs{make(chan bool)}
 		coinTossings[0].AttachObserver(&obs)
@@ -56,14 +55,14 @@ func TestAllSeeSameCoinTossWithSerialization(t *testing.T) {
 	threshold := uint(2)
 	secret := g.NewScalar().SetUint64(1234567890)
 	shares := ShareSecret(threshold, nodes, secret)
-	deals := makeDeals(shares)
+	pkIds, deals := makeDeals(shares)
 	for i := 0; i < 100; i++ {
 		seed := fmt.Sprintf("base_%d", i)
 		base := g.HashToElement([]byte(seed), []byte("test_coin"))
 		controlToss, err := HashPointToBool(g.NewElement().Mul(base, secret))
 		require.NoError(t, err)
 		coinTossings := lo.Map(deals, func(deal *Deal, _ int) coinToss {
-			return *newCoinToss(uuid.New(), threshold, base, deal)
+			return *newCoinToss(New(), threshold, base, *deal)
 		})
 		obs := mockCoinObs{make(chan bool)}
 		coinTossings[0].AttachObserver(&obs)
@@ -72,11 +71,10 @@ func TestAllSeeSameCoinTossWithSerialization(t *testing.T) {
 			require.NoError(t, err)
 			return ct
 		})
-		for _, coinShare := range coinShares {
+		for _, tuple := range lo.Zip2(pkIds, coinShares) {
+			pk, coinShare := tuple.Unpack()
 			shareBytes, err := marshalCoinTossShare(coinShare)
-			pk, err := utils.GenPK()
-			require.NoError(t, err)
-			err = coinTossings[0].getShare(shareBytes, *pk)
+			err = coinTossings[0].getShare(shareBytes, pk)
 			require.NoError(t, err)
 		}
 		toss := <-obs.channel
@@ -84,14 +82,32 @@ func TestAllSeeSameCoinTossWithSerialization(t *testing.T) {
 	}
 }
 
-func makeDeals(shares []secretsharing.Share) []*Deal {
+func makeDeals(shares []secretsharing.Share) ([]UUID, []*Deal) {
 	commitBase := group.Ristretto255.HashToElement([]byte("commit"), []byte("test_coin"))
-	return lo.Map(shares, func(share secretsharing.Share, _ int) *Deal {
+	pkIds, peerCommits := makePeerCommitments(shares, commitBase)
+	return pkIds, lo.Map(shares, func(share secretsharing.Share, _ int) *Deal {
 		commit := group.Ristretto255.NewElement().Mul(commitBase, share.Value)
 		return &Deal{
-			share:      share,
-			commitBase: commitBase,
-			commit:     commit,
+			share:       share,
+			commitBase:  commitBase,
+			commit:      commit,
+			peerCommits: peerCommits,
 		}
 	})
+}
+
+func makePeerCommitments(shares []secretsharing.Share, commitBase group.Element) ([]UUID, map[UUID]group.Element) {
+	pkIds := lo.Map(shares, func(_ secretsharing.Share, _ int) UUID {
+		id, _ := NewRandom()
+		return id
+	})
+	peerCommitList := lo.Map(shares, func(share secretsharing.Share, i int) group.Element {
+		return mulPoint(commitBase, share.Value)
+	})
+	peerCommits := make(map[UUID]group.Element)
+	for _, tuple := range lo.Zip2(pkIds, peerCommitList) {
+		id, commit := tuple.Unpack()
+		peerCommits[id] = commit
+	}
+	return pkIds, peerCommits
 }

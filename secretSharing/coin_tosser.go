@@ -2,13 +2,11 @@ package secretSharing
 
 import (
 	"crypto"
-	"crypto/ecdsa"
 	"fmt"
 	"github.com/cloudflare/circl/group"
 	"github.com/cloudflare/circl/zk/dleq"
 	. "github.com/google/uuid"
 	"log/slog"
-	"pace/utils"
 )
 
 const dleqDst = "DLEQ"
@@ -26,7 +24,7 @@ type coinToss struct {
 	id            UUID
 	threshold     uint
 	base          group.Element
-	deal          *Deal
+	deal          Deal
 	hiddenShares  []PointShare
 	observers     []coinObserver
 	peersReceived map[UUID]bool
@@ -34,7 +32,7 @@ type coinToss struct {
 	closeChan     chan struct{}
 }
 
-func newCoinToss(id UUID, threshold uint, base group.Element, deal *Deal) *coinToss {
+func newCoinToss(id UUID, threshold uint, base group.Element, deal Deal) *coinToss {
 	commands := make(chan func() error)
 	ct := &coinToss{
 		id:            id,
@@ -84,28 +82,35 @@ func (ct *coinToss) genProof(valToProve group.Element) (dleq.Proof, error) {
 	return *proof, nil
 }
 
-func (ct *coinToss) getShare(shareBytes []byte, sender ecdsa.PublicKey) error {
+func (ct *coinToss) getShare(shareBytes []byte, senderId UUID) error {
 	ctShare, err := unmarshalCoinTossShare(shareBytes)
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal share: %v", err)
 	}
-	senderId, err := utils.PkToUUID(&sender)
+	isValid, err := ct.isTossValid(ctShare, senderId)
 	if err != nil {
-		return fmt.Errorf("unable to get sender id: %v", err)
+		return fmt.Errorf("unable to validate share: %v", err)
+	} else if !isValid {
+		return fmt.Errorf("invalid share from peer %v", senderId)
 	}
-	/*proof := ctShare.proof
-	verifier := dleq.Verifier{Params: getDLEQParams()}
-	if !verifier.Verify(ct.base, ctShare.ptShare.point, *ct.deal.commitBase, *ct.deal.commit, &proof) {
-		return fmt.Errorf("invalid proof")
-	}*/
 	ct.commands <- func() error {
 		if ct.peersReceived[senderId] {
-			return fmt.Errorf("peer %v already sent share", sender)
+			return fmt.Errorf("peer %v already sent share", senderId)
 		}
 		ct.peersReceived[senderId] = true
 		return ct.processShare(ctShare.ptShare)
 	}
 	return nil
+}
+
+func (ct *coinToss) isTossValid(ctShare coinTossShare, senderId UUID) (bool, error) {
+	proof := ctShare.proof
+	peerCommit, ok := ct.deal.peerCommits[senderId]
+	if !ok {
+		return false, fmt.Errorf("peer %v commitment not found", senderId)
+	}
+	verifier := dleq.Verifier{Params: getDLEQParams()}
+	return verifier.Verify(ct.base, ctShare.ptShare.point, ct.deal.commitBase, peerCommit, &proof), nil
 }
 
 func (ct *coinToss) processShare(share PointShare) error {
