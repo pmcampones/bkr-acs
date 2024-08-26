@@ -4,13 +4,16 @@ import (
 	"crypto/ecdsa"
 	"crypto/tls"
 	"fmt"
+	"github.com/google/uuid"
 	"net"
+	"pace/utils"
 )
 
 type Peer struct {
 	Conn net.Conn
 	name string
 	Pk   *ecdsa.PublicKey
+	pkId uuid.UUID
 }
 
 func newOutbound(myName, address string, config *tls.Config) (Peer, error) {
@@ -27,10 +30,15 @@ func newOutbound(myName, address string, config *tls.Config) (Peer, error) {
 		return Peer{}, fmt.Errorf("no certificates found in connection")
 	}
 	pk := certs[0].PublicKey.(*ecdsa.PublicKey)
+	pkId, err := utils.PkToUUID(pk)
+	if err != nil {
+		return Peer{}, fmt.Errorf("unable to convert public key to UUID: %v", err)
+	}
 	peer := Peer{
 		Conn: conn,
 		name: address,
 		Pk:   pk,
+		pkId: pkId,
 	}
 	return peer, nil
 }
@@ -50,10 +58,19 @@ func getInbound(listener net.Listener) (Peer, error) {
 		return Peer{}, fmt.Errorf("no certificates found in connection")
 	}
 	pk := certs[0].PublicKey.(*ecdsa.PublicKey)
+	pkId, err := utils.PkToUUID(pk)
+	if err != nil {
+		return Peer{}, fmt.Errorf("unable to convert public key to UUID: %v", err)
+	}
 	peer := Peer{
 		Conn: conn,
 		name: name,
 		Pk:   pk,
+		pkId: pkId,
 	}
 	return peer, nil
+}
+
+func (p *Peer) String() string {
+	return fmt.Sprintf("%s:%v", p.name, p.pkId)
 }

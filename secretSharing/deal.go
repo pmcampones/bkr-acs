@@ -18,7 +18,7 @@ import (
 	"pace/utils"
 )
 
-var dLogger = utils.GetLogger(slog.LevelDebug)
+var dLogger = utils.GetLogger(slog.LevelInfo)
 
 type Deal struct {
 	share       secretsharing.Share
@@ -34,7 +34,7 @@ type DealObserver struct {
 }
 
 func (do *DealObserver) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
-	dLogger.Info("received message", "sender", sender, "Code", msg[0])
+	dLogger.Debug("received message", "sender", sender, "Code", msg[0])
 	if msg[0] == do.Code {
 		if do.hasBeenDealt {
 			dLogger.Error("deal already received")
@@ -107,6 +107,7 @@ func ShareDeals(threshold uint, node *network.Node, peers []*network.Peer, dealC
 		return fmt.Errorf("unable to serialize commitments: %v", err)
 	}
 	go obs.genDeal(&ss[0], commitBase, commits)
+	dLogger.Info("sending deal to peers", "peers", peers)
 	for i, peer := range peers {
 		err = shareDeal(node, peer.Conn, ss[i+1], marshaledBase, serializedCommits, dealCode)
 		if err != nil {
