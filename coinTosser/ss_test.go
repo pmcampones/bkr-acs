@@ -1,4 +1,4 @@
-package secretSharing
+package coinTosser
 
 import (
 	"crypto"
@@ -46,7 +46,7 @@ func TestSSWithPoints(t *testing.T) {
 	assert.Equal(t, recSecBytes, ptSecBytes)
 }
 
-// TestDLEquivalence tests the equivalence of the DLEQ implementation in zk/dleq and the one in secretSharing.
+// TestDLEquivalence tests the equivalence of the DLEQ implementation in zk/dleq and the one in coinTosser.
 // Taken from: https://asecuritysite.com/dleq/circl_dl
 func TestDLEquivalence(t *testing.T) {
 	g := group.Ristretto255

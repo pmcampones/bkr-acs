@@ -1,4 +1,4 @@
-package secretSharing
+package coinTosser
 
 import (
 	"bufio"
@@ -14,7 +14,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"pace/network"
+	"pace/overlayNetwork"
 	"pace/utils"
 )
 
@@ -86,7 +86,7 @@ func (do *DealObserver) genDeal(share *secretsharing.Share, commitBase group.Ele
 	do.DealChan <- deal
 }
 
-func ShareDeals(threshold uint, node *network.Node, peers []*network.Peer, dealCode byte, obs *DealObserver) error {
+func ShareDeals(threshold uint, node *overlayNetwork.Node, peers []*overlayNetwork.Peer, dealCode byte, obs *DealObserver) error {
 	g := group.Ristretto255
 	secret := g.RandomScalar(rand.Reader)
 	commitBase := g.RandomElement(rand.Reader)
@@ -95,7 +95,7 @@ func ShareDeals(threshold uint, node *network.Node, peers []*network.Peer, dealC
 		return fmt.Errorf("unable to marshal commit base: %v", err)
 	}
 	ss := ShareSecret(threshold, uint(len(peers))+1, secret)
-	pks := lo.Map(peers, func(peer *network.Peer, _ int) ecdsa.PublicKey {
+	pks := lo.Map(peers, func(peer *overlayNetwork.Peer, _ int) ecdsa.PublicKey {
 		return *peer.Pk
 	})
 	pks = append([]ecdsa.PublicKey{*node.GetPk()}, pks...)
@@ -202,7 +202,7 @@ func deserializeCommitments(data []byte) ([]lo.Tuple2[group.Element, ecdsa.Publi
 	return commits, nil
 }
 
-func shareDeal(node *network.Node, peer net.Conn, share secretsharing.Share, marshaledBase, commits []byte, dealCode byte) error {
+func shareDeal(node *overlayNetwork.Node, peer net.Conn, share secretsharing.Share, marshaledBase, commits []byte, dealCode byte) error {
 	buf := bytes.NewBuffer([]byte{})
 	writer := bufio.NewWriter(buf)
 	err := writer.WriteByte(dealCode)

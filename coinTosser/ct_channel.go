@@ -1,4 +1,4 @@
-package secretSharing
+package coinTosser
 
 import (
 	"bufio"
@@ -10,7 +10,7 @@ import (
 	"github.com/samber/mo"
 	"io"
 	"log/slog"
-	"pace/network"
+	"pace/overlayNetwork"
 	"pace/utils"
 )
 
@@ -28,12 +28,12 @@ type CoinTosserChannel struct {
 	unordered      map[UUID][]func() error
 	t              uint
 	deal           Deal
-	network        *network.Node
+	network        *overlayNetwork.Node
 	commands       chan<- func() error
 	listenCode     byte
 }
 
-func NewCoinTosserChannel(node *network.Node, t uint, deal Deal, listenCode byte) *CoinTosserChannel {
+func NewCoinTosserChannel(node *overlayNetwork.Node, t uint, deal Deal, listenCode byte) *CoinTosserChannel {
 	commands := make(chan func() error)
 	myself, err := utils.PkToUUID(node.GetPk())
 	if err != nil {

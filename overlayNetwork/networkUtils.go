@@ -1,4 +1,4 @@
-package network
+package overlayNetwork
 
 import (
 	"crypto/ecdsa"
@@ -65,7 +65,7 @@ func MakeNode(address, contact string, bufferMsg, bufferMem int) (*Node, *TestMe
 	node.AttachMessageObserver(&msgObs)
 	err = node.Join(contact)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("unable to join the network: %v", err)
+		return nil, nil, nil, fmt.Errorf("unable to join the overlayNetwork: %v", err)
 	}
 	return node, &memObs, &msgObs, nil
 }

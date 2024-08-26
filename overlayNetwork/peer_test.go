@@ -1,4 +1,4 @@
-package network
+package overlayNetwork
 
 import (
 	"crypto/ecdsa"

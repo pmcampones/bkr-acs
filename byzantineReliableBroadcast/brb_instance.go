@@ -1,4 +1,4 @@
-package brb
+package byzantineReliableBroadcast
 
 import (
 	"bufio"
@@ -8,7 +8,7 @@ import (
 	"fmt"
 	. "github.com/google/uuid"
 	"log/slog"
-	"pace/network"
+	"pace/overlayNetwork"
 	"pace/utils"
 )
 
@@ -46,7 +46,7 @@ type brbData struct {
 	f          uint
 	echoes     map[UUID]uint
 	readies    map[UUID]uint
-	network    *network.Node
+	network    *overlayNetwork.Node
 	observers  []broadcastInstanceObserver
 	listenCode byte
 }
@@ -57,10 +57,10 @@ type msgStruct struct {
 	kind    brb
 }
 
-func newBrbInstance(id UUID, n, f uint, network *network.Node, listenCode byte) (*brbInstance, error) {
+func newBrbInstance(id UUID, n, f uint, network *overlayNetwork.Node, listenCode byte) (*brbInstance, error) {
 	idBytes, err := id.MarshalBinary()
 	if err != nil {
-		return nil, fmt.Errorf("unable to create brb instance due to error in unmarshaling idBytes")
+		return nil, fmt.Errorf("unable to create byzantineReliableBroadcast instance due to error in unmarshaling idBytes")
 	}
 	data := brbData{
 		id:         id,
@@ -110,7 +110,7 @@ func (b *brbInstance) send(nonce uint32, msg []byte) error {
 	writer := bufio.NewWriter(buf)
 	_, err := writer.Write([]byte{b.data.listenCode})
 	if err != nil {
-		return fmt.Errorf("unable to write the listen code for the brb channel: %v", err)
+		return fmt.Errorf("unable to write the listen code for the byzantineReliableBroadcast channel: %v", err)
 	}
 	_, err = writer.Write([]byte{byte(genId)})
 	if err != nil {
@@ -239,7 +239,7 @@ func (b *brbInstance) invoker(commands <-chan func() error, closeChan <-chan str
 				logger.Error("unable to compute command", "id", b.data.id, "error", err)
 			}
 		case <-closeChan:
-			logger.Debug("closing brb executor", "id", b.data.id)
+			logger.Debug("closing byzantineReliableBroadcast executor", "id", b.data.id)
 			return
 		}
 	}
@@ -314,7 +314,7 @@ func (b *brbPhase1Handler) handleReady(msg []byte, id UUID) error {
 }
 
 func (b *brbPhase1Handler) sendEcho(msg []byte) error {
-	logger.Debug("sending echo message", "brb id", b.data.id)
+	logger.Debug("sending echo message", "byzantineReliableBroadcast id", b.data.id)
 	err := sendMessage(msg, brbecho, b.data)
 	if err != nil {
 		return fmt.Errorf("unable to send echo message: %v", err)
@@ -372,7 +372,7 @@ func (b *brbPhase2Handler) handleReady(msg []byte, id UUID) error {
 }
 
 func (b *brbPhase2Handler) sendReady(msg []byte) error {
-	logger.Debug("sending ready message", "brb id", b.data.id)
+	logger.Debug("sending ready message", "byzantineReliableBroadcast id", b.data.id)
 	err := sendMessage(msg, brbready, b.data)
 	if err != nil {
 		return fmt.Errorf("unable to send ready message: %v", err)
@@ -385,7 +385,7 @@ func sendMessage(msg []byte, msgType brb, b *brbData) error {
 	writer := bufio.NewWriter(buf)
 	_, err := writer.Write([]byte{b.listenCode})
 	if err != nil {
-		return fmt.Errorf("unable to write the listen code for the brb channel: %v", err)
+		return fmt.Errorf("unable to write the listen code for the byzantineReliableBroadcast channel: %v", err)
 	}
 	_, err = writer.Write([]byte{byte(withId)})
 	if err != nil {
@@ -393,7 +393,7 @@ func sendMessage(msg []byte, msgType brb, b *brbData) error {
 	}
 	_, err = writer.Write(b.idBytes)
 	if err != nil {
-		return fmt.Errorf("unable to write brb id to buffer: %v", err)
+		return fmt.Errorf("unable to write byzantineReliableBroadcast id to buffer: %v", err)
 	}
 	err = buildMessageContent(writer, msg, msgType)
 	if err != nil {

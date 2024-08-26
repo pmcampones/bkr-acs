@@ -1,4 +1,4 @@
-package secretSharing
+package coinTosser
 
 import (
 	"bytes"

@@ -9,9 +9,9 @@ import (
 	"github.com/samber/mo"
 	"log/slog"
 	"os"
-	"pace/brb"
-	"pace/network"
-	"pace/secretSharing"
+	"pace/byzantineReliableBroadcast"
+	"pace/coinTosser"
+	"pace/overlayNetwork"
 	"pace/utils"
 	"time"
 )
@@ -24,11 +24,11 @@ var logger = utils.GetLogger(slog.LevelWarn)
 
 type MembershipBarrier struct {
 	nodesWaiting int
-	connections  []*network.Peer
+	connections  []*overlayNetwork.Peer
 	barrier      chan struct{}
 }
 
-func (mb *MembershipBarrier) NotifyPeerUp(p *network.Peer) {
+func (mb *MembershipBarrier) NotifyPeerUp(p *overlayNetwork.Peer) {
 	mb.nodesWaiting--
 	logger.Debug("Node went up", "peer", p)
 	mb.connections = append(mb.connections, p)
@@ -37,7 +37,7 @@ func (mb *MembershipBarrier) NotifyPeerUp(p *network.Peer) {
 	}
 }
 
-func (mb *MembershipBarrier) NotifyPeerDown(p *network.Peer) {
+func (mb *MembershipBarrier) NotifyPeerDown(p *overlayNetwork.Peer) {
 	logger.Warn("Node went down", "peer", p)
 }
 
@@ -61,13 +61,14 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("error creating node: %v", err))
 	}
-	dealObs := secretSharing.DealObserver{
+	dealObs := coinTosser.DealObserver{
 		Code:     dealCode,
-		DealChan: make(chan *secretSharing.Deal),
+		DealChan: make(chan *coinTosser.Deal),
 	}
 	node.AttachMessageObserver(&dealObs)
 	numNodes := props.MustGetInt("num_nodes")
 	connections, err := joinNetwork(node, contact, numNodes)
+
 	if err != nil {
 		panic(err)
 	}
@@ -76,14 +77,14 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	ctChannel := secretSharing.NewCoinTosserChannel(node, uint(threshold), *deal, coinCode)
+	ctChannel := coinTosser.NewCoinTosserChannel(node, uint(threshold), *deal, coinCode)
 	time.Sleep(20 * time.Second)
 	ch0 := make(chan mo.Result[bool], 1)
 	ctChannel.TossCoin([]byte("seed"), ch0)
 	testBRB(node, *skPathname)
 }
 
-func makeNode(address, contact, skPathname, certPathname string) (*network.Node, error) {
+func makeNode(address, contact, skPathname, certPathname string) (*overlayNetwork.Node, error) {
 	sk, err := utils.ReadPrivateKey(skPathname)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read private key: %v", err)
@@ -92,11 +93,11 @@ func makeNode(address, contact, skPathname, certPathname string) (*network.Node,
 	if err != nil {
 		return nil, fmt.Errorf("unable to read the certificate: %v", err)
 	}
-	node := network.NewNode(address, contact, sk, &cert)
+	node := overlayNetwork.NewNode(address, contact, sk, &cert)
 	return node, nil
 }
 
-func joinNetwork(node *network.Node, contact string, numNodes int) ([]*network.Peer, error) {
+func joinNetwork(node *overlayNetwork.Node, contact string, numNodes int) ([]*overlayNetwork.Peer, error) {
 	memBarrier := MembershipBarrier{
 		nodesWaiting: numNodes - 1,
 		barrier:      make(chan struct{}),
@@ -104,7 +105,7 @@ func joinNetwork(node *network.Node, contact string, numNodes int) ([]*network.P
 	node.AttachMembershipObserver(&memBarrier)
 	err := node.Join(contact)
 	if err != nil {
-		return nil, fmt.Errorf("error joining network: %v", err)
+		return nil, fmt.Errorf("error joining overlayNetwork: %v", err)
 	}
 	logger.Info("Waiting for all nodes to join")
 	<-memBarrier.barrier
@@ -112,10 +113,10 @@ func joinNetwork(node *network.Node, contact string, numNodes int) ([]*network.P
 	return memBarrier.connections, nil
 }
 
-func getDeal(node *network.Node, connections []*network.Peer, threshold int, isContact bool, obs *secretSharing.DealObserver) (*secretSharing.Deal, error) {
+func getDeal(node *overlayNetwork.Node, connections []*overlayNetwork.Peer, threshold int, isContact bool, obs *coinTosser.DealObserver) (*coinTosser.Deal, error) {
 	if isContact {
 		logger.Info("Distributing Deals")
-		err := secretSharing.ShareDeals(uint(threshold), node, connections, byte(dealCode), obs)
+		err := coinTosser.ShareDeals(uint(threshold), node, connections, byte(dealCode), obs)
 		if err != nil {
 			return nil, fmt.Errorf("error sharing deals: %v", err)
 		}
@@ -125,14 +126,14 @@ func getDeal(node *network.Node, connections []*network.Peer, threshold int, isC
 	return deal, nil
 }
 
-func testBRB(node *network.Node, skPathname string) {
+func testBRB(node *overlayNetwork.Node, skPathname string) {
 	sk, err := utils.ReadPrivateKey(skPathname)
 	if err != nil {
 		logger.Error("Error reading private key", "error", err)
 		return
 	}
 	observer := ConcreteObserver{}
-	channel := brb.CreateBRBChannel(node, 4, 1, *sk, brbCode)
+	channel := byzantineReliableBroadcast.CreateBRBChannel(node, 4, 1, *sk, brbCode)
 	channel.AttachObserver(observer)
 	input := bufio.NewScanner(os.Stdin)
 	for input.Scan() {

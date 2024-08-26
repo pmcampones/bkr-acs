@@ -1,4 +1,4 @@
-package network
+package overlayNetwork
 
 import (
 	"crypto/ecdsa"
@@ -52,12 +52,12 @@ func NewNode(id, contact string, sk *ecdsa.PrivateKey, cert *tls.Certificate) *N
 	return &node
 }
 
-// Join adds a new node to the network
+// Join adds a new node to the overlayNetwork
 func (n *Node) Join(contact string) error {
 	if n.hasJoined {
-		return fmt.Errorf("node has already joined the network")
+		return fmt.Errorf("node has already joined the overlayNetwork")
 	}
-	logger.Info("I am joining the network", "contact", contact)
+	logger.Info("I am joining the overlayNetwork", "contact", contact)
 	if !n.isContact {
 		logger.Debug("I am not the contact")
 		err := n.connectToContact(contact)
@@ -81,7 +81,7 @@ func (n *Node) AttachMembershipObserver(observer MembershipObserver) {
 
 func (n *Node) Broadcast(msg []byte) error {
 	if !n.hasJoined {
-		return fmt.Errorf("node has not joined the network")
+		return fmt.Errorf("node has not joined the overlayNetwork")
 	}
 	toSend := append([]byte{byte(generic)}, msg...)
 	go n.processMessage(toSend, &n.sk.PublicKey)
@@ -99,7 +99,7 @@ func (n *Node) Broadcast(msg []byte) error {
 
 func (n *Node) Unicast(msg []byte, c net.Conn) error {
 	if !n.hasJoined {
-		return fmt.Errorf("node has not joined the network")
+		return fmt.Errorf("node has not joined the overlayNetwork")
 	}
 	toSend := append([]byte{byte(generic)}, msg...)
 	err := send(c, toSend)

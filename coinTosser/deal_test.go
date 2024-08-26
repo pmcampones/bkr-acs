@@ -1,4 +1,4 @@
-package secretSharing
+package coinTosser
 
 import (
 	"crypto/ecdsa"
@@ -7,7 +7,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 	"maps"
-	"pace/network"
+	"pace/overlayNetwork"
 	"pace/utils"
 	"slices"
 	"testing"
@@ -82,8 +82,8 @@ func TestSerializeAndDeserializeCommits(t *testing.T) {
 	}
 }
 
-func makeDealNode(address, contact string, bufferMsg, bufferMem int) (*network.Node, *network.TestMemObserver, *DealObserver, error) {
-	node, memObs, _, err := network.MakeNode(address, contact, bufferMsg, bufferMem)
+func makeDealNode(address, contact string, bufferMsg, bufferMem int) (*overlayNetwork.Node, *overlayNetwork.TestMemObserver, *DealObserver, error) {
+	node, memObs, _, err := overlayNetwork.MakeNode(address, contact, bufferMsg, bufferMem)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("unable to create node: %v", err)
 	}

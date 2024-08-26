@@ -1,4 +1,4 @@
-package secretSharing
+package coinTosser
 
 import (
 	"fmt"
@@ -40,7 +40,7 @@ func TestTrue(t *testing.T) {
 	ctChannel1 := NewCoinTosserChannel(node1, threshold, *deal1, 'C')
 	ctChannel2 := NewCoinTosserChannel(node2, threshold, *deal2, 'C')
 	ctChannel3 := NewCoinTosserChannel(node3, threshold, *deal3, 'C')
-	time.Sleep(time.Second) // making sure the channels attach to the network to get updates
+	time.Sleep(time.Second) // making sure the channels attach to the overlayNetwork to get updates
 	fmt.Println("CT Channels created")
 	ch0 := make(chan mo.Result[bool], 2)
 	ch1 := make(chan mo.Result[bool], 2)

@@ -1,4 +1,4 @@
-package brb
+package byzantineReliableBroadcast
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	. "github.com/google/uuid"
 	"log/slog"
 	"math/rand"
-	"pace/network"
+	"pace/overlayNetwork"
 	"pace/utils"
 	"reflect"
 )
@@ -36,13 +36,13 @@ type BRBChannel struct {
 	n          uint
 	f          uint
 	observers  []BRBObserver
-	network    *network.Node
+	network    *overlayNetwork.Node
 	sk         *ecdsa.PrivateKey
 	commands   chan<- func() error
 	listenCode byte
 }
 
-func CreateBRBChannel(node *network.Node, n, f uint, sk ecdsa.PrivateKey, listenCode byte) *BRBChannel {
+func CreateBRBChannel(node *overlayNetwork.Node, n, f uint, sk ecdsa.PrivateKey, listenCode byte) *BRBChannel {
 	commands := make(chan func() error)
 	channel := &BRBChannel{
 		instances:  make(map[UUID]*brbInstance),
@@ -69,7 +69,7 @@ func (channel *BRBChannel) BRBroadcast(msg []byte) error {
 	nonce := rand.Uint32()
 	id, err := channel.computeBroadcastId(nonce)
 	if err != nil {
-		return fmt.Errorf("channel unable to compute brb id: %v", err)
+		return fmt.Errorf("channel unable to compute byzantineReliableBroadcast id: %v", err)
 	}
 	brbInstance, err := newBrbInstance(id, channel.n, channel.f, channel.network, channel.listenCode)
 	if err != nil {
@@ -81,7 +81,7 @@ func (channel *BRBChannel) BRBroadcast(msg []byte) error {
 
 func (channel *BRBChannel) broadcast(msg []byte, nonce uint32, id UUID, instance *brbInstance) {
 	channel.commands <- func() error {
-		chanelLogger.Info("sending brb", "id", id, "msg", msg)
+		chanelLogger.Info("sending byzantineReliableBroadcast", "id", id, "msg", msg)
 		channel.instances[id] = instance
 		instance.attachObserver(channel)
 		go func() {
@@ -97,12 +97,12 @@ func (channel *BRBChannel) broadcast(msg []byte, nonce uint32, id UUID, instance
 func (channel *BRBChannel) computeBroadcastId(nonce uint32) (UUID, error) {
 	encodedPk, err := utils.SerializePublicKey(&channel.sk.PublicKey)
 	if err != nil {
-		return UUID{}, fmt.Errorf("bcb channel unable to serialize public key during brb: %v", err)
+		return UUID{}, fmt.Errorf("bcb channel unable to serialize public key during byzantineReliableBroadcast: %v", err)
 	}
 	buf := bytes.NewBuffer(encodedPk)
 	err = binary.Write(buf, binary.LittleEndian, nonce)
 	if err != nil {
-		return UUID{}, fmt.Errorf("unable to write nonce to buffer during brb: %v", err)
+		return UUID{}, fmt.Errorf("unable to write nonce to buffer during byzantineReliableBroadcast: %v", err)
 	}
 	id := utils.BytesToUUID(buf.Bytes())
 	return id, nil
@@ -110,7 +110,7 @@ func (channel *BRBChannel) computeBroadcastId(nonce uint32) (UUID, error) {
 
 func (channel *BRBChannel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
 	if msg[0] == channel.listenCode {
-		chanelLogger.Debug("received message from network", "sender", sender)
+		chanelLogger.Debug("received message from overlayNetwork", "sender", sender)
 		msg = msg[1:]
 		reader := bytes.NewReader(msg)
 		id, err := getInstanceId(reader, sender)
@@ -162,7 +162,7 @@ func processIdGeneration(reader *bytes.Reader, sender *ecdsa.PublicKey) (UUID, e
 func computeInstanceId(nonce uint32, sender *ecdsa.PublicKey) (UUID, error) {
 	encodedPk, err := utils.SerializePublicKey(sender)
 	if err != nil {
-		return Nil, fmt.Errorf("unable to serialize public key during brb: %v", err)
+		return Nil, fmt.Errorf("unable to serialize public key during byzantineReliableBroadcast: %v", err)
 	}
 	buf := bytes.NewBuffer(encodedPk)
 	err = binary.Write(buf, binary.LittleEndian, nonce)
@@ -198,7 +198,7 @@ func (channel *BRBChannel) processMsg(id UUID, reader *bytes.Reader, sender *ecd
 }
 
 func (channel *BRBChannel) instanceDeliver(id UUID, msg []byte) {
-	chanelLogger.Debug("delivering message from brb instance", "id", id)
+	chanelLogger.Debug("delivering message from byzantineReliableBroadcast instance", "id", id)
 	channel.commands <- func() error {
 		for _, observer := range channel.observers {
 			observer.BRBDeliver(msg)

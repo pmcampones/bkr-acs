@@ -1,4 +1,4 @@
-package secretSharing
+package coinTosser
 
 import (
 	"crypto"
@@ -161,7 +161,7 @@ func (ct *coinToss) invoker(commands <-chan func() error, closeChan <-chan struc
 				ctLogger.Error("unable to compute command", "id", ct.id, "error", err)
 			}
 		case <-closeChan:
-			ctLogger.Debug("closing brb executor", "id", ct.id)
+			ctLogger.Debug("closing byzantineReliableBroadcast executor", "id", ct.id)
 			return
 		}
 	}
