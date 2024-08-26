@@ -2,7 +2,7 @@ package overlayNetwork
 
 import (
 	"fmt"
-	"github.com/magiconair/properties/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 )
@@ -14,11 +14,12 @@ func TestShouldBroadcastSingleNode(t *testing.T) {
 		t.Fatalf("unable to create node sender: %v", err)
 	}
 	msg := []byte("hello")
-	assert.Equal(t, len(msgObs.delivered), 0)
-	node.Broadcast(msg)
+	require.Equal(t, len(msgObs.delivered), 0)
+	err = node.Broadcast(msg)
+	require.NoError(t, err)
 	<-msgObs.barrier
-	assert.Equal(t, msgObs.delivered[string(msg)], true)
-	assert.Equal(t, len(msgObs.delivered), 1)
+	require.Equal(t, msgObs.delivered[string(msg)], true)
+	require.Equal(t, len(msgObs.delivered), 1)
 }
 
 func TestShouldBroadcastSingleNodeManyMessages(t *testing.T) {
@@ -33,15 +34,16 @@ func TestShouldBroadcastSingleNodeManyMessages(t *testing.T) {
 		t.Fatalf("unable to create node sender: %v", err)
 	}
 	for _, msg := range msgs {
-		node.Broadcast(msg)
+		err = node.Broadcast(msg)
+		require.NoError(t, err)
 	}
 	for i := 0; i < numMsgs; i++ {
 		<-msgObs.barrier
 	}
 	for _, msg := range msgs {
-		assert.Equal(t, msgObs.delivered[string(msg)], true)
+		require.Equal(t, msgObs.delivered[string(msg)], true)
 	}
-	assert.Equal(t, len(msgObs.delivered), len(msgs))
+	require.Equal(t, len(msgObs.delivered), len(msgs))
 }
 
 func TestShouldBroadcastTwoNodesSingleMessage(t *testing.T) {
@@ -57,20 +59,22 @@ func TestShouldBroadcastTwoNodesSingleMessage(t *testing.T) {
 	}
 	<-memObs1.UpBarrier
 	<-memObs2.UpBarrier
-	node1.Broadcast([]byte(address1))
+	err = node1.Broadcast([]byte(address1))
+	require.NoError(t, err)
 	<-msgObs1.barrier
 	<-msgObs2.barrier
-	assert.Equal(t, len(msgObs1.delivered), 1)
-	assert.Equal(t, len(msgObs2.delivered), 1)
-	assert.Equal(t, msgObs1.delivered[address1], true)
-	assert.Equal(t, msgObs2.delivered[address1], true)
-	node2.Broadcast([]byte(address2))
+	require.Equal(t, len(msgObs1.delivered), 1)
+	require.Equal(t, len(msgObs2.delivered), 1)
+	require.Equal(t, msgObs1.delivered[address1], true)
+	require.Equal(t, msgObs2.delivered[address1], true)
+	err = node2.Broadcast([]byte(address2))
+	require.NoError(t, err)
 	<-msgObs1.barrier
 	<-msgObs2.barrier
-	assert.Equal(t, len(msgObs1.delivered), 2)
-	assert.Equal(t, len(msgObs2.delivered), 2)
-	assert.Equal(t, msgObs1.delivered[address2], true)
-	assert.Equal(t, msgObs2.delivered[address2], true)
+	require.Equal(t, len(msgObs1.delivered), 2)
+	require.Equal(t, len(msgObs2.delivered), 2)
+	require.Equal(t, msgObs1.delivered[address2], true)
+	require.Equal(t, msgObs2.delivered[address2], true)
 }
 
 func TestShouldBroadcastTwoNodesManyMessages(t *testing.T) {
@@ -94,8 +98,10 @@ func TestShouldBroadcastTwoNodesManyMessages(t *testing.T) {
 	<-memObs1.UpBarrier
 	<-memObs2.UpBarrier
 	for i := 0; i < numMsgs; i++ {
-		node1.Broadcast(msgs1[i])
-		node2.Broadcast(msgs2[i])
+		err = node1.Broadcast(msgs1[i])
+		require.NoError(t, err)
+		err = node2.Broadcast(msgs2[i])
+		require.NoError(t, err)
 	}
 	for i := 0; i < numMsgs; i++ {
 		<-msgObs1.barrier
@@ -104,13 +110,13 @@ func TestShouldBroadcastTwoNodesManyMessages(t *testing.T) {
 		<-msgObs2.barrier
 	}
 	for i := 0; i < numMsgs; i++ {
-		assert.Equal(t, msgObs1.delivered[string(msgs1[i])], true)
-		assert.Equal(t, msgObs1.delivered[string(msgs2[i])], true)
-		assert.Equal(t, msgObs2.delivered[string(msgs1[i])], true)
-		assert.Equal(t, msgObs2.delivered[string(msgs2[i])], true)
+		require.Equal(t, msgObs1.delivered[string(msgs1[i])], true)
+		require.Equal(t, msgObs1.delivered[string(msgs2[i])], true)
+		require.Equal(t, msgObs2.delivered[string(msgs1[i])], true)
+		require.Equal(t, msgObs2.delivered[string(msgs2[i])], true)
 	}
-	assert.Equal(t, len(msgObs1.delivered), 2*numMsgs)
-	assert.Equal(t, len(msgObs2.delivered), 2*numMsgs)
+	require.Equal(t, len(msgObs1.delivered), 2*numMsgs)
+	require.Equal(t, len(msgObs2.delivered), 2*numMsgs)
 }
 
 func TestShouldBroadcastManyNodesManyMessages(t *testing.T) {
@@ -135,7 +141,8 @@ func TestShouldBroadcastManyNodesManyMessages(t *testing.T) {
 	fmt.Println("Generated nodes and messages")
 	for i, node := range nodes {
 		for _, msg := range msgs[i] {
-			node.Broadcast(msg)
+			err := node.Broadcast(msg)
+			require.NoError(t, err)
 		}
 	}
 	fmt.Println("Messages networkChannel")
@@ -146,10 +153,10 @@ func TestShouldBroadcastManyNodesManyMessages(t *testing.T) {
 	}
 	fmt.Println("Messages received")
 	for _, msgOb := range msgObs {
-		assert.Equal(t, len(msgOb.delivered), numMsgs*numNodes)
+		require.Equal(t, len(msgOb.delivered), numMsgs*numNodes)
 		for _, nodeMsgs := range msgs {
 			for _, msg := range nodeMsgs {
-				assert.Equal(t, msgOb.delivered[string(msg)], true)
+				require.Equal(t, msgOb.delivered[string(msg)], true)
 			}
 		}
 	}
@@ -178,10 +185,11 @@ func TestShouldUnicastSingleMessage(t *testing.T) {
 	if peer1 == nil {
 		t.Fatalf("unable to find peer1: %v", peer1Name)
 	}
-	node0.Unicast(msg, peer1.Conn)
+	err = node0.Unicast(msg, peer1.Conn)
+	require.NoError(t, err)
 	time.Sleep(1 * time.Second)
-	assert.Equal(t, len(msgObs0.delivered), 0)
-	assert.Equal(t, len(msgObs1.delivered), 1)
-	assert.Equal(t, len(msgObs2.delivered), 0)
-	assert.Equal(t, msgObs1.delivered[string(msg)], true)
+	require.Equal(t, len(msgObs0.delivered), 0)
+	require.Equal(t, len(msgObs1.delivered), 1)
+	require.Equal(t, len(msgObs2.delivered), 0)
+	require.Equal(t, msgObs1.delivered[string(msg)], true)
 }
