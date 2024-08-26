@@ -12,6 +12,8 @@ import (
 	"pace/utils"
 )
 
+var logger = utils.GetLogger(slog.LevelWarn)
+
 // brbState defines the functionalities required for handling the brb messages depending on the current phase of the algorithm.
 // This implementation follows the State pattern.
 type brbState interface {
@@ -103,7 +105,7 @@ func (b *brbInstance) attachObserver(observer broadcastInstanceObserver) {
 }
 
 func (b *brbInstance) send(nonce uint32, msg []byte) error {
-	slog.Debug("broadcasting message", "msg", msg)
+	logger.Debug("broadcasting message", "msg", msg)
 	buf := bytes.NewBuffer([]byte{})
 	writer := bufio.NewWriter(buf)
 	_, err := writer.Write([]byte{b.data.listenCode})
@@ -134,7 +136,7 @@ func (b *brbInstance) handleMessage(reader *bytes.Reader, sender *ecdsa.PublicKe
 	if err != nil {
 		return fmt.Errorf("unable to deserialize message: %v", err)
 	}
-	slog.Debug("received message", "id", msg.id, "kind", msg.kind, "sender", sender, "content", msg.content)
+	logger.Debug("received message", "id", msg.id, "kind", msg.kind, "sender", sender, "content", msg.content)
 	switch msg.kind {
 	case brbsend:
 		b.handleSend(msg.content)
@@ -174,7 +176,7 @@ func (b *brbInstance) deserializeMessage(reader *bytes.Reader) (msgStruct, error
 }
 
 func (b *brbInstance) handleSend(msg []byte) {
-	slog.Debug("submitting send message handling command")
+	logger.Debug("submitting send message handling command")
 	b.commands <- func() error {
 		err := b.concreteState.handleSend(msg)
 		if err != nil {
@@ -185,7 +187,7 @@ func (b *brbInstance) handleSend(msg []byte) {
 }
 
 func (b *brbInstance) handleEcho(msg []byte, id UUID, sender *ecdsa.PublicKey) error {
-	slog.Debug("submitting echo message handling command")
+	logger.Debug("submitting echo message handling command")
 	senderId, err := utils.PkToUUID(sender)
 	if err != nil {
 		return fmt.Errorf("unable to get sender id: %v", err)
@@ -207,7 +209,7 @@ func (b *brbInstance) handleEcho(msg []byte, id UUID, sender *ecdsa.PublicKey) e
 }
 
 func (b *brbInstance) handleReady(msg []byte, id UUID, sender *ecdsa.PublicKey) error {
-	slog.Debug("submitting ready message handling command")
+	logger.Debug("submitting ready message handling command")
 	senderId, err := utils.PkToUUID(sender)
 	if err != nil {
 		return fmt.Errorf("unable to get sender id: %v", err)
@@ -234,10 +236,10 @@ func (b *brbInstance) invoker(commands <-chan func() error, closeChan <-chan str
 		case command := <-commands:
 			err := command()
 			if err != nil {
-				slog.Error("unable to compute command", "id", b.data.id, "error", err)
+				logger.Error("unable to compute command", "id", b.data.id, "error", err)
 			}
 		case <-closeChan:
-			slog.Debug("closing brb executor", "id", b.data.id)
+			logger.Debug("closing brb executor", "id", b.data.id)
 			return
 		}
 	}
@@ -263,7 +265,7 @@ func (b *brbPhase1Handler) handleSend(msg []byte) error {
 	if b.isFinished {
 		return b.nextPhase.handleSend(msg)
 	} else {
-		slog.Debug("processing send message on phase 1")
+		logger.Debug("processing send message on phase 1")
 		b.isFinished = true
 		return b.sendEcho(msg)
 	}
@@ -273,7 +275,7 @@ func (b *brbPhase1Handler) handleEcho(msg []byte, id UUID) error {
 	if b.isFinished {
 		return b.nextPhase.handleEcho(msg, id)
 	} else {
-		slog.Debug("processing echo message on phase 1")
+		logger.Debug("processing echo message on phase 1")
 		numEchoes, ok := b.data.echoes[id]
 		if !ok {
 			return fmt.Errorf("unable to find echoes in phase 1 with message id %s", id)
@@ -294,7 +296,7 @@ func (b *brbPhase1Handler) handleReady(msg []byte, id UUID) error {
 	if b.isFinished {
 		return b.nextPhase.handleReady(msg, id)
 	} else {
-		slog.Debug("processing ready message on phase 1")
+		logger.Debug("processing ready message on phase 1")
 		numReadies, ok := b.data.echoes[id]
 		if !ok {
 			return fmt.Errorf("unable to find readies with message id %s", id)
@@ -312,7 +314,7 @@ func (b *brbPhase1Handler) handleReady(msg []byte, id UUID) error {
 }
 
 func (b *brbPhase1Handler) sendEcho(msg []byte) error {
-	slog.Debug("sending echo message", "brb id", b.data.id)
+	logger.Debug("sending echo message", "brb id", b.data.id)
 	err := sendMessage(msg, brbecho, b.data)
 	if err != nil {
 		return fmt.Errorf("unable to send echo message: %v", err)
@@ -322,7 +324,7 @@ func (b *brbPhase1Handler) sendEcho(msg []byte) error {
 
 func (b *brbPhase2Handler) handleSend(msg []byte) error {
 	if !b.isFinished {
-		slog.Debug("processing send message on phase 2")
+		logger.Debug("processing send message on phase 2")
 	}
 	return b.nextPhase.handleSend(msg)
 }
@@ -331,7 +333,7 @@ func (b *brbPhase2Handler) handleEcho(msg []byte, id UUID) error {
 	if b.isFinished {
 		return b.nextPhase.handleEcho(msg, id)
 	} else {
-		slog.Debug("processing echo message on phase 2")
+		logger.Debug("processing echo message on phase 2")
 		numEchoes, ok := b.data.echoes[id]
 		if !ok {
 			return fmt.Errorf("unable to find echoes in phase 2 with message id %s", id)
@@ -352,7 +354,7 @@ func (b *brbPhase2Handler) handleReady(msg []byte, id UUID) error {
 	if b.isFinished {
 		return b.nextPhase.handleReady(msg, id)
 	} else {
-		slog.Debug("processing ready message on phase 2")
+		logger.Debug("processing ready message on phase 2")
 		numReadies, ok := b.data.readies[id]
 		if !ok {
 			return fmt.Errorf("unable to find readies in phase 2 with message id %s", id)
@@ -370,7 +372,7 @@ func (b *brbPhase2Handler) handleReady(msg []byte, id UUID) error {
 }
 
 func (b *brbPhase2Handler) sendReady(msg []byte) error {
-	slog.Debug("sending ready message", "brb id", b.data.id)
+	logger.Debug("sending ready message", "brb id", b.data.id)
 	err := sendMessage(msg, brbready, b.data)
 	if err != nil {
 		return fmt.Errorf("unable to send ready message: %v", err)
@@ -423,17 +425,17 @@ func buildMessageContent(writer *bufio.Writer, msg []byte, msgType brb) error {
 }
 
 func (b *brbPhase3Handler) handleSend(_ []byte) error {
-	slog.Debug("processing send message on phase 3 (nothing to do)")
+	logger.Debug("processing send message on phase 3 (nothing to do)")
 	return nil
 }
 
 func (b *brbPhase3Handler) handleEcho(_ []byte, _ UUID) error {
-	slog.Debug("processing echo message on phase 3 (nothing to do)")
+	logger.Debug("processing echo message on phase 3 (nothing to do)")
 	return nil
 }
 
 func (b *brbPhase3Handler) handleReady(msg []byte, id UUID) error {
-	slog.Debug("processing ready message on phase 3")
+	logger.Debug("processing ready message on phase 3")
 	numReadies, ok := b.data.readies[id]
 	if !ok {
 		return fmt.Errorf("unable to find id for ready message in phase 3")
@@ -447,6 +449,6 @@ func (b *brbPhase3Handler) handleReady(msg []byte, id UUID) error {
 }
 
 func (b *brbInstance) close() {
-	slog.Debug("sending signal to close bcb instance", "Id", b.data.id)
+	logger.Debug("sending signal to close bcb instance", "Id", b.data.id)
 	b.closeChan <- struct{}{}
 }

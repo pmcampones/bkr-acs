@@ -13,6 +13,8 @@ import (
 	"pace/utils"
 )
 
+var channelLogger = utils.GetLogger(slog.LevelDebug)
+
 type CoinObserver interface {
 	DeliverCoin(id UUID, toss bool)
 }
@@ -150,12 +152,12 @@ func (c *CoinTosserChannel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
 		msg = msg[1:]
 		id, ctShare, err := readCoinTossMessage(msg)
 		if err != nil {
-			slog.Error("unable to read coin toss message", "error", err)
+			channelLogger.Error("unable to read coin toss message", "error", err)
 			return
 		}
 		senderId, err := utils.PkToUUID(sender)
 		if err != nil {
-			slog.Error("unable to convert public key to UUID", "error", err)
+			channelLogger.Error("unable to convert public key to UUID", "error", err)
 			return
 		}
 		command := func() error {
@@ -173,7 +175,7 @@ func (c *CoinTosserChannel) submitShare(id, senderId UUID, ctShare coinTossShare
 	if ct == nil {
 		return fmt.Errorf("coin toss instance not found")
 	}
-	slog.Debug("received coin toss share", "id", id, "sender", senderId, "myself", c.myself)
+	channelLogger.Debug("received coin toss share", "id", id, "sender", senderId, "myself", c.myself)
 	err := ct.getShare(ctShare, senderId)
 	if err != nil {
 		return fmt.Errorf("unable to get share: %v", err)
@@ -187,7 +189,7 @@ func (c *CoinTosserChannel) scheduleShareSubmission(id UUID, senderId UUID, comm
 			if c.unordered[id] == nil {
 				c.unordered[id] = make([]func() error, 0)
 			}
-			slog.Debug("received unordered coin toss share", "id", id, "sender", senderId, "myself", c.myself)
+			channelLogger.Debug("received unordered coin toss share", "id", id, "sender", senderId, "myself", c.myself)
 			c.unordered[id] = append(c.unordered[id], command)
 		} else {
 			return command()
@@ -198,7 +200,7 @@ func (c *CoinTosserChannel) scheduleShareSubmission(id UUID, senderId UUID, comm
 
 func (c *CoinTosserChannel) observeCoin(id UUID, toss bool) {
 	c.commands <- func() error {
-		slog.Debug("delivering coin", "id", id, "toss", toss, "myself", c.myself)
+		channelLogger.Debug("delivering coin", "id", id, "toss", toss, "myself", c.myself)
 		c.finished[id] = true
 		delete(c.instances, id)
 		outputChan := c.outputChannels[id]
@@ -214,7 +216,7 @@ func invoker(commands <-chan func() error) {
 	for command := range commands {
 		err := command()
 		if err != nil {
-			slog.Error("error executing command", "error", err)
+			channelLogger.Error("error executing command", "error", err)
 		}
 	}
 }

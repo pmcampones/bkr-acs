@@ -17,6 +17,8 @@ import (
 const dealCode = 'D'
 const brbCode = 'R'
 
+var logger = utils.GetLogger(slog.LevelWarn)
+
 type MembershipBarrier struct {
 	nodesWaiting int
 	connections  []*network.Peer
@@ -25,7 +27,7 @@ type MembershipBarrier struct {
 
 func (mb *MembershipBarrier) NotifyPeerUp(p *network.Peer) {
 	mb.nodesWaiting--
-	slog.Debug("Node went up", "peer", p)
+	logger.Debug("Node went up", "peer", p)
 	mb.connections = append(mb.connections, p)
 	if mb.nodesWaiting == 0 {
 		mb.barrier <- struct{}{}
@@ -33,7 +35,7 @@ func (mb *MembershipBarrier) NotifyPeerUp(p *network.Peer) {
 }
 
 func (mb *MembershipBarrier) NotifyPeerDown(p *network.Peer) {
-	slog.Warn("Node went down", "peer", p)
+	logger.Warn("Node went down", "peer", p)
 }
 
 type ConcreteObserver struct {
@@ -97,29 +99,29 @@ func joinNetwork(node *network.Node, contact string, numNodes int) ([]*network.P
 	if err != nil {
 		return nil, fmt.Errorf("error joining network: %v", err)
 	}
-	slog.Info("Waiting for all nodes to join")
+	logger.Info("Waiting for all nodes to join")
 	<-memBarrier.barrier
-	slog.Info("All nodes have joined")
+	logger.Info("All nodes have joined")
 	return memBarrier.connections, nil
 }
 
 func getDeal(node *network.Node, connections []*network.Peer, threshold int, isContact bool, obs *secretSharing.DealObserver) (*secretSharing.Deal, error) {
 	if isContact {
-		slog.Info("Distributing Deals")
+		logger.Info("Distributing Deals")
 		err := secretSharing.ShareDeals(uint(threshold), node, connections, byte(dealCode), obs)
 		if err != nil {
 			return nil, fmt.Errorf("error sharing deals: %v", err)
 		}
 	}
 	deal := <-obs.DealChan
-	slog.Info("My deal:", deal)
+	logger.Info("My deal:", deal)
 	return deal, nil
 }
 
 func testBRB(node *network.Node, skPathname string) {
 	sk, err := utils.ReadPrivateKey(skPathname)
 	if err != nil {
-		slog.Error("Error reading private key", "error", err)
+		logger.Error("Error reading private key", "error", err)
 		return
 	}
 	observer := ConcreteObserver{}
@@ -130,7 +132,7 @@ func testBRB(node *network.Node, skPathname string) {
 		msg := []byte(input.Text())
 		err := channel.BRBroadcast(msg)
 		if err != nil {
-			slog.Error("unable to networkChannel message", "msg", msg, "error", err)
+			logger.Error("unable to networkChannel message", "msg", msg, "error", err)
 		}
 	}
 }

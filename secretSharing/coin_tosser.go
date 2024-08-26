@@ -7,7 +7,10 @@ import (
 	"github.com/cloudflare/circl/zk/dleq"
 	. "github.com/google/uuid"
 	"log/slog"
+	"pace/utils"
 )
+
+var ctLogger = utils.GetLogger(slog.LevelDebug)
 
 const dleqDst = "DLEQ"
 
@@ -155,16 +158,16 @@ func (ct *coinToss) invoker(commands <-chan func() error, closeChan <-chan struc
 		case command := <-commands:
 			err := command()
 			if err != nil {
-				slog.Error("unable to compute command", "id", ct.id, "error", err)
+				ctLogger.Error("unable to compute command", "id", ct.id, "error", err)
 			}
 		case <-closeChan:
-			slog.Debug("closing brb executor", "id", ct.id)
+			ctLogger.Debug("closing brb executor", "id", ct.id)
 			return
 		}
 	}
 }
 
 func (ct *coinToss) close() {
-	slog.Debug("sending signal to close bcb instance", "Id", ct.id)
+	ctLogger.Debug("sending signal to close bcb instance", "Id", ct.id)
 	ct.closeChan <- struct{}{}
 }

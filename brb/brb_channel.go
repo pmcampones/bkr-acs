@@ -20,6 +20,8 @@ const (
 	withId
 )
 
+var chanelLogger = utils.GetLogger(slog.LevelWarn)
+
 type BRBObserver interface {
 	BRBDeliver(msg []byte)
 }
@@ -59,7 +61,7 @@ func CreateBRBChannel(node *network.Node, n, f uint, sk ecdsa.PrivateKey, listen
 }
 
 func (channel *BRBChannel) AttachObserver(observer BRBObserver) {
-	slog.Info("attaching observer to bcb channel", "observer", observer)
+	chanelLogger.Info("attaching observer to bcb channel", "observer", observer)
 	channel.observers = append(channel.observers, observer)
 }
 
@@ -79,13 +81,13 @@ func (channel *BRBChannel) BRBroadcast(msg []byte) error {
 
 func (channel *BRBChannel) broadcast(msg []byte, nonce uint32, id UUID, instance *brbInstance) {
 	channel.commands <- func() error {
-		slog.Info("sending brb", "id", id, "msg", msg)
+		chanelLogger.Info("sending brb", "id", id, "msg", msg)
 		channel.instances[id] = instance
 		instance.attachObserver(channel)
 		go func() {
 			err := instance.send(nonce, msg)
 			if err != nil {
-				slog.Error("unable to send message", "id", id, "type", reflect.TypeOf(instance))
+				chanelLogger.Error("unable to send message", "id", id, "type", reflect.TypeOf(instance))
 			}
 		}()
 		return nil
@@ -108,15 +110,15 @@ func (channel *BRBChannel) computeBroadcastId(nonce uint32) (UUID, error) {
 
 func (channel *BRBChannel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
 	if msg[0] == channel.listenCode {
-		slog.Debug("received message from network", "sender", sender)
+		chanelLogger.Debug("received message from network", "sender", sender)
 		msg = msg[1:]
 		reader := bytes.NewReader(msg)
 		id, err := getInstanceId(reader, sender)
 		if err != nil {
-			slog.Error("unable to get instance id from message during bcb delivery", "error", err)
+			chanelLogger.Error("unable to get instance id from message during bcb delivery", "error", err)
 		} else {
 			channel.commands <- func() error {
-				slog.Debug("processing message", "id", id)
+				chanelLogger.Debug("processing message", "id", id)
 				err = channel.processMsg(id, reader, sender)
 				if err != nil {
 					return fmt.Errorf("unable to process message during bcb delivery: %v", err)
@@ -125,7 +127,7 @@ func (channel *BRBChannel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
 			}
 		}
 	} else {
-		slog.Debug("received message was not for me", "sender", sender, "code", msg[0])
+		chanelLogger.Debug("received message was not for me", "sender", sender, "code", msg[0])
 	}
 }
 
@@ -173,7 +175,7 @@ func computeInstanceId(nonce uint32, sender *ecdsa.PublicKey) (UUID, error) {
 
 func (channel *BRBChannel) processMsg(id UUID, reader *bytes.Reader, sender *ecdsa.PublicKey) error {
 	if channel.finished[id] {
-		slog.Debug("received message from finished instance", "id", id)
+		chanelLogger.Debug("received message from finished instance", "id", id)
 		return nil
 	}
 	instance, ok := channel.instances[id]
@@ -189,14 +191,14 @@ func (channel *BRBChannel) processMsg(id UUID, reader *bytes.Reader, sender *ecd
 	go func() {
 		err := instance.handleMessage(reader, sender)
 		if err != nil {
-			slog.Warn("unable to handle received message", "id", id, "sender", sender, "error", err)
+			chanelLogger.Warn("unable to handle received message", "id", id, "sender", sender, "error", err)
 		}
 	}()
 	return nil
 }
 
 func (channel *BRBChannel) instanceDeliver(id UUID, msg []byte) {
-	slog.Debug("delivering message from brb instance", "id", id)
+	chanelLogger.Debug("delivering message from brb instance", "id", id)
 	channel.commands <- func() error {
 		for _, observer := range channel.observers {
 			observer.BRBDeliver(msg)
@@ -216,7 +218,7 @@ func invoker(commands <-chan func() error) {
 	for command := range commands {
 		err := command()
 		if err != nil {
-			slog.Error("error executing command", "error", err)
+			chanelLogger.Error("error executing command", "error", err)
 		}
 	}
 }

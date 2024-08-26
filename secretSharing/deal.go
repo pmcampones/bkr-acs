@@ -18,6 +18,8 @@ import (
 	"pace/utils"
 )
 
+var dLogger = utils.GetLogger(slog.LevelDebug)
+
 type Deal struct {
 	share       secretsharing.Share
 	commitBase  group.Element
@@ -32,15 +34,15 @@ type DealObserver struct {
 }
 
 func (do *DealObserver) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
-	slog.Info("received message", "sender", sender, "Code", msg[0])
+	dLogger.Info("received message", "sender", sender, "Code", msg[0])
 	if msg[0] == do.Code {
 		if do.hasBeenDealt {
-			slog.Error("deal already received")
+			dLogger.Error("deal already received")
 		}
 		share, commitBase, commits := unmarshalDeal(msg[1:])
 		do.genDeal(&share, commitBase, commits)
 	} else {
-		slog.Debug("received message was not for me", "sender", sender, "Code", msg[0])
+		dLogger.Debug("received message was not for me", "sender", sender, "Code", msg[0])
 	}
 }
 
