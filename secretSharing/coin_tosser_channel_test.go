@@ -2,6 +2,7 @@ package secretSharing
 
 import (
 	"fmt"
+	"github.com/samber/mo"
 	"github.com/stretchr/testify/require"
 	"maps"
 	"pace/utils"
@@ -40,37 +41,25 @@ func TestTrue(t *testing.T) {
 	ctChannel3 := NewCoinTosserChannel(node3, threshold, *deal3, 'C')
 	time.Sleep(time.Second) // making sure the channels attach to the network to get updates
 	fmt.Println("CT Channels created")
-	ch0 := make(chan struct {
-		bool
-		error
-	})
-	ch1 := make(chan struct {
-		bool
-		error
-	})
-	ch2 := make(chan struct {
-		bool
-		error
-	})
-	ch3 := make(chan struct {
-		bool
-		error
-	})
+	ch0 := make(chan mo.Result[bool], 2)
+	ch1 := make(chan mo.Result[bool], 2)
+	ch2 := make(chan mo.Result[bool], 2)
+	ch3 := make(chan mo.Result[bool], 2)
 	ctChannel0.TossCoin([]byte("seed"), ch0)
 	ctChannel1.TossCoin([]byte("seed"), ch1)
 	ctChannel2.TossCoin([]byte("seed"), ch2)
 	ctChannel3.TossCoin([]byte("seed"), ch3)
 	fmt.Println("Coins tossed")
 	coin0 := <-ch0
-	require.NoError(t, coin0.error)
+	require.False(t, coin0.IsError())
 	coin1 := <-ch1
-	require.NoError(t, coin1.error)
+	require.False(t, coin1.IsError())
 	coin2 := <-ch2
-	require.NoError(t, coin2.error)
+	require.False(t, coin2.IsError())
 	coin3 := <-ch3
-	require.NoError(t, coin3.error)
+	require.False(t, coin3.IsError())
 	fmt.Println("Coins received")
-	require.Equal(t, coin0.bool, coin1.bool)
-	require.Equal(t, coin1.bool, coin2.bool)
-	require.Equal(t, coin2.bool, coin3.bool)
+	require.Equal(t, coin0.MustGet(), coin1.MustGet())
+	require.Equal(t, coin1.MustGet(), coin2.MustGet())
+	require.Equal(t, coin2.MustGet(), coin3.MustGet())
 }

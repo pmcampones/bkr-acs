@@ -6,16 +6,19 @@ import (
 	"flag"
 	"fmt"
 	"github.com/magiconair/properties"
+	"github.com/samber/mo"
 	"log/slog"
 	"os"
 	"pace/brb"
 	"pace/network"
 	"pace/secretSharing"
 	"pace/utils"
+	"time"
 )
 
 const dealCode = 'D'
 const brbCode = 'R'
+const coinCode = 'C'
 
 var logger = utils.GetLogger(slog.LevelWarn)
 
@@ -69,10 +72,14 @@ func main() {
 		panic(err)
 	}
 	threshold := props.MustGetInt("threshold")
-	_, err = getDeal(node, connections, threshold, *address == contact, &dealObs)
+	deal, err := getDeal(node, connections, threshold, *address == contact, &dealObs)
 	if err != nil {
 		panic(err)
 	}
+	ctChannel := secretSharing.NewCoinTosserChannel(node, uint(threshold), *deal, coinCode)
+	time.Sleep(20 * time.Second)
+	ch0 := make(chan mo.Result[bool], 1)
+	ctChannel.TossCoin([]byte("seed"), ch0)
 	testBRB(node, *skPathname)
 }
 

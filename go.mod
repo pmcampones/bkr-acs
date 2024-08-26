@@ -11,6 +11,7 @@ require (
 	github.com/cloudflare/circl v1.3.9
 	github.com/magiconair/properties v1.8.7
 	github.com/samber/lo v1.46.0
+	github.com/samber/mo v1.13.0
 	github.com/stretchr/testify v1.9.0
 )
 

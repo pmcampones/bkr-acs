@@ -82,6 +82,7 @@ func (do *DealObserver) genDeal(share *secretsharing.Share, commitBase group.Ele
 		deal.peerCommits[id] = commit
 	}
 	do.hasBeenDealt = true
+	dLogger.Info("delivering deal")
 	do.DealChan <- deal
 }
 
