@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-var logger = utils.GetLogger(slog.LevelWarn)
+var logger = utils.GetLogger(slog.LevelDebug)
 
 type NodeMessageObserver interface {
 	BEBDeliver(msg []byte, sender *ecdsa.PublicKey)
@@ -87,6 +87,7 @@ func (n *Node) Broadcast(msg []byte) error {
 	go n.processMessage(toSend, &n.sk.PublicKey)
 	n.peersLock.RLock()
 	defer n.peersLock.RUnlock()
+	logger.Debug("broadcasting message to peers", "peers", n.peers, "message", msg, "myself", n.id)
 	for _, peer := range n.peers {
 		err := send(peer.Conn, toSend)
 		if err != nil {
