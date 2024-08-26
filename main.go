@@ -5,16 +5,13 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"github.com/lmittmann/tint"
 	"github.com/magiconair/properties"
 	"log/slog"
-	"net"
 	"os"
 	"pace/brb"
 	"pace/network"
 	"pace/secretSharing"
 	"pace/utils"
-	"time"
 )
 
 const dealCode = 'D'
@@ -22,14 +19,14 @@ const brbCode = 'R'
 
 type MembershipBarrier struct {
 	nodesWaiting int
-	connections  []net.Conn
+	connections  []*network.Peer
 	barrier      chan struct{}
 }
 
 func (mb *MembershipBarrier) NotifyPeerUp(p *network.Peer) {
 	mb.nodesWaiting--
 	slog.Debug("Node went up", "peer", p)
-	mb.connections = append(mb.connections, p.Conn)
+	mb.connections = append(mb.connections, p)
 	if mb.nodesWaiting == 0 {
 		mb.barrier <- struct{}{}
 	}
@@ -52,7 +49,7 @@ func main() {
 	skPathname := flag.String("sk", "sk.pem", "pathname of the private key")
 	certPathname := flag.String("cert", "cert.pem", "pathname of the certificate")
 	flag.Parse()
-	setupLogger()
+	utils.SetupDefaultLogger()
 	props := properties.MustLoadFile(*propsPathname, properties.UTF8)
 	contact := props.MustGetString("contact")
 	node, err := makeNode(*address, contact, *skPathname, *certPathname)
@@ -77,16 +74,6 @@ func main() {
 	testBRB(node, *skPathname)
 }
 
-func setupLogger() {
-	slog.SetDefault(slog.New(
-		tint.NewHandler(os.Stdout, &tint.Options{
-			Level:      slog.LevelWarn,
-			TimeFormat: time.Kitchen,
-		}),
-	))
-	slog.Info("Set up logger")
-}
-
 func makeNode(address, contact, skPathname, certPathname string) (*network.Node, error) {
 	sk, err := utils.ReadPrivateKey(skPathname)
 	if err != nil {
@@ -100,7 +87,7 @@ func makeNode(address, contact, skPathname, certPathname string) (*network.Node,
 	return node, nil
 }
 
-func joinNetwork(node *network.Node, contact string, numNodes int) ([]net.Conn, error) {
+func joinNetwork(node *network.Node, contact string, numNodes int) ([]*network.Peer, error) {
 	memBarrier := MembershipBarrier{
 		nodesWaiting: numNodes - 1,
 		barrier:      make(chan struct{}),
@@ -116,7 +103,7 @@ func joinNetwork(node *network.Node, contact string, numNodes int) ([]net.Conn, 
 	return memBarrier.connections, nil
 }
 
-func getDeal(node *network.Node, connections []net.Conn, threshold int, isContact bool, obs *secretSharing.DealObserver) (*secretSharing.Deal, error) {
+func getDeal(node *network.Node, connections []*network.Peer, threshold int, isContact bool, obs *secretSharing.DealObserver) (*secretSharing.Deal, error) {
 	if isContact {
 		slog.Info("Distributing Deals")
 		err := secretSharing.ShareDeals(uint(threshold), node, connections, byte(dealCode), obs)

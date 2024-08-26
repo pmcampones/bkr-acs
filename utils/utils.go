@@ -12,7 +12,9 @@ import (
 	"encoding/pem"
 	"fmt"
 	. "github.com/google/uuid"
+	"github.com/lmittmann/tint"
 	"log"
+	"log/slog"
 	"math/big"
 	"os"
 	"time"
@@ -119,4 +121,23 @@ func PkToUUID(pk *ecdsa.PublicKey) (UUID, error) {
 		return UUID{}, fmt.Errorf("unable to serialize public key: %v", err)
 	}
 	return BytesToUUID(pkBytes), nil
+}
+
+func SetupDefaultLogger() {
+	slog.SetDefault(slog.New(
+		tint.NewHandler(os.Stdout, &tint.Options{
+			Level:      slog.LevelDebug,
+			TimeFormat: time.Kitchen,
+		}),
+	))
+	slog.Info("Set up logger")
+}
+
+func GetLogger(level slog.Level) *slog.Logger {
+	return slog.New(
+		tint.NewHandler(os.Stdout, &tint.Options{
+			Level:      level,
+			TimeFormat: time.Kitchen,
+		}),
+	)
 }

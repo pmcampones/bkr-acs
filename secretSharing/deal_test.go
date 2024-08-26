@@ -31,11 +31,9 @@ func TestDeals(t *testing.T) {
 	require.NotNil(t, deal0)
 	fmt.Println("deal0", deal0)
 	deal1 := <-obs1.DealChan
-	require.NoError(t, err)
 	require.NotNil(t, deal1)
 	fmt.Println("deal1", deal1)
 	deal2 := <-obs2.DealChan
-	require.NoError(t, err)
 	require.NotNil(t, deal2)
 	fmt.Println("deal2", deal2)
 	commits1 := deal1.peerCommits
