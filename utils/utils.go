@@ -141,3 +141,11 @@ func GetLogger(level slog.Level) *slog.Logger {
 		}),
 	)
 }
+
+func GetCode(propName string) byte {
+	props, err := GetProps()
+	if err != nil {
+		panic(fmt.Errorf("unable to get code from properties: %v", err))
+	}
+	return []byte(props.MustGet(propName))[0]
+}

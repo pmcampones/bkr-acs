@@ -16,10 +16,6 @@ import (
 	"time"
 )
 
-const dealCode = 'D'
-const brbCode = 'R'
-const coinCode = 'C'
-
 var logger = utils.GetLogger(slog.LevelWarn)
 
 type MembershipBarrier struct {
@@ -56,11 +52,16 @@ func main() {
 	flag.Parse()
 	utils.SetupDefaultLogger()
 	props := properties.MustLoadFile(*propsPathname, properties.UTF8)
+	err := utils.SetProps(props)
+	if err != nil {
+		panic(err)
+	}
 	contact := props.MustGetString("contact")
 	node, err := makeNode(*address, contact, *skPathname, *certPathname)
 	if err != nil {
 		panic(fmt.Errorf("error creating node: %v", err))
 	}
+	dealCode := []byte(props.MustGet("deal_code"))[0]
 	dealObs := coinTosser.DealObserver{
 		Code:     dealCode,
 		DealChan: make(chan *coinTosser.Deal),
@@ -77,7 +78,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	ctChannel := coinTosser.NewCoinTosserChannel(node, uint(threshold), *deal, coinCode)
+	ctCode := utils.GetCode("ct_code")
+	ctChannel := coinTosser.NewCoinTosserChannel(node, uint(threshold), *deal, ctCode)
 	time.Sleep(20 * time.Second)
 	ch0 := make(chan mo.Result[bool], 1)
 	ctChannel.TossCoin([]byte("seed"), ch0)
@@ -116,7 +118,8 @@ func joinNetwork(node *overlayNetwork.Node, contact string, numNodes int) ([]*ov
 func getDeal(node *overlayNetwork.Node, connections []*overlayNetwork.Peer, threshold int, isContact bool, obs *coinTosser.DealObserver) (*coinTosser.Deal, error) {
 	if isContact {
 		logger.Info("Distributing Deals")
-		err := coinTosser.ShareDeals(uint(threshold), node, connections, byte(dealCode), obs)
+		dealCode := utils.GetCode("deal_code")
+		err := coinTosser.ShareDeals(uint(threshold), node, connections, dealCode, obs)
 		if err != nil {
 			return nil, fmt.Errorf("error sharing deals: %v", err)
 		}
@@ -133,6 +136,7 @@ func testBRB(node *overlayNetwork.Node, skPathname string) {
 		return
 	}
 	observer := ConcreteObserver{}
+	brbCode := utils.GetCode("brb_code")
 	channel := byzantineReliableBroadcast.CreateBRBChannel(node, 4, 1, *sk, brbCode)
 	channel.AttachObserver(observer)
 	input := bufio.NewScanner(os.Stdin)
