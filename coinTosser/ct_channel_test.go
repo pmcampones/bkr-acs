@@ -2,6 +2,7 @@ package coinTosser
 
 import (
 	"fmt"
+	"github.com/magiconair/properties"
 	"github.com/samber/mo"
 	"github.com/stretchr/testify/require"
 	"maps"
@@ -13,6 +14,13 @@ import (
 
 // This test should work with threshold = 3 but does not. I don't know why but the broadcasts in some replicas aren't reaching all peers.
 func TestTrue(t *testing.T) {
+	props := properties.NewProperties()
+	_, _, err := props.Set("ct_code", "C")
+	require.NoError(t, err)
+	_, _, err = props.Set("deal_code", "D")
+	require.NoError(t, err)
+	err = utils.SetProps(props)
+	require.NoError(t, err)
 	threshold := uint(2)
 	utils.SetupDefaultLogger()
 	node0, memObs, dealObs0, err := makeDealNode("localhost:6000", "localhost:6000", 4, 4)

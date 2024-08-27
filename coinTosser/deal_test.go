@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"github.com/cloudflare/circl/group"
+	"github.com/magiconair/properties"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 	"maps"
@@ -14,6 +15,11 @@ import (
 )
 
 func TestDeals(t *testing.T) {
+	props := properties.NewProperties()
+	_, _, err := props.Set("deal_code", "D")
+	require.NoError(t, err)
+	err = utils.SetProps(props)
+	require.NoError(t, err)
 	dealer, memObs, obs0, err := makeDealNode("localhost:6000", "localhost:6000", 2, 1)
 	require.NoError(t, err)
 	_, _, obs1, err := makeDealNode("localhost:6001", "localhost:6000", 2, 1)
