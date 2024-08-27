@@ -61,12 +61,8 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("error creating node: %v", err))
 	}
-	dealCode := []byte(props.MustGet("deal_code"))[0]
-	dealObs := coinTosser.DealObserver{
-		Code:     dealCode,
-		DealChan: make(chan *coinTosser.Deal),
-	}
-	node.AttachMessageObserver(&dealObs)
+	dealObs := coinTosser.NewDealObserver()
+	node.AttachMessageObserver(dealObs)
 	numNodes := props.MustGetInt("num_nodes")
 	connections, err := joinNetwork(node, contact, numNodes)
 
@@ -74,12 +70,11 @@ func main() {
 		panic(err)
 	}
 	threshold := props.MustGetInt("threshold")
-	deal, err := getDeal(node, connections, threshold, *address == contact, &dealObs)
+	deal, err := getDeal(node, connections, threshold, *address == contact, dealObs)
 	if err != nil {
 		panic(err)
 	}
-	ctCode := utils.GetCode("ct_code")
-	ctChannel := coinTosser.NewCoinTosserChannel(node, uint(threshold), *deal, ctCode)
+	ctChannel := coinTosser.NewCoinTosserChannel(node, uint(threshold), *deal)
 	time.Sleep(20 * time.Second)
 	ch0 := make(chan mo.Result[bool], 1)
 	ctChannel.TossCoin([]byte("seed"), ch0)
@@ -118,8 +113,7 @@ func joinNetwork(node *overlayNetwork.Node, contact string, numNodes int) ([]*ov
 func getDeal(node *overlayNetwork.Node, connections []*overlayNetwork.Peer, threshold int, isContact bool, obs *coinTosser.DealObserver) (*coinTosser.Deal, error) {
 	if isContact {
 		logger.Info("Distributing Deals")
-		dealCode := utils.GetCode("deal_code")
-		err := coinTosser.ShareDeals(uint(threshold), node, connections, dealCode, obs)
+		err := coinTosser.ShareDeals(uint(threshold), node, connections, obs)
 		if err != nil {
 			return nil, fmt.Errorf("error sharing deals: %v", err)
 		}
@@ -136,8 +130,7 @@ func testBRB(node *overlayNetwork.Node, skPathname string) {
 		return
 	}
 	observer := ConcreteObserver{}
-	brbCode := utils.GetCode("brb_code")
-	channel := byzantineReliableBroadcast.CreateBRBChannel(node, 4, 1, *sk, brbCode)
+	channel := byzantineReliableBroadcast.CreateBRBChannel(node, 4, 1, *sk)
 	channel.AttachObserver(observer)
 	input := bufio.NewScanner(os.Stdin)
 	for input.Scan() {

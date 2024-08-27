@@ -13,8 +13,6 @@ import (
 	"testing"
 )
 
-var dealCode byte = 'D'
-
 func TestDeals(t *testing.T) {
 	dealer, memObs, obs0, err := makeDealNode("localhost:6000", "localhost:6000", 2, 1)
 	require.NoError(t, err)
@@ -25,7 +23,7 @@ func TestDeals(t *testing.T) {
 	<-memObs.UpBarrier
 	<-memObs.UpBarrier
 	peers := slices.Collect(maps.Values(memObs.Peers))
-	err = ShareDeals(1, dealer, peers, dealCode, obs0)
+	err = ShareDeals(1, dealer, peers, obs0)
 	deal0 := <-obs0.DealChan
 	require.NoError(t, err)
 	require.NotNil(t, deal0)
@@ -87,10 +85,7 @@ func makeDealNode(address, contact string, bufferMsg, bufferMem int) (*overlayNe
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("unable to create node: %v", err)
 	}
-	dealObs := &DealObserver{
-		Code:     dealCode,
-		DealChan: make(chan *Deal),
-	}
+	dealObs := NewDealObserver()
 	node.AttachMessageObserver(dealObs)
 	return node, memObs, dealObs, nil
 }

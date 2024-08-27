@@ -42,7 +42,7 @@ type BRBChannel struct {
 	listenCode byte
 }
 
-func CreateBRBChannel(node *overlayNetwork.Node, n, f uint, sk ecdsa.PrivateKey, listenCode byte) *BRBChannel {
+func CreateBRBChannel(node *overlayNetwork.Node, n, f uint, sk ecdsa.PrivateKey) *BRBChannel {
 	commands := make(chan func() error)
 	channel := &BRBChannel{
 		instances:  make(map[UUID]*brbInstance),
@@ -53,7 +53,7 @@ func CreateBRBChannel(node *overlayNetwork.Node, n, f uint, sk ecdsa.PrivateKey,
 		observers:  make([]BRBObserver, 0),
 		sk:         &sk,
 		commands:   commands,
-		listenCode: listenCode,
+		listenCode: utils.GetCode("brb_code"),
 	}
 	node.AttachMessageObserver(channel)
 	go invoker(commands)

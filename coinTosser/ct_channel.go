@@ -33,7 +33,7 @@ type CoinTosserChannel struct {
 	listenCode     byte
 }
 
-func NewCoinTosserChannel(node *overlayNetwork.Node, t uint, deal Deal, listenCode byte) *CoinTosserChannel {
+func NewCoinTosserChannel(node *overlayNetwork.Node, t uint, deal Deal) *CoinTosserChannel {
 	commands := make(chan func() error)
 	myself, err := utils.PkToUUID(node.GetPk())
 	if err != nil {
@@ -49,7 +49,7 @@ func NewCoinTosserChannel(node *overlayNetwork.Node, t uint, deal Deal, listenCo
 		deal:           deal,
 		network:        node,
 		commands:       commands,
-		listenCode:     listenCode,
+		listenCode:     utils.GetCode("ct_code"),
 	}
 	node.AttachMessageObserver(channel)
 	go invoker(commands)

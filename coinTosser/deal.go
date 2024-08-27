@@ -28,21 +28,29 @@ type Deal struct {
 }
 
 type DealObserver struct {
-	Code         byte
+	code         byte
 	DealChan     chan *Deal
 	hasBeenDealt bool
 }
 
+func NewDealObserver() *DealObserver {
+	return &DealObserver{
+		code:         utils.GetCode("deal_code"),
+		DealChan:     make(chan *Deal),
+		hasBeenDealt: false,
+	}
+}
+
 func (do *DealObserver) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
-	dLogger.Debug("received message", "sender", sender, "Code", msg[0])
-	if msg[0] == do.Code {
+	dLogger.Debug("received message", "sender", sender, "code", msg[0])
+	if msg[0] == do.code {
 		if do.hasBeenDealt {
 			dLogger.Error("deal already received")
 		}
 		share, commitBase, commits := unmarshalDeal(msg[1:])
 		do.genDeal(&share, commitBase, commits)
 	} else {
-		dLogger.Debug("received message was not for me", "sender", sender, "Code", msg[0])
+		dLogger.Debug("received message was not for me", "sender", sender, "code", msg[0])
 	}
 }
 
@@ -86,7 +94,7 @@ func (do *DealObserver) genDeal(share *secretsharing.Share, commitBase group.Ele
 	do.DealChan <- deal
 }
 
-func ShareDeals(threshold uint, node *overlayNetwork.Node, peers []*overlayNetwork.Peer, dealCode byte, obs *DealObserver) error {
+func ShareDeals(threshold uint, node *overlayNetwork.Node, peers []*overlayNetwork.Peer, obs *DealObserver) error {
 	g := group.Ristretto255
 	secret := g.RandomScalar(rand.Reader)
 	commitBase := g.RandomElement(rand.Reader)
@@ -110,7 +118,7 @@ func ShareDeals(threshold uint, node *overlayNetwork.Node, peers []*overlayNetwo
 	go obs.genDeal(&ss[0], commitBase, commits)
 	dLogger.Info("sending deal to peers", "peers", peers)
 	for i, peer := range peers {
-		err = shareDeal(node, peer.Conn, ss[i+1], marshaledBase, serializedCommits, dealCode)
+		err = shareDeal(node, peer.Conn, ss[i+1], marshaledBase, serializedCommits)
 		if err != nil {
 			return fmt.Errorf("unable to share deal to peer %d: %v", i, err)
 		}
@@ -202,12 +210,12 @@ func deserializeCommitments(data []byte) ([]lo.Tuple2[group.Element, ecdsa.Publi
 	return commits, nil
 }
 
-func shareDeal(node *overlayNetwork.Node, peer net.Conn, share secretsharing.Share, marshaledBase, commits []byte, dealCode byte) error {
+func shareDeal(node *overlayNetwork.Node, peer net.Conn, share secretsharing.Share, marshaledBase []byte, commits []byte) error {
 	buf := bytes.NewBuffer([]byte{})
 	writer := bufio.NewWriter(buf)
-	err := writer.WriteByte(dealCode)
+	err := writer.WriteByte(utils.GetCode("deal_code"))
 	if err != nil {
-		return fmt.Errorf("unable to write deal Code: %v", err)
+		return fmt.Errorf("unable to write deal code: %v", err)
 	}
 	marshaledShare, err := marshalShare(share)
 	if err != nil {
