@@ -13,7 +13,6 @@ import (
 	"pace/coinTosser"
 	"pace/overlayNetwork"
 	"pace/utils"
-	"time"
 )
 
 var logger = utils.GetLogger(slog.LevelWarn)
@@ -61,21 +60,19 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("error creating node: %v", err))
 	}
-	dealObs := coinTosser.NewDealObserver()
-	node.AttachMessageObserver(dealObs)
 	numNodes := props.MustGetInt("num_nodes")
-	connections, err := joinNetwork(node, contact, numNodes)
-
-	if err != nil {
-		panic(err)
-	}
 	threshold := props.MustGetInt("threshold")
-	deal, err := getDeal(node, connections, threshold, *address == contact, dealObs)
+	ctChannel := coinTosser.NewCoinTosserChannel(node, uint(threshold))
+	_, err = joinNetwork(node, contact, numNodes)
 	if err != nil {
 		panic(err)
 	}
-	ctChannel := coinTosser.NewCoinTosserChannel(node, uint(threshold), *deal)
-	time.Sleep(20 * time.Second)
+	if contact == *address {
+		err = ctChannel.ShareDeal()
+		if err != nil {
+			panic(fmt.Errorf("unable to share deal: %v", err))
+		}
+	}
 	ch0 := make(chan mo.Result[bool], 1)
 	ctChannel.TossCoin([]byte("seed"), ch0)
 	testBRB(node, *skPathname)
@@ -108,19 +105,6 @@ func joinNetwork(node *overlayNetwork.Node, contact string, numNodes int) ([]*ov
 	<-memBarrier.barrier
 	logger.Info("All nodes have joined")
 	return memBarrier.connections, nil
-}
-
-func getDeal(node *overlayNetwork.Node, connections []*overlayNetwork.Peer, threshold int, isContact bool, obs *coinTosser.DealObserver) (*coinTosser.Deal, error) {
-	if isContact {
-		logger.Info("Distributing Deals")
-		err := coinTosser.ShareDeals(uint(threshold), node, connections, obs)
-		if err != nil {
-			return nil, fmt.Errorf("error sharing deals: %v", err)
-		}
-	}
-	deal := <-obs.DealChan
-	logger.Info("My deal:", deal)
-	return deal, nil
 }
 
 func testBRB(node *overlayNetwork.Node, skPathname string) {

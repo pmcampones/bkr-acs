@@ -59,13 +59,13 @@ func (n *Node) Join(contact string) error {
 	}
 	logger.Info("I am joining the overlayNetwork", "contact", contact)
 	if !n.isContact {
-		logger.Debug("I am not the contact")
+		logger.Info("I am not the contact")
 		err := n.connectToContact(contact)
 		if err != nil {
 			return fmt.Errorf("unable to connect to contact: %v", err)
 		}
 	} else {
-		logger.Debug("I am the contact")
+		logger.Info("I am the contact")
 	}
 	n.hasJoined = true
 	return nil
@@ -87,7 +87,7 @@ func (n *Node) Broadcast(msg []byte) error {
 	go n.processMessage(toSend, &n.sk.PublicKey)
 	n.peersLock.RLock()
 	defer n.peersLock.RUnlock()
-	logger.Debug("broadcasting message to peers", "peers", n.peers, "message", msg, "myself", n.id)
+	logger.Debug("broadcasting message to peers", "peers", n.peers, "message", string(msg), "myself", n.id)
 	for _, peer := range n.peers {
 		err := send(peer.Conn, toSend)
 		if err != nil {
@@ -102,6 +102,7 @@ func (n *Node) Unicast(msg []byte, c net.Conn) error {
 		return fmt.Errorf("node has not joined the overlayNetwork")
 	}
 	toSend := append([]byte{byte(generic)}, msg...)
+	logger.Debug("unicasting message to connection", "Conn", c.RemoteAddr(), "message", string(msg), "myself", n.id)
 	err := send(c, toSend)
 	if err != nil {
 		logger.Warn("error sending to connection", "Conn", c.RemoteAddr(), "error", err)
@@ -238,4 +239,14 @@ func (n *Node) processMembershipMsg(msg []byte) {
 
 func (n *Node) GetPk() *ecdsa.PublicKey {
 	return &n.sk.PublicKey
+}
+
+func (n *Node) GetPeers() []*Peer {
+	n.peersLock.RLock()
+	defer n.peersLock.RUnlock()
+	peers := make([]*Peer, 0, len(n.peers))
+	for _, p := range n.peers {
+		peers = append(peers, p)
+	}
+	return peers
 }

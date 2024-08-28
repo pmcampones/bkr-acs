@@ -20,7 +20,7 @@ type CoinObserver interface {
 	DeliverCoin(id UUID, toss bool)
 }
 
-type CoinTosserChannel struct {
+type CTChannel struct {
 	myself         UUID
 	instances      map[UUID]*coinToss
 	finished       map[UUID]bool
@@ -28,40 +28,53 @@ type CoinTosserChannel struct {
 	unordered      map[UUID][]func() error
 	t              uint
 	deal           Deal
+	dealObs        *DealObserver
 	network        *overlayNetwork.Node
 	commands       chan<- func() error
 	listenCode     byte
 }
 
-func NewCoinTosserChannel(node *overlayNetwork.Node, t uint, deal Deal) *CoinTosserChannel {
+func NewCoinTosserChannel(node *overlayNetwork.Node, t uint) *CTChannel {
 	commands := make(chan func() error)
 	myself, err := utils.PkToUUID(node.GetPk())
 	if err != nil {
 		panic(fmt.Errorf("unable to convert public key to UUID: %v", err))
 	}
-	channel := &CoinTosserChannel{
+	channel := &CTChannel{
 		myself:         myself,
 		instances:      make(map[UUID]*coinToss),
 		outputChannels: make(map[UUID]chan mo.Result[bool]),
 		unordered:      make(map[UUID][]func() error),
 		finished:       make(map[UUID]bool),
 		t:              t,
-		deal:           deal,
+		dealObs:        NewDealObserver(),
 		network:        node,
 		commands:       commands,
 		listenCode:     utils.GetCode("ct_code"),
 	}
 	node.AttachMessageObserver(channel)
-	go invoker(commands)
+	node.AttachMessageObserver(channel.dealObs)
+	go func() {
+		deal := <-channel.dealObs.dealChan
+		channel.deal = *deal
+		channelLogger.Info("received deal. Starting to process commands")
+		invoker(commands)
+	}()
 	return channel
 }
 
-func (c *CoinTosserChannel) TossCoin(seed []byte, outputChan chan mo.Result[bool]) {
+func (c *CTChannel) ShareDeal() error {
+	peers := c.network.GetPeers()
+	channelLogger.Info("sharing deal", "myself", c.myself, "peers", peers)
+	return shareDeals(c.t, c.network, peers, c.dealObs)
+}
+
+func (c *CTChannel) TossCoin(seed []byte, outputChan chan mo.Result[bool]) {
 	id := utils.BytesToUUID(seed)
 	channelLogger.Debug("issuing coin toss", "id", id, "myself", c.myself)
-	base := group.Ristretto255.HashToElement(seed, []byte("coin_toss"))
-	coinTosserInstance := newCoinToss(id, c.t, base, c.deal)
 	c.commands <- func() error {
+		base := group.Ristretto255.HashToElement(seed, []byte("coin_toss"))
+		coinTosserInstance := newCoinToss(id, c.t, base, c.deal)
 		c.instances[id] = coinTosserInstance
 		coinTosserInstance.AttachObserver(c)
 		c.outputChannels[id] = outputChan
@@ -80,7 +93,7 @@ func (c *CoinTosserChannel) TossCoin(seed []byte, outputChan chan mo.Result[bool
 	}
 }
 
-func (c *CoinTosserChannel) processUnordered(id UUID) {
+func (c *CTChannel) processUnordered(id UUID) {
 	for _, command := range c.unordered[id] {
 		err := command()
 		if err != nil {
@@ -94,7 +107,7 @@ func (c *CoinTosserChannel) processUnordered(id UUID) {
 	delete(c.unordered, id)
 }
 
-func (c *CoinTosserChannel) makeCoinTossMessage(id UUID, ctShare coinTossShare) ([]byte, error) {
+func (c *CTChannel) makeCoinTossMessage(id UUID, ctShare coinTossShare) ([]byte, error) {
 	idBytes, err := id.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal id: %v", err)
@@ -142,7 +155,7 @@ func readCoinTossMessage(msg []byte) (UUID, coinTossShare, error) {
 	return id, ctShare, nil
 }
 
-func (c *CoinTosserChannel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
+func (c *CTChannel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
 	if msg[0] == c.listenCode {
 		msg = msg[1:]
 		id, ctShare, err := readCoinTossMessage(msg)
@@ -156,13 +169,14 @@ func (c *CoinTosserChannel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
 			return
 		}
 		command := func() error {
+			channelLogger.Debug("submitting coin toss share", "id", id, "sender", senderId, "myself", c.myself)
 			return c.submitShare(id, senderId, ctShare)
 		}
 		c.scheduleShareSubmission(id, senderId, command)
 	}
 }
 
-func (c *CoinTosserChannel) submitShare(id, senderId UUID, ctShare coinTossShare) error {
+func (c *CTChannel) submitShare(id, senderId UUID, ctShare coinTossShare) error {
 	if c.finished[id] {
 		return nil
 	}
@@ -178,7 +192,7 @@ func (c *CoinTosserChannel) submitShare(id, senderId UUID, ctShare coinTossShare
 	return nil
 }
 
-func (c *CoinTosserChannel) scheduleShareSubmission(id UUID, senderId UUID, command func() error) {
+func (c *CTChannel) scheduleShareSubmission(id UUID, senderId UUID, command func() error) {
 	c.commands <- func() error {
 		if c.instances[id] == nil {
 			if c.unordered[id] == nil {
@@ -193,7 +207,7 @@ func (c *CoinTosserChannel) scheduleShareSubmission(id UUID, senderId UUID, comm
 	}
 }
 
-func (c *CoinTosserChannel) observeCoin(id UUID, toss bool) {
+func (c *CTChannel) observeCoin(id UUID, toss bool) {
 	channelLogger.Debug("issuing coin delivery", "id", id, "toss", toss, "myself", c.myself)
 	c.commands <- func() error {
 		channelLogger.Debug("delivering coin", "id", id, "toss", toss, "myself", c.myself)

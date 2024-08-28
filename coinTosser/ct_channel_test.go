@@ -37,17 +37,17 @@ func TestTrue(t *testing.T) {
 	<-memObs.UpBarrier
 	fmt.Println("Contact connected to all")
 	peers := slices.Collect(maps.Values(memObs.Peers))
-	err = ShareDeals(3, node0, peers, dealObs0)
+	err = shareDeals(threshold, node0, peers, dealObs0)
 	require.NoError(t, err)
-	deal0 := <-dealObs0.DealChan
-	deal1 := <-dealObs1.DealChan
-	deal2 := <-dealObs2.DealChan
-	deal3 := <-dealObs3.DealChan
+	<-dealObs0.dealChan
+	<-dealObs1.dealChan
+	<-dealObs2.dealChan
+	<-dealObs3.dealChan
 	fmt.Println("Deals shared")
-	ctChannel0 := NewCoinTosserChannel(node0, threshold, *deal0)
-	ctChannel1 := NewCoinTosserChannel(node1, threshold, *deal1)
-	ctChannel2 := NewCoinTosserChannel(node2, threshold, *deal2)
-	ctChannel3 := NewCoinTosserChannel(node3, threshold, *deal3)
+	ctChannel0 := NewCoinTosserChannel(node0, threshold)
+	ctChannel1 := NewCoinTosserChannel(node1, threshold)
+	ctChannel2 := NewCoinTosserChannel(node2, threshold)
+	ctChannel3 := NewCoinTosserChannel(node3, threshold)
 	time.Sleep(time.Second) // making sure the channels attach to the overlayNetwork to get updates
 	fmt.Println("CT Channels created")
 	ch0 := make(chan mo.Result[bool], 2)

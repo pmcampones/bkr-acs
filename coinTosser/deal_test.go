@@ -29,15 +29,15 @@ func TestDeals(t *testing.T) {
 	<-memObs.UpBarrier
 	<-memObs.UpBarrier
 	peers := slices.Collect(maps.Values(memObs.Peers))
-	err = ShareDeals(1, dealer, peers, obs0)
-	deal0 := <-obs0.DealChan
+	err = shareDeals(1, dealer, peers, obs0)
+	deal0 := <-obs0.dealChan
 	require.NoError(t, err)
 	require.NotNil(t, deal0)
 	fmt.Println("deal0", deal0)
-	deal1 := <-obs1.DealChan
+	deal1 := <-obs1.dealChan
 	require.NotNil(t, deal1)
 	fmt.Println("deal1", deal1)
-	deal2 := <-obs2.DealChan
+	deal2 := <-obs2.dealChan
 	require.NotNil(t, deal2)
 	fmt.Println("deal2", deal2)
 	commits1 := deal1.peerCommits

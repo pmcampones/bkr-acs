@@ -29,28 +29,26 @@ type Deal struct {
 
 type DealObserver struct {
 	code         byte
-	DealChan     chan *Deal
+	dealChan     chan *Deal
 	hasBeenDealt bool
 }
 
 func NewDealObserver() *DealObserver {
 	return &DealObserver{
 		code:         utils.GetCode("deal_code"),
-		DealChan:     make(chan *Deal),
+		dealChan:     make(chan *Deal),
 		hasBeenDealt: false,
 	}
 }
 
 func (do *DealObserver) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
-	dLogger.Debug("received message", "sender", sender, "code", msg[0])
 	if msg[0] == do.code {
+		dLogger.Debug("received deal from sender", "sender", sender)
 		if do.hasBeenDealt {
 			dLogger.Error("deal already received")
 		}
 		share, commitBase, commits := unmarshalDeal(msg[1:])
 		do.genDeal(&share, commitBase, commits)
-	} else {
-		dLogger.Debug("received message was not for me", "sender", sender, "code", msg[0])
 	}
 }
 
@@ -91,10 +89,10 @@ func (do *DealObserver) genDeal(share *secretsharing.Share, commitBase group.Ele
 	}
 	do.hasBeenDealt = true
 	dLogger.Info("delivering deal")
-	do.DealChan <- deal
+	do.dealChan <- deal
 }
 
-func ShareDeals(threshold uint, node *overlayNetwork.Node, peers []*overlayNetwork.Peer, obs *DealObserver) error {
+func shareDeals(threshold uint, node *overlayNetwork.Node, peers []*overlayNetwork.Peer, obs *DealObserver) error {
 	g := group.Ristretto255
 	secret := g.RandomScalar(rand.Reader)
 	commitBase := g.RandomElement(rand.Reader)
