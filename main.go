@@ -73,9 +73,8 @@ func main() {
 			panic(fmt.Errorf("unable to share deal: %v", err))
 		}
 	}
-	ch0 := make(chan mo.Result[bool], 1)
-	ctChannel.TossCoin([]byte("seed"), ch0)
-	testBRB(node, *skPathname)
+	//testBRB(node, *skPathname)
+	testCoinTosses(ctChannel)
 }
 
 func makeNode(address, contact, skPathname, certPathname string) (*overlayNetwork.Node, error) {
@@ -123,5 +122,16 @@ func testBRB(node *overlayNetwork.Node, skPathname string) {
 		if err != nil {
 			logger.Error("unable to networkChannel message", "msg", msg, "error", err)
 		}
+	}
+}
+
+func testCoinTosses(ctChannel *coinTosser.CTChannel) {
+	input := bufio.NewScanner(os.Stdin)
+	for input.Scan() {
+		msg := []byte(input.Text())
+		outputChan := make(chan mo.Result[bool])
+		ctChannel.TossCoin(msg, outputChan)
+		result := <-outputChan
+		fmt.Printf("Received coin toss: %v\n", result.MustGet())
 	}
 }
