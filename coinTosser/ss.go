@@ -22,13 +22,6 @@ type PointShare struct {
 	point group.Element
 }
 
-// PointCommit is a secret commitment hidden in a group operation.
-// This value is unique for each node and is used verify a PointShare with the same idx is correct using a DLEQ proof.
-type PointCommit struct {
-	id    group.Scalar
-	point group.Element
-}
-
 func ShareSecret(threshold uint, nodes uint, secret group.Scalar) []secretsharing.Share {
 	secretSharing := secretsharing.New(rand.Reader, threshold, secret)
 	return secretSharing.Share(nodes)
