@@ -3,14 +3,17 @@ package overlayNetwork
 import (
 	"crypto/ecdsa"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"pace/utils"
+	"slices"
 	"sync"
 )
 
-var logger = utils.GetLogger(slog.LevelDebug)
+var logger = utils.GetLogger(slog.LevelWarn)
 
 type NodeMessageObserver interface {
 	BEBDeliver(msg []byte, sender *ecdsa.PublicKey)
@@ -31,6 +34,8 @@ type Node struct {
 	memObservers []MembershipObserver
 	config       *tls.Config
 	sk           *ecdsa.PrivateKey
+	listener     net.Listener
+	closeChan    chan struct{}
 }
 
 func NewNode(id, contact string, sk *ecdsa.PrivateKey, cert *tls.Certificate) *Node {
@@ -46,9 +51,10 @@ func NewNode(id, contact string, sk *ecdsa.PrivateKey, cert *tls.Certificate) *N
 		memObservers: make([]MembershipObserver, 0),
 		config:       config,
 		sk:           sk,
+		closeChan:    make(chan struct{}),
 	}
-	listener := node.setupTLSListener(id)
-	go node.listenConnections(listener, isContact)
+	node.listener = node.setupTLSListener(id)
+	go node.listenConnections(isContact)
 	return &node
 }
 
@@ -120,16 +126,27 @@ func (n *Node) connectToContact(contact string) error {
 	return nil
 }
 
-func (n *Node) listenConnections(listener net.Listener, amContact bool) {
+func (n *Node) listenConnections(amContact bool) {
 	for {
-		peer, err := getInbound(listener)
+		peer, err := getInbound(n.listener)
 		if err != nil {
-			logger.Warn("error accepting connection with Peer", "Peer name", peer.name, "error", err)
-			continue
+			if isListenerClosed(err) {
+				logger.Info("closing listener")
+				break
+			} else {
+				logger.Warn("error accepting connection with Peer", "Peer name", peer.name, "error", err)
+				continue
+			}
 		}
 		logger.Debug("received connection from Peer", "Peer name", peer.name, "Peer key", *peer.Pk)
 		go n.maintainConnection(peer, amContact)
 	}
+	n.closeChan <- struct{}{}
+}
+
+func isListenerClosed(err error) bool {
+	var lce listenerCloseError
+	return errors.As(err, &lce)
 }
 
 func (n *Node) setupTLSListener(address string) net.Listener {
@@ -197,20 +214,55 @@ func (n *Node) closeConnection(peer Peer) {
 	if err != nil {
 		logger.Warn("error closing connection", "Peer name", peer.name, "error", err)
 	}
+	n.forgetPeer(peer)
+}
+
+func (n *Node) forgetPeer(peer Peer) {
 	n.peersLock.Lock()
 	defer n.peersLock.Unlock()
 	delete(n.peers, peer.name)
+}
+
+func (n *Node) closeAllConnections() {
+	logger.Info("closing all connections")
+	n.peersLock.Lock()
+	defer n.peersLock.Unlock()
+	for _, peer := range n.peers {
+		for _, obs := range n.memObservers {
+			obs.NotifyPeerDown(peer)
+		}
+		err := peer.Conn.Close()
+		if err != nil {
+			logger.Warn("error closing connection", "Peer name", peer.name, "error", err)
+		}
+	}
+	pNames := slices.Collect(maps.Keys(n.peers))
+	for _, p := range pNames {
+		delete(n.peers, p)
+		logger.Debug("peer deleted", "peer name", p)
+	}
 }
 
 func (n *Node) readFromConnection(peer Peer) {
 	for {
 		msg, err := receive(peer.Conn)
 		if err != nil {
-			logger.Error("error reading from connection", "Peer name", peer.name, "error", err)
-			return
+			if isConnectionClosed(err) {
+				logger.Debug("connection closed", "Peer name", peer.name)
+				n.forgetPeer(peer)
+				return
+			} else {
+				logger.Warn("error reading from connection", "Peer name", peer.name, "error", err)
+				continue
+			}
 		}
 		go n.processMessage(msg, peer.Pk)
 	}
+}
+
+func isConnectionClosed(err error) bool {
+	var cce connCloseError
+	return errors.As(err, &cce)
 }
 
 func (n *Node) processMessage(msg []byte, sender *ecdsa.PublicKey) {
@@ -249,4 +301,11 @@ func (n *Node) GetPeers() []*Peer {
 		peers = append(peers, p)
 	}
 	return peers
+}
+
+func (n *Node) Disconnect() error {
+	err := n.listener.Close()
+	n.closeAllConnections()
+	<-n.closeChan
+	return err
 }

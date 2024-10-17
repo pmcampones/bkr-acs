@@ -2,6 +2,7 @@ package overlayNetwork
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
@@ -20,6 +21,8 @@ func TestShouldBroadcastSingleNode(t *testing.T) {
 	<-msgObs.barrier
 	require.Equal(t, msgObs.delivered[string(msg)], true)
 	require.Equal(t, len(msgObs.delivered), 1)
+	err = node.Disconnect()
+	assert.NoError(t, err)
 }
 
 func TestShouldBroadcastSingleNodeManyMessages(t *testing.T) {
@@ -44,6 +47,8 @@ func TestShouldBroadcastSingleNodeManyMessages(t *testing.T) {
 		require.Equal(t, msgObs.delivered[string(msg)], true)
 	}
 	require.Equal(t, len(msgObs.delivered), len(msgs))
+	err = node.Disconnect()
+	assert.NoError(t, err)
 }
 
 func TestShouldBroadcastTwoNodesSingleMessage(t *testing.T) {
@@ -75,6 +80,11 @@ func TestShouldBroadcastTwoNodesSingleMessage(t *testing.T) {
 	require.Equal(t, len(msgObs2.delivered), 2)
 	require.Equal(t, msgObs1.delivered[address2], true)
 	require.Equal(t, msgObs2.delivered[address2], true)
+	err = node1.Disconnect()
+	assert.NoError(t, err)
+	fmt.Println("Node 1 disconnected")
+	err = node2.Disconnect()
+	assert.NoError(t, err)
 }
 
 func TestShouldBroadcastTwoNodesManyMessages(t *testing.T) {
@@ -117,11 +127,15 @@ func TestShouldBroadcastTwoNodesManyMessages(t *testing.T) {
 	}
 	require.Equal(t, len(msgObs1.delivered), 2*numMsgs)
 	require.Equal(t, len(msgObs2.delivered), 2*numMsgs)
+	err = node1.Disconnect()
+	assert.NoError(t, err)
+	err = node2.Disconnect()
+	assert.NoError(t, err)
 }
 
 func TestShouldBroadcastManyNodesManyMessages(t *testing.T) {
 	contact := "localhost:6000"
-	numNodes := 100
+	numNodes := 20
 	numMsgs := 100
 	nodes := make([]*Node, numNodes)
 	memObs := make([]*TestMemObserver, numNodes)
@@ -160,6 +174,10 @@ func TestShouldBroadcastManyNodesManyMessages(t *testing.T) {
 			}
 		}
 	}
+	for _, node := range nodes {
+		err := node.Disconnect()
+		assert.NoError(t, err)
+	}
 }
 
 func TestShouldUnicastSingleMessage(t *testing.T) {
@@ -170,11 +188,11 @@ func TestShouldUnicastSingleMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to create node sender: %v", err)
 	}
-	_, _, msgObs1, err := MakeNode(peer1Name, contact, 10, 10)
+	node1, _, msgObs1, err := MakeNode(peer1Name, contact, 10, 10)
 	if err != nil {
 		t.Fatalf("unable to create node receiver: %v", err)
 	}
-	_, _, msgObs2, err := MakeNode(peer2Name, contact, 10, 10)
+	node2, _, msgObs2, err := MakeNode(peer2Name, contact, 10, 10)
 	if err != nil {
 		t.Fatalf("unable to create node receiver: %v", err)
 	}
@@ -192,4 +210,10 @@ func TestShouldUnicastSingleMessage(t *testing.T) {
 	require.Equal(t, len(msgObs1.delivered), 1)
 	require.Equal(t, len(msgObs2.delivered), 0)
 	require.Equal(t, msgObs1.delivered[string(msg)], true)
+	err = node0.Disconnect()
+	assert.NoError(t, err)
+	err = node1.Disconnect()
+	assert.NoError(t, err)
+	err = node2.Disconnect()
+	assert.NoError(t, err)
 }

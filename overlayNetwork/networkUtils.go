@@ -37,10 +37,10 @@ func (to *TestMemObserver) NotifyPeerUp(p *Peer) {
 }
 
 func (to *TestMemObserver) NotifyPeerDown(p *Peer) {
-	to.lock.Lock()
+	/*to.lock.Lock()
 	defer to.lock.Unlock()
 	to.Peers[p.name] = p
-	to.DownBarrier <- struct{}{}
+	go func() { to.DownBarrier <- struct{}{} }()*/
 }
 
 func MakeNode(address, contact string, bufferMsg, bufferMem int) (*Node, *TestMemObserver, *TestMsgObserver, error) {

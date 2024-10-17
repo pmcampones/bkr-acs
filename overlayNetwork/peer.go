@@ -9,6 +9,14 @@ import (
 	"pace/utils"
 )
 
+type listenerCloseError struct {
+	err error
+}
+
+func (l listenerCloseError) Error() string {
+	return fmt.Sprintf("listener closed:%v", l.err)
+}
+
 type Peer struct {
 	Conn net.Conn
 	name string
@@ -46,7 +54,7 @@ func newOutbound(myName, address string, config *tls.Config) (Peer, error) {
 func getInbound(listener net.Listener) (Peer, error) {
 	conn, err := listener.Accept()
 	if err != nil {
-		return Peer{}, fmt.Errorf("unable to accept inbount connection with Peer: %s", err)
+		return Peer{}, listenerCloseError{err: err}
 	}
 	nameBytes, err := receive(conn)
 	if err != nil {

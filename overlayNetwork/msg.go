@@ -11,6 +11,14 @@ import (
 
 type msgType byte
 
+type connCloseError struct {
+	err error
+}
+
+func (c connCloseError) Error() string {
+	return c.err.Error()
+}
+
 const (
 	membership msgType = 'A' + iota
 	generic
@@ -39,7 +47,7 @@ func receive(conn net.Conn) ([]byte, error) {
 	var length uint32
 	err := binary.Read(conn, binary.LittleEndian, &length)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read message length from buffer: %v", err)
+		return nil, connCloseError{err: fmt.Errorf("unable to read message length from buffer: %v", err)}
 	}
 	msg := make([]byte, length)
 	_, err = io.ReadFull(conn, msg)
