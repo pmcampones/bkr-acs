@@ -1,4 +1,4 @@
-package byzantineReliableBroadcast
+package brb
 
 import (
 	"fmt"
