@@ -25,7 +25,7 @@ func (b *brbPhase2Handler) handleSend(msg []byte) error {
 	if b.isFinished {
 		return b.nextPhase.handleSend(msg)
 	}
-	logger.Debug("processing send message on phase 2")
+	instanceLogger.Debug("processing send message on phase 2")
 	return nil
 }
 
@@ -33,7 +33,7 @@ func (b *brbPhase2Handler) handleEcho(msg []byte, id uuid.UUID) error {
 	if b.isFinished {
 		return b.nextPhase.handleEcho(msg, id)
 	} else {
-		logger.Debug("processing echo message on phase 2")
+		instanceLogger.Debug("processing echo message on phase 2")
 		numEchoes, ok := b.data.echoes[id]
 		if !ok {
 			return fmt.Errorf("unable to find echoes in phase 2 with message id %s", id)
@@ -51,7 +51,7 @@ func (b *brbPhase2Handler) handleReady(msg []byte, id uuid.UUID) error {
 	if b.isFinished {
 		return b.nextPhase.handleReady(msg, id)
 	} else {
-		logger.Debug("processing ready message on phase 2")
+		instanceLogger.Debug("processing ready message on phase 2")
 		numReadies, ok := b.data.readies[id]
 		if !ok {
 			return fmt.Errorf("unable to find readies in phase 2 with message id %s", id)
@@ -66,6 +66,6 @@ func (b *brbPhase2Handler) handleReady(msg []byte, id uuid.UUID) error {
 }
 
 func (b *brbPhase2Handler) sendReady(msg []byte) {
-	logger.Info("sending ready message")
+	instanceLogger.Info("sending ready message")
 	go func() { b.readyChan <- msg }()
 }
