@@ -7,7 +7,7 @@ import (
 	"pace/utils"
 )
 
-var instanceLogger = utils.GetLogger(slog.LevelWarn)
+var instanceLogger = utils.GetLogger(slog.LevelDebug)
 
 // brbHandler defines the functionalities required for handling the brb messages depending on the current phase of the algorithm.
 // This implementation follows the State pattern.
@@ -68,16 +68,17 @@ func (b *brbInstance) handleSend(msg []byte) {
 	}
 }
 
-func (b *brbInstance) handleEcho(msg []byte, id UUID, sender UUID) error {
+func (b *brbInstance) handleEcho(msg []byte, sender UUID) error {
 	instanceLogger.Debug("submitting echo message handling command")
 	b.commands <- func() error {
 		ok := b.peersEchoed[sender]
 		if ok {
 			return fmt.Errorf("already received echo from peer %s", sender)
 		}
-		b.data.echoes[id]++
+		mid := utils.BytesToUUID(msg)
+		b.data.echoes[mid]++
 		b.peersEchoed[sender] = true
-		err := b.handler.handleEcho(msg, id)
+		err := b.handler.handleEcho(msg, mid)
 		if err != nil {
 			return fmt.Errorf("unable to handle echo: %v", err)
 		}
@@ -86,16 +87,17 @@ func (b *brbInstance) handleEcho(msg []byte, id UUID, sender UUID) error {
 	return nil
 }
 
-func (b *brbInstance) handleReady(msg []byte, id UUID, sender UUID) error {
+func (b *brbInstance) handleReady(msg []byte, sender UUID) error {
 	instanceLogger.Debug("submitting ready message handling command")
 	b.commands <- func() error {
 		ok := b.peersReadied[sender]
 		if ok {
 			return fmt.Errorf("already received ready from peer %s", sender)
 		}
-		b.data.readies[id]++
+		mid := utils.BytesToUUID(msg)
+		b.data.readies[mid]++
 		b.peersReadied[sender] = true
-		err := b.handler.handleReady(msg, id)
+		err := b.handler.handleReady(msg, mid)
 		if err != nil {
 			return fmt.Errorf("unable to handle ready: %v", err)
 		}

@@ -79,13 +79,13 @@ func (c *BRBChannel) processMsg(msg *msg) error {
 		go instance.handleSend(msg.content)
 	case echo:
 		go func() {
-			if err := instance.handleEcho(msg.content, id, msg.sender); err != nil {
+			if err := instance.handleEcho(msg.content, msg.sender); err != nil {
 				channelLogger.Warn("unable to handle echo message", "id", msg.id, "error", err)
 			}
 		}()
 	case ready:
 		go func() {
-			if err := instance.handleReady(msg.content, id, msg.sender); err != nil {
+			if err := instance.handleReady(msg.content, msg.sender); err != nil {
 				channelLogger.Warn("unable to handle ready message", "id", id, "error", err)
 			}
 		}()
