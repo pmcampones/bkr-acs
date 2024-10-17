@@ -1,4 +1,4 @@
-package byzantineReliableBroadcast
+package brb
 
 import (
 	"bufio"
@@ -74,12 +74,12 @@ func (m *brbMiddleware) genId(sender *ecdsa.PublicKey) (uuid.UUID, error) {
 	nonce := rand.Uint32()
 	encodedPk, err := utils.SerializePublicKey(sender)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("unable to serialize public key during byzantineReliableBroadcast: %v", err)
+		return uuid.Nil, fmt.Errorf("unable to serialize public key during brb: %v", err)
 	}
 	buf := bytes.NewBuffer(encodedPk)
 	err = binary.Write(buf, binary.LittleEndian, nonce)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("unable to write nonce to buffer during byzantineReliableBroadcast: %v", err)
+		return uuid.Nil, fmt.Errorf("unable to write nonce to buffer during brb: %v", err)
 	}
 	id := utils.BytesToUUID(buf.Bytes())
 	return id, nil
@@ -89,10 +89,10 @@ func (m *brbMiddleware) broadcastMsg(code middlewareCode, id uuid.UUID, ch chan 
 	msg := <-ch
 	structuredMsg, err := m.wrapMessage(code, id, msg)
 	if err != nil {
-		logger.Warn("error wrapping message", "error", err)
+		channelLogger.Warn("error wrapping message", "error", err)
 		return
 	} else if err = m.bebChannel.Broadcast(structuredMsg); err != nil {
-		logger.Warn("error broadcasting message", "error", err)
+		channelLogger.Warn("error broadcasting message", "error", err)
 	}
 }
 
@@ -144,7 +144,7 @@ func (m *brbMiddleware) processMsg(msg []byte, sender *ecdsa.PublicKey) (*msg, e
 func (m *brbMiddleware) processSend(reader *bytes.Reader, sender *ecdsa.PublicKey) (*msg, error) {
 	id, err := m.readId(reader, sender)
 	if err != nil {
-		return nil, fmt.Errorf("unable to process id generation: %v", err)
+		return nil, fmt.Errorf("unable to processMsg id generation: %v", err)
 	}
 	return m.deserializeIDMsg(send, reader, sender, id)
 }
