@@ -9,25 +9,18 @@ import (
 
 var instanceLogger = utils.GetLogger(slog.LevelDebug)
 
-// brbHandler defines the functionalities required for handling the brb messages depending on the current phase of the algorithm.
-// This implementation follows the State pattern.
-type brbHandler interface {
-	handleSend(msg []byte)
-	handleEcho(msg []byte, id UUID) error
-	handleReady(msg []byte, id UUID) error
-}
-
-type brbExecutor struct {
-	instance  *brbInstance
-	commands  chan<- func() error
+type brbInstance struct {
+	handler   *brbHandler
+	commands  chan<- func()
 	closeChan chan<- struct{}
 }
 
-func newBrbExecutor(instance *brbInstance) *brbExecutor {
-	commands := make(chan func() error)
+func newBrbInstance(n, f uint, echo, ready, output chan []byte) *brbInstance {
+	handler := newBrbHandler(n, f, echo, ready, output)
+	commands := make(chan func())
 	closeChan := make(chan struct{})
-	executor := &brbExecutor{
-		instance:  instance,
+	executor := &brbInstance{
+		handler:   handler,
 		commands:  commands,
 		closeChan: closeChan,
 	}
@@ -35,44 +28,36 @@ func newBrbExecutor(instance *brbInstance) *brbExecutor {
 	return executor
 }
 
-func (e *brbExecutor) handleSend(msg []byte) {
+func (e *brbInstance) send(msg []byte) {
 	instanceLogger.Debug("submitting send message handling command")
-	e.commands <- func() error {
-		e.instance.handleSend(msg)
-		return nil
+	e.commands <- func() {
+		e.handler.handleSend(msg)
 	}
 }
 
-func (e *brbExecutor) handleEcho(msg []byte, sender UUID) {
+func (e *brbInstance) echo(msg []byte, sender UUID) error {
 	instanceLogger.Debug("submitting echo message handling command")
-	e.commands <- func() error {
-		err := e.instance.handleEcho(msg, sender)
-		if err != nil {
-			return fmt.Errorf("unable to handle echo: %v", err)
-		}
-		return nil
+	errChan := make(chan error)
+	e.commands <- func() {
+		errChan <- e.handler.handleEcho(msg, sender)
 	}
+	return <-errChan
 }
 
-func (e *brbExecutor) handleReady(msg []byte, sender UUID) {
+func (e *brbInstance) ready(msg []byte, sender UUID) error {
 	instanceLogger.Debug("submitting ready message handling command")
-	e.commands <- func() error {
-		err := e.instance.handleReady(msg, sender)
-		if err != nil {
-			return fmt.Errorf("unable to handle ready: %v", err)
-		}
-		return nil
+	errChan := make(chan error)
+	e.commands <- func() {
+		errChan <- e.handler.handleReady(msg, sender)
 	}
+	return <-errChan
 }
 
-func (e *brbExecutor) invoker(commands <-chan func() error, closeChan <-chan struct{}) {
+func (e *brbInstance) invoker(commands <-chan func(), closeChan <-chan struct{}) {
 	for {
 		select {
 		case command := <-commands:
-			err := command()
-			if err != nil {
-				instanceLogger.Error("unable to compute command", "error", err)
-			}
+			command()
 		case <-closeChan:
 			instanceLogger.Info("closing executor")
 			return
@@ -80,18 +65,16 @@ func (e *brbExecutor) invoker(commands <-chan func() error, closeChan <-chan str
 	}
 }
 
-func (e *brbExecutor) close() {
-	instanceLogger.Info("sending signal to close bcb instance")
+func (e *brbInstance) close() {
+	instanceLogger.Info("sending signal to close bcb handler")
 	e.closeChan <- struct{}{}
 }
 
-type brbInstance struct {
+type brbHandler struct {
 	data         *brbData
 	peersEchoed  map[UUID]bool
 	peersReadied map[UUID]bool
-	commands     chan<- func() error
-	closeChan    chan<- struct{}
-	handler      brbHandler
+	handler      *brbPhase1Handler
 }
 
 type brbData struct {
@@ -101,7 +84,7 @@ type brbData struct {
 	readies map[UUID]uint
 }
 
-func newBrbInstance(n, f uint, echo, ready, output chan []byte) *brbInstance {
+func newBrbHandler(n, f uint, echo, ready, output chan []byte) *brbHandler {
 	data := brbData{
 		n:       n,
 		f:       f,
@@ -111,82 +94,47 @@ func newBrbInstance(n, f uint, echo, ready, output chan []byte) *brbInstance {
 	ph3 := newPhase3Handler(&data, output)
 	ph2 := newPhase2Handler(&data, ready, ph3)
 	ph1 := newPhase1Handler(&data, echo, ph2)
-	commands := make(chan func() error)
-	closeChan := make(chan struct{})
-	instance := &brbInstance{
+	instance := &brbHandler{
 		data:         &data,
 		peersEchoed:  make(map[UUID]bool),
 		peersReadied: make(map[UUID]bool),
-		commands:     commands,
-		closeChan:    closeChan,
 		handler:      ph1,
 	}
-	go instance.invoker(commands, closeChan)
 	return instance
 }
 
-func (b *brbInstance) handleSend(msg []byte) {
-	instanceLogger.Debug("submitting send message handling command")
-	b.commands <- func() error {
-		b.handler.handleSend(msg)
-		return nil
-	}
+func (h *brbHandler) handleSend(msg []byte) {
+	h.handler.handleSend(msg)
 }
 
-func (b *brbInstance) handleEcho(msg []byte, sender UUID) error {
-	instanceLogger.Debug("submitting echo message handling command")
-	b.commands <- func() error {
-		ok := b.peersEchoed[sender]
-		if ok {
-			return fmt.Errorf("already received echo from peer %s", sender)
-		}
-		mid := utils.BytesToUUID(msg)
-		b.data.echoes[mid]++
-		b.peersEchoed[sender] = true
-		err := b.handler.handleEcho(msg, mid)
-		if err != nil {
-			return fmt.Errorf("unable to handle echo: %v", err)
-		}
-		return nil
+func (h *brbHandler) handleEcho(msg []byte, sender UUID) error {
+	instanceLogger.Debug("submitting echo message")
+	ok := h.peersEchoed[sender]
+	if ok {
+		return fmt.Errorf("already received echo from peer %s", sender)
+	}
+	mid := utils.BytesToUUID(msg)
+	h.data.echoes[mid]++
+	h.peersEchoed[sender] = true
+	err := h.handler.handleEcho(msg, mid)
+	if err != nil {
+		return fmt.Errorf("unable to handle echo: %v", err)
 	}
 	return nil
 }
 
-func (b *brbInstance) handleReady(msg []byte, sender UUID) error {
-	instanceLogger.Debug("submitting ready message handling command")
-	b.commands <- func() error {
-		ok := b.peersReadied[sender]
-		if ok {
-			return fmt.Errorf("already received ready from peer %s", sender)
-		}
-		mid := utils.BytesToUUID(msg)
-		b.data.readies[mid]++
-		b.peersReadied[sender] = true
-		err := b.handler.handleReady(msg, mid)
-		if err != nil {
-			return fmt.Errorf("unable to handle ready: %v", err)
-		}
-		return nil
+func (h *brbHandler) handleReady(msg []byte, sender UUID) error {
+	instanceLogger.Debug("submitting ready message")
+	ok := h.peersReadied[sender]
+	if ok {
+		return fmt.Errorf("already received ready from peer %s", sender)
+	}
+	mid := utils.BytesToUUID(msg)
+	h.data.readies[mid]++
+	h.peersReadied[sender] = true
+	err := h.handler.handleReady(msg, mid)
+	if err != nil {
+		return fmt.Errorf("unable to handle ready: %v", err)
 	}
 	return nil
-}
-
-func (b *brbInstance) invoker(commands <-chan func() error, closeChan <-chan struct{}) {
-	for {
-		select {
-		case command := <-commands:
-			err := command()
-			if err != nil {
-				instanceLogger.Error("unable to compute command", "error", err)
-			}
-		case <-closeChan:
-			instanceLogger.Info("closing executor")
-			return
-		}
-	}
-}
-
-func (b *brbInstance) close() {
-	instanceLogger.Info("sending signal to close bcb instance")
-	b.closeChan <- struct{}{}
 }

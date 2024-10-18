@@ -23,14 +23,14 @@ func (h *honestOrderedScheduler) getChannels(t *testing.T, sender uuid.UUID) (ch
 	go func() {
 		msg := <-echoChan
 		for _, inst := range h.instances {
-			err := inst.handleEcho(msg, sender)
+			err := inst.echo(msg, sender)
 			assert.NoError(t, err)
 		}
 	}()
 	go func() {
 		msg := <-readyChan
 		for _, inst := range h.instances {
-			err := inst.handleReady(msg, sender)
+			err := inst.ready(msg, sender)
 			assert.NoError(t, err)
 		}
 	}()
@@ -39,7 +39,7 @@ func (h *honestOrderedScheduler) getChannels(t *testing.T, sender uuid.UUID) (ch
 
 func (h *honestOrderedScheduler) sendAll(msg []byte) {
 	for _, i := range h.instances {
-		i.handleSend(msg)
+		i.send(msg)
 	}
 }
 
@@ -50,7 +50,7 @@ func TestShouldReceiveSelfBroadcast(t *testing.T) {
 	instance := newBrbInstance(1, 0, echoChan, readyChan, outputChan)
 	scheduler.instances = append(scheduler.instances, instance)
 	msg := []byte("hello")
-	instance.handleSend(msg)
+	instance.send(msg)
 	recov := <-outputChan
 	assert.Equal(t, recov, msg)
 }
@@ -93,10 +93,66 @@ func TestShouldBroadcastToAllMaxCrashOrdered(t *testing.T) {
 	outputChans := lo.Map(lo.Range(numNodes-f), func(_ int, _ int) chan []byte { return make(chan []byte) })
 	for _, o := range outputChans {
 		echoChan, readyChan := scheduler.getChannels(t, uuid.New())
-		instance := newBrbInstance(uint(numNodes-f), uint(f), echoChan, readyChan, o)
+		instance := newBrbInstance(uint(numNodes), uint(f), echoChan, readyChan, o)
 		scheduler.instances = append(scheduler.instances, instance)
 	}
 	msg := []byte("hello")
+	scheduler.sendAll(msg)
+	outputs := lo.Map(outputChans, func(o chan []byte, _ int) []byte { return <-o })
+	assert.True(t, lo.EveryBy(outputs, func(recov []byte) bool { return bytes.Equal(recov, msg) }))
+}
+
+func TestShouldBroadcastToAllMaxByzantineOrdered(t *testing.T) {
+	f := 3
+	numNodes := 3*f + 1
+	scheduler := newHonestOrderedScheduler()
+	outputChans := lo.Map(lo.Range(numNodes-f), func(_ int, _ int) chan []byte { return make(chan []byte) })
+	for _, o := range outputChans {
+		echoChan, readyChan := scheduler.getChannels(t, uuid.New())
+		instance := newBrbInstance(uint(numNodes), uint(f), echoChan, readyChan, o)
+		scheduler.instances = append(scheduler.instances, instance)
+	}
+	msg := []byte("hello")
+	byzMsg := []byte("bye")
+	byzantine := lo.Map(lo.Range(f), func(_ int, _ int) uuid.UUID { return uuid.New() })
+	for _, correct := range scheduler.instances {
+		for _, byz := range byzantine {
+			err := correct.echo(byzMsg, byz)
+			assert.NoError(t, err)
+			err = correct.ready(byzMsg, byz)
+			assert.NoError(t, err)
+		}
+	}
+	scheduler.sendAll(msg)
+	outputs := lo.Map(outputChans, func(o chan []byte, _ int) []byte { return <-o })
+	assert.True(t, lo.EveryBy(outputs, func(recov []byte) bool { return bytes.Equal(recov, msg) }))
+}
+
+func TestShouldDetectRepeatedMessages(t *testing.T) {
+	f := 3
+	numNodes := 3*f + 1
+	scheduler := newHonestOrderedScheduler()
+	outputChans := lo.Map(lo.Range(numNodes-f), func(_ int, _ int) chan []byte { return make(chan []byte) })
+	for _, o := range outputChans {
+		echoChan, readyChan := scheduler.getChannels(t, uuid.New())
+		instance := newBrbInstance(uint(numNodes), uint(f), echoChan, readyChan, o)
+		scheduler.instances = append(scheduler.instances, instance)
+	}
+	msg := []byte("hello")
+	byzMsg := []byte("bye")
+	byzantine := lo.Map(lo.Range(f), func(_ int, _ int) uuid.UUID { return uuid.New() })
+	for _, correct := range scheduler.instances {
+		for _, byz := range byzantine {
+			err := correct.echo(byzMsg, byz)
+			assert.NoError(t, err)
+			err = correct.ready(byzMsg, byz)
+			assert.NoError(t, err)
+			err = correct.echo(byzMsg, byz)
+			assert.True(t, err != nil)
+			err = correct.ready(byzMsg, byz)
+			assert.True(t, err != nil)
+		}
+	}
 	scheduler.sendAll(msg)
 	outputs := lo.Map(outputChans, func(o chan []byte, _ int) []byte { return <-o })
 	assert.True(t, lo.EveryBy(outputs, func(recov []byte) bool { return bytes.Equal(recov, msg) }))

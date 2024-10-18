@@ -76,17 +76,19 @@ func (c *BRBChannel) processMsg(msg *msg) error {
 	}
 	switch msg.kind {
 	case send:
-		go instance.handleSend(msg.content)
+		go instance.send(msg.content)
 	case echo:
 		go func() {
-			if err := instance.handleEcho(msg.content, msg.sender); err != nil {
-				channelLogger.Warn("unable to handle echo message", "id", msg.id, "error", err)
+			err := instance.echo(msg.content, msg.sender)
+			if err != nil {
+				channelLogger.Warn("unable to process echo message", "id", id, "err", err)
 			}
 		}()
 	case ready:
 		go func() {
-			if err := instance.handleReady(msg.content, msg.sender); err != nil {
-				channelLogger.Warn("unable to handle ready message", "id", id, "error", err)
+			err := instance.ready(msg.content, msg.sender)
+			if err != nil {
+				channelLogger.Warn("unable to process ready message", "id", id, "err", err)
 			}
 		}()
 	default:
@@ -113,7 +115,7 @@ func (c *BRBChannel) processOutput(outputChan <-chan []byte, id UUID) {
 		}
 		instance, ok := c.instances[id]
 		if !ok {
-			return fmt.Errorf("channel instance %s not found upon delivery", id)
+			return fmt.Errorf("channel handler %s not found upon delivery", id)
 		}
 		c.finished[id] = true
 		delete(c.instances, id)
