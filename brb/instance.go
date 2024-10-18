@@ -12,9 +12,77 @@ var instanceLogger = utils.GetLogger(slog.LevelDebug)
 // brbHandler defines the functionalities required for handling the brb messages depending on the current phase of the algorithm.
 // This implementation follows the State pattern.
 type brbHandler interface {
-	handleSend(msg []byte) error
+	handleSend(msg []byte)
 	handleEcho(msg []byte, id UUID) error
 	handleReady(msg []byte, id UUID) error
+}
+
+type brbExecutor struct {
+	instance  *brbInstance
+	commands  chan<- func() error
+	closeChan chan<- struct{}
+}
+
+func newBrbExecutor(instance *brbInstance) *brbExecutor {
+	commands := make(chan func() error)
+	closeChan := make(chan struct{})
+	executor := &brbExecutor{
+		instance:  instance,
+		commands:  commands,
+		closeChan: closeChan,
+	}
+	go executor.invoker(commands, closeChan)
+	return executor
+}
+
+func (e *brbExecutor) handleSend(msg []byte) {
+	instanceLogger.Debug("submitting send message handling command")
+	e.commands <- func() error {
+		e.instance.handleSend(msg)
+		return nil
+	}
+}
+
+func (e *brbExecutor) handleEcho(msg []byte, sender UUID) {
+	instanceLogger.Debug("submitting echo message handling command")
+	e.commands <- func() error {
+		err := e.instance.handleEcho(msg, sender)
+		if err != nil {
+			return fmt.Errorf("unable to handle echo: %v", err)
+		}
+		return nil
+	}
+}
+
+func (e *brbExecutor) handleReady(msg []byte, sender UUID) {
+	instanceLogger.Debug("submitting ready message handling command")
+	e.commands <- func() error {
+		err := e.instance.handleReady(msg, sender)
+		if err != nil {
+			return fmt.Errorf("unable to handle ready: %v", err)
+		}
+		return nil
+	}
+}
+
+func (e *brbExecutor) invoker(commands <-chan func() error, closeChan <-chan struct{}) {
+	for {
+		select {
+		case command := <-commands:
+			err := command()
+			if err != nil {
+				instanceLogger.Error("unable to compute command", "error", err)
+			}
+		case <-closeChan:
+			instanceLogger.Info("closing executor")
+			return
+		}
+	}
+}
+
+func (e *brbExecutor) close() {
+	instanceLogger.Info("sending signal to close bcb instance")
+	e.closeChan <- struct{}{}
 }
 
 type brbInstance struct {
@@ -60,10 +128,7 @@ func newBrbInstance(n, f uint, echo, ready, output chan []byte) *brbInstance {
 func (b *brbInstance) handleSend(msg []byte) {
 	instanceLogger.Debug("submitting send message handling command")
 	b.commands <- func() error {
-		err := b.handler.handleSend(msg)
-		if err != nil {
-			return fmt.Errorf("unable to handle send: %v", err)
-		}
+		b.handler.handleSend(msg)
 		return nil
 	}
 }

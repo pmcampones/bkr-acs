@@ -21,12 +21,11 @@ func newPhase2Handler(data *brbData, readyChan chan<- []byte, nextPhase *brbPhas
 	}
 }
 
-func (b *brbPhase2Handler) handleSend(msg []byte) error {
+func (b *brbPhase2Handler) handleSend(msg []byte) {
 	if b.isFinished {
-		return b.nextPhase.handleSend(msg)
+		b.nextPhase.handleSend(msg)
 	}
 	instanceLogger.Debug("processing send message on phase 2")
-	return nil
 }
 
 func (b *brbPhase2Handler) handleEcho(msg []byte, id uuid.UUID) error {

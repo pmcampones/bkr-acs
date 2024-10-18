@@ -17,9 +17,8 @@ func newPhase3Handler(data *brbData, output chan<- []byte) *brbPhase3Handler {
 	}
 }
 
-func (b *brbPhase3Handler) handleSend(_ []byte) error {
+func (b *brbPhase3Handler) handleSend(_ []byte) {
 	instanceLogger.Debug("processing send message on phase 3 (nothing to do)")
-	return nil
 }
 
 func (b *brbPhase3Handler) handleEcho(_ []byte, _ uuid.UUID) error {
