@@ -54,7 +54,7 @@ func (b *brbPhase1Handler) handleReady(msg []byte, id uuid.UUID) error {
 		return b.nextPhase.handleReady(msg, id)
 	} else {
 		instanceLogger.Debug("processing ready message on phase 1")
-		numReadies, ok := b.data.echoes[id]
+		numReadies, ok := b.data.readies[id]
 		if !ok {
 			return fmt.Errorf("unable to find readies with message id %s", id)
 		}
