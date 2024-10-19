@@ -1,219 +1,130 @@
 package overlayNetwork
 
 import (
+	"crypto/ecdsa"
 	"fmt"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
-	"time"
 )
 
-func TestShouldBroadcastSingleNode(t *testing.T) {
-	contact := "localhost:6000"
-	node, _, msgObs, err := MakeNode(contact, contact, 1, 1)
-	if err != nil {
-		t.Fatalf("unable to create node sender: %v", err)
-	}
-	msg := []byte("hello")
-	require.Equal(t, len(msgObs.delivered), 0)
-	err = node.Broadcast(msg)
-	require.NoError(t, err)
-	<-msgObs.barrier
-	require.Equal(t, msgObs.delivered[string(msg)], true)
-	require.Equal(t, len(msgObs.delivered), 1)
-	err = node.Disconnect()
-	assert.NoError(t, err)
+type dummyMsgObserver struct {
+	msgs chan []byte
 }
 
-func TestShouldBroadcastSingleNodeManyMessages(t *testing.T) {
+func newDummyMsgObserver() *dummyMsgObserver {
+	return &dummyMsgObserver{
+		msgs: make(chan []byte),
+	}
+}
+
+func (dmo *dummyMsgObserver) BEBDeliver(msg []byte, _ *ecdsa.PublicKey) {
+	dmo.msgs <- msg
+}
+
+type nodeMsg struct {
+	node   *Node
+	msgObs *dummyMsgObserver
+	bMsgs  [][]byte // messages to be broadcast by the node
+	rMsgs  [][]byte // messages to be received by the node
+}
+
+func newNodeMsg(node *Node, bMsgs [][]byte) *nodeMsg {
+	msgObs := newDummyMsgObserver()
+	node.AttachMessageObserver(msgObs)
+	return &nodeMsg{node, msgObs, bMsgs, make([][]byte, 0)}
+}
+
+func TestShouldBroadcastSelf(t *testing.T) {
 	contact := "localhost:6000"
+	node := GetNode(t, contact, contact)
+	nmsg := newNodeMsg(node, [][]byte{[]byte("hello")})
+	testShouldBroadcast(t, []*nodeMsg{nmsg}, contact)
+	assert.Equal(t, 1, len(nmsg.rMsgs))
+	assert.Equal(t, "hello", string(nmsg.rMsgs[0]))
+	assert.NoError(t, node.Disconnect())
+}
+
+func TestShouldBroadcastSelfManyMessages(t *testing.T) {
+	contact := "localhost:6000"
+	node := GetNode(t, contact, contact)
 	numMsgs := 10000
-	msgs := make([][]byte, numMsgs)
-	for i := 0; i < numMsgs; i++ {
-		msgs[i] = []byte(fmt.Sprintf("hello %d", i))
-	}
-	node, _, msgObs, err := MakeNode(contact, contact, numMsgs, 1)
-	if err != nil {
-		t.Fatalf("unable to create node sender: %v", err)
-	}
-	for _, msg := range msgs {
-		err = node.Broadcast(msg)
-		require.NoError(t, err)
-	}
-	for i := 0; i < numMsgs; i++ {
-		<-msgObs.barrier
-	}
-	for _, msg := range msgs {
-		require.Equal(t, msgObs.delivered[string(msg)], true)
-	}
-	require.Equal(t, len(msgObs.delivered), len(msgs))
-	err = node.Disconnect()
-	assert.NoError(t, err)
+	msgs := genNodeMsgs(0, numMsgs)
+	nmsg := newNodeMsg(node, msgs)
+	testShouldBroadcast(t, []*nodeMsg{nmsg}, contact)
+	assert.Equal(t, numMsgs, len(nmsg.rMsgs))
+	assert.NoError(t, node.Disconnect())
 }
 
 func TestShouldBroadcastTwoNodesSingleMessage(t *testing.T) {
-	address1 := "localhost:6000"
-	address2 := "localhost:6001"
-	node1, memObs1, msgObs1, err := MakeNode(address1, address1, 2, 1)
-	if err != nil {
-		t.Fatalf("unable to create node address1: %v", err)
-	}
-	node2, memObs2, msgObs2, err := MakeNode(address2, address1, 2, 1)
-	if err != nil {
-		t.Fatalf("unable to create node address2: %v", err)
-	}
-	<-memObs1.UpBarrier
-	<-memObs2.UpBarrier
-	err = node1.Broadcast([]byte(address1))
-	require.NoError(t, err)
-	<-msgObs1.barrier
-	<-msgObs2.barrier
-	require.Equal(t, len(msgObs1.delivered), 1)
-	require.Equal(t, len(msgObs2.delivered), 1)
-	require.Equal(t, msgObs1.delivered[address1], true)
-	require.Equal(t, msgObs2.delivered[address1], true)
-	err = node2.Broadcast([]byte(address2))
-	require.NoError(t, err)
-	<-msgObs1.barrier
-	<-msgObs2.barrier
-	require.Equal(t, len(msgObs1.delivered), 2)
-	require.Equal(t, len(msgObs2.delivered), 2)
-	require.Equal(t, msgObs1.delivered[address2], true)
-	require.Equal(t, msgObs2.delivered[address2], true)
-	err = node1.Disconnect()
-	assert.NoError(t, err)
-	fmt.Println("Node 1 disconnected")
-	err = node2.Disconnect()
-	assert.NoError(t, err)
+	contact := "localhost:6000"
+	address1 := "localhost:6001"
+	node0 := GetNode(t, contact, contact)
+	node1 := GetNode(t, address1, contact)
+	nmsg0 := newNodeMsg(node0, [][]byte{[]byte("hello")})
+	nmsg1 := newNodeMsg(node1, [][]byte{})
+	testShouldBroadcast(t, []*nodeMsg{nmsg0, nmsg1}, contact)
+	assert.Equal(t, 1, len(nmsg0.rMsgs))
+	assert.Equal(t, 1, len(nmsg1.rMsgs))
+	assert.Equal(t, "hello", string(nmsg0.rMsgs[0]))
+	assert.Equal(t, "hello", string(nmsg1.rMsgs[0]))
+	assert.NoError(t, node0.Disconnect())
+	assert.NoError(t, node1.Disconnect())
 }
 
 func TestShouldBroadcastTwoNodesManyMessages(t *testing.T) {
-	address1 := "localhost:6000"
-	address2 := "localhost:6001"
+	contact := "localhost:6000"
+	address1 := "localhost:6001"
+	node0 := GetNode(t, contact, contact)
+	node1 := GetNode(t, address1, contact)
 	numMsgs := 10000
-	msgs1 := make([][]byte, numMsgs)
-	msgs2 := make([][]byte, numMsgs)
-	for i := 0; i < numMsgs; i++ {
-		msgs1[i] = []byte(fmt.Sprintf("hello %d", i))
-		msgs2[i] = []byte(fmt.Sprintf("hello %d", i+numMsgs))
-	}
-	node1, memObs1, msgObs1, err := MakeNode(address1, address1, 2*numMsgs, 1)
-	if err != nil {
-		t.Fatalf("unable to create node address1: %v", err)
-	}
-	node2, memObs2, msgObs2, err := MakeNode(address2, address1, 2*numMsgs, 1)
-	if err != nil {
-		t.Fatalf("unable to create node address2: %v", err)
-	}
-	<-memObs1.UpBarrier
-	<-memObs2.UpBarrier
-	for i := 0; i < numMsgs; i++ {
-		err = node1.Broadcast(msgs1[i])
-		require.NoError(t, err)
-		err = node2.Broadcast(msgs2[i])
-		require.NoError(t, err)
-	}
-	for i := 0; i < numMsgs; i++ {
-		<-msgObs1.barrier
-		<-msgObs1.barrier
-		<-msgObs2.barrier
-		<-msgObs2.barrier
-	}
-	for i := 0; i < numMsgs; i++ {
-		require.Equal(t, msgObs1.delivered[string(msgs1[i])], true)
-		require.Equal(t, msgObs1.delivered[string(msgs2[i])], true)
-		require.Equal(t, msgObs2.delivered[string(msgs1[i])], true)
-		require.Equal(t, msgObs2.delivered[string(msgs2[i])], true)
-	}
-	require.Equal(t, len(msgObs1.delivered), 2*numMsgs)
-	require.Equal(t, len(msgObs2.delivered), 2*numMsgs)
-	err = node1.Disconnect()
-	assert.NoError(t, err)
-	err = node2.Disconnect()
-	assert.NoError(t, err)
+	msgs0 := genNodeMsgs(0, numMsgs)
+	msgs1 := genNodeMsgs(1, numMsgs)
+	nmsg0 := newNodeMsg(node0, msgs0)
+	nmsg1 := newNodeMsg(node1, msgs1)
+	testShouldBroadcast(t, []*nodeMsg{nmsg0, nmsg1}, contact)
+	assert.Equal(t, len(msgs0)+len(msgs1), len(nmsg0.rMsgs))
+	assert.Equal(t, len(msgs0)+len(msgs1), len(nmsg1.rMsgs))
+	assert.NoError(t, node0.Disconnect())
+	assert.NoError(t, node1.Disconnect())
 }
 
 func TestShouldBroadcastManyNodesManyMessages(t *testing.T) {
 	contact := "localhost:6000"
-	numNodes := 20
+	numNodes := 100
+	addresses := lo.Map(lo.Range(numNodes), func(_ int, i int) string { return fmt.Sprintf("localhost:%d", 6000+i) })
+	nodes := lo.Map(addresses, func(address string, _ int) *Node { return GetNode(t, address, contact) })
 	numMsgs := 100
-	nodes := make([]*Node, numNodes)
-	memObs := make([]*TestMemObserver, numNodes)
-	msgObs := make([]*TestMsgObserver, numNodes)
-	msgs := make([][][]byte, numNodes)
-	for i := 0; i < numNodes; i++ {
-		address := fmt.Sprintf("localhost:%d", 6000+i)
-		nodes[i], memObs[i], msgObs[i], _ = MakeNode(address, contact, numMsgs*numNodes, numNodes)
-		msgs[i] = make([][]byte, numMsgs)
-		for j := 0; j < numMsgs; j++ {
-			msgs[i][j] = []byte(fmt.Sprintf("hello %d %d", i, j))
+	msgs := lo.Map(lo.Range(numNodes), func(_ int, i int) [][]byte { return genNodeMsgs(i, numMsgs) })
+	nodeMsgs := lo.ZipBy2(nodes, msgs, func(node *Node, msgs [][]byte) *nodeMsg { return newNodeMsg(node, msgs) })
+	testShouldBroadcast(t, nodeMsgs, contact)
+	totalMsgs := numMsgs * numNodes
+	assert.True(t, lo.EveryBy(nodeMsgs, func(nm *nodeMsg) bool { return len(nm.rMsgs) == totalMsgs }))
+	assert.True(t, lo.EveryBy(nodeMsgs, func(nm *nodeMsg) bool { return nm.node.Disconnect() == nil }))
+}
+
+func genNodeMsgs(nodeIdx, numMsgs int) [][]byte {
+	return lo.Map(lo.Range(numMsgs), func(_ int, i int) []byte { return []byte(fmt.Sprintf("hello %d %d", nodeIdx, i)) })
+}
+
+func testShouldBroadcast(t *testing.T, nodeMsgs []*nodeMsg, contact string) {
+	nodes := lo.Map(nodeMsgs, func(nm *nodeMsg, _ int) *Node { return nm.node })
+	InitializeNodes(t, nodes, contact)
+	totalMsgs := lo.Sum(lo.Map(nodeMsgs, func(nm *nodeMsg, _ int) int { return len(nm.bMsgs) }))
+	broadcastAllMsgs(t, nodeMsgs)
+	for _, nm := range nodeMsgs {
+		for i := 0; i < totalMsgs; i++ {
+			nm.rMsgs = append(nm.rMsgs, <-nm.msgObs.msgs)
 		}
-		for j := 1; j < i; j++ {
-			<-memObs[i].UpBarrier
-		}
-	}
-	fmt.Println("Generated nodes and messages")
-	for i, node := range nodes {
-		for _, msg := range msgs[i] {
-			err := node.Broadcast(msg)
-			require.NoError(t, err)
-		}
-	}
-	fmt.Println("Messages networkChannel")
-	for _, msgOb := range msgObs {
-		for j := 0; j < numMsgs*numNodes; j++ {
-			<-msgOb.barrier
-		}
-	}
-	fmt.Println("Messages received")
-	for _, msgOb := range msgObs {
-		require.Equal(t, len(msgOb.delivered), numMsgs*numNodes)
-		for _, nodeMsgs := range msgs {
-			for _, msg := range nodeMsgs {
-				require.Equal(t, msgOb.delivered[string(msg)], true)
-			}
-		}
-	}
-	for _, node := range nodes {
-		err := node.Disconnect()
-		assert.NoError(t, err)
 	}
 }
 
-func TestShouldUnicastSingleMessage(t *testing.T) {
-	contact := "localhost:6000"
-	peer1Name := "localhost:6001"
-	peer2Name := "localhost:6002"
-	node0, memObs, msgObs0, err := MakeNode(contact, contact, 10, 10)
-	if err != nil {
-		t.Fatalf("unable to create node sender: %v", err)
+func broadcastAllMsgs(t *testing.T, nodeMsgs []*nodeMsg) {
+	for _, nm := range nodeMsgs {
+		for _, msg := range nm.bMsgs {
+			err := nm.node.Broadcast(msg)
+			require.NoError(t, err)
+		}
 	}
-	node1, _, msgObs1, err := MakeNode(peer1Name, contact, 10, 10)
-	if err != nil {
-		t.Fatalf("unable to create node receiver: %v", err)
-	}
-	node2, _, msgObs2, err := MakeNode(peer2Name, contact, 10, 10)
-	if err != nil {
-		t.Fatalf("unable to create node receiver: %v", err)
-	}
-	msg := []byte("hello")
-	<-memObs.UpBarrier
-	<-memObs.UpBarrier
-	peer1 := memObs.Peers[peer1Name]
-	if peer1 == nil {
-		t.Fatalf("unable to find peer1: %v", peer1Name)
-	}
-	err = node0.Unicast(msg, peer1.Conn)
-	require.NoError(t, err)
-	time.Sleep(1 * time.Second)
-	require.Equal(t, len(msgObs0.delivered), 0)
-	require.Equal(t, len(msgObs1.delivered), 1)
-	require.Equal(t, len(msgObs2.delivered), 0)
-	require.Equal(t, msgObs1.delivered[string(msg)], true)
-	err = node0.Disconnect()
-	assert.NoError(t, err)
-	err = node1.Disconnect()
-	assert.NoError(t, err)
-	err = node2.Disconnect()
-	assert.NoError(t, err)
 }

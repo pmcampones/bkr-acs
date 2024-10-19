@@ -5,8 +5,11 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
+	"github.com/samber/lo"
+	"github.com/stretchr/testify/assert"
 	"pace/utils"
 	"sync"
+	"testing"
 )
 
 type TestMsgObserver struct {
@@ -57,7 +60,6 @@ func MakeNode(address, contact string, bufferMsg, bufferMem int) (*Node, *TestMe
 		Peers:     make(map[string]*Peer),
 		UpBarrier: make(chan struct{}, bufferMsg),
 	}
-	node.AttachMembershipObserver(&memObs)
 	msgObs := TestMsgObserver{
 		delivered: make(map[string]bool),
 		barrier:   make(chan struct{}, bufferMem),
@@ -68,4 +70,25 @@ func MakeNode(address, contact string, bufferMsg, bufferMem int) (*Node, *TestMe
 		return nil, nil, nil, fmt.Errorf("unable to join the overlayNetwork: %v", err)
 	}
 	return node, &memObs, &msgObs, nil
+}
+
+func GetNode(t *testing.T, address, contact string) *Node {
+	sk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	assert.NoError(t, err)
+	cert, err := utils.MakeSelfSignedCert(sk)
+	assert.NoError(t, err)
+	return NewNode(address, contact, sk, cert)
+}
+
+func InitializeNodes(t *testing.T, nodes []*Node, contact string) {
+	memChans := lo.Map(nodes, func(n *Node, _ int) chan struct{} { return n.memChan })
+	for _, n := range nodes {
+		err := n.Join(contact)
+		assert.NoError(t, err)
+	}
+	for _, ch := range memChans {
+		for i := 0; i < len(nodes)-1; i++ {
+			<-ch
+		}
+	}
 }

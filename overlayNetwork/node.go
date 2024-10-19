@@ -19,11 +19,6 @@ type NodeMessageObserver interface {
 	BEBDeliver(msg []byte, sender *ecdsa.PublicKey)
 }
 
-type MembershipObserver interface {
-	NotifyPeerUp(p *Peer)
-	NotifyPeerDown(p *Peer)
-}
-
 type Node struct {
 	id           string
 	isContact    bool
@@ -31,7 +26,7 @@ type Node struct {
 	peersLock    sync.RWMutex
 	peers        map[string]*Peer
 	msgObservers []NodeMessageObserver
-	memObservers []MembershipObserver
+	memChan      chan struct{}
 	config       *tls.Config
 	sk           *ecdsa.PrivateKey
 	listener     net.Listener
@@ -48,7 +43,7 @@ func NewNode(id, contact string, sk *ecdsa.PrivateKey, cert *tls.Certificate) *N
 		peersLock:    sync.RWMutex{},
 		peers:        make(map[string]*Peer),
 		msgObservers: make([]NodeMessageObserver, 0),
-		memObservers: make([]MembershipObserver, 0),
+		memChan:      make(chan struct{}),
 		config:       config,
 		sk:           sk,
 		closeChan:    make(chan struct{}),
@@ -79,10 +74,6 @@ func (n *Node) Join(contact string) error {
 
 func (n *Node) AttachMessageObserver(observer NodeMessageObserver) {
 	n.msgObservers = append(n.msgObservers, observer)
-}
-
-func (n *Node) AttachMembershipObserver(observer MembershipObserver) {
-	n.memObservers = append(n.memObservers, observer)
 }
 
 func (n *Node) Broadcast(msg []byte) error {
@@ -178,9 +169,7 @@ func (n *Node) maintainConnection(peer Peer, amContact bool) {
 			return
 		}
 	}
-	for _, obs := range n.memObservers {
-		obs.NotifyPeerUp(&peer)
-	}
+	go func() { n.memChan <- struct{}{} }()
 	n.readFromConnection(peer)
 }
 
@@ -207,9 +196,6 @@ func (n *Node) sendMembership(peer Peer) error {
 }
 
 func (n *Node) closeConnection(peer Peer) {
-	for _, obs := range n.memObservers {
-		obs.NotifyPeerDown(&peer)
-	}
 	err := peer.Conn.Close()
 	if err != nil {
 		logger.Warn("error closing connection", "Peer name", peer.name, "error", err)
@@ -228,9 +214,6 @@ func (n *Node) closeAllConnections() {
 	n.peersLock.Lock()
 	defer n.peersLock.Unlock()
 	for _, peer := range n.peers {
-		for _, obs := range n.memObservers {
-			obs.NotifyPeerDown(peer)
-		}
 		err := peer.Conn.Close()
 		if err != nil {
 			logger.Warn("error closing connection", "Peer name", peer.name, "error", err)
@@ -301,6 +284,10 @@ func (n *Node) GetPeers() []*Peer {
 		peers = append(peers, p)
 	}
 	return peers
+}
+
+func (n *Node) GetMembershipChan() <-chan struct{} {
+	return n.memChan
 }
 
 func (n *Node) Disconnect() error {
