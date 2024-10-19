@@ -38,7 +38,7 @@ func newNodeMsg(node *Node, bMsgs [][]byte) *nodeMsg {
 
 func TestShouldBroadcastSelf(t *testing.T) {
 	contact := "localhost:6000"
-	node := GetNode(t, contact, contact)
+	node := getNode(t, contact)
 	nmsg := newNodeMsg(node, [][]byte{[]byte("hello")})
 	testShouldBroadcast(t, []*nodeMsg{nmsg}, contact)
 	assert.Equal(t, 1, len(nmsg.rMsgs))
@@ -48,7 +48,7 @@ func TestShouldBroadcastSelf(t *testing.T) {
 
 func TestShouldBroadcastSelfManyMessages(t *testing.T) {
 	contact := "localhost:6000"
-	node := GetNode(t, contact, contact)
+	node := getNode(t, contact)
 	numMsgs := 10000
 	msgs := genNodeMsgs(0, numMsgs)
 	nmsg := newNodeMsg(node, msgs)
@@ -60,8 +60,8 @@ func TestShouldBroadcastSelfManyMessages(t *testing.T) {
 func TestShouldBroadcastTwoNodesSingleMessage(t *testing.T) {
 	contact := "localhost:6000"
 	address1 := "localhost:6001"
-	node0 := GetNode(t, contact, contact)
-	node1 := GetNode(t, address1, contact)
+	node0 := getNode(t, contact)
+	node1 := getNode(t, address1)
 	nmsg0 := newNodeMsg(node0, [][]byte{[]byte("hello")})
 	nmsg1 := newNodeMsg(node1, [][]byte{})
 	testShouldBroadcast(t, []*nodeMsg{nmsg0, nmsg1}, contact)
@@ -76,8 +76,8 @@ func TestShouldBroadcastTwoNodesSingleMessage(t *testing.T) {
 func TestShouldBroadcastTwoNodesManyMessages(t *testing.T) {
 	contact := "localhost:6000"
 	address1 := "localhost:6001"
-	node0 := GetNode(t, contact, contact)
-	node1 := GetNode(t, address1, contact)
+	node0 := getNode(t, contact)
+	node1 := getNode(t, address1)
 	numMsgs := 10000
 	msgs0 := genNodeMsgs(0, numMsgs)
 	msgs1 := genNodeMsgs(1, numMsgs)
@@ -94,7 +94,7 @@ func TestShouldBroadcastManyNodesManyMessages(t *testing.T) {
 	contact := "localhost:6000"
 	numNodes := 100
 	addresses := lo.Map(lo.Range(numNodes), func(_ int, i int) string { return fmt.Sprintf("localhost:%d", 6000+i) })
-	nodes := lo.Map(addresses, func(address string, _ int) *Node { return GetNode(t, address, contact) })
+	nodes := lo.Map(addresses, func(address string, _ int) *Node { return getNode(t, address) })
 	numMsgs := 100
 	msgs := lo.Map(lo.Range(numNodes), func(_ int, i int) [][]byte { return genNodeMsgs(i, numMsgs) })
 	nodeMsgs := lo.ZipBy2(nodes, msgs, func(node *Node, msgs [][]byte) *nodeMsg { return newNodeMsg(node, msgs) })
@@ -127,4 +127,8 @@ func broadcastAllMsgs(t *testing.T, nodeMsgs []*nodeMsg) {
 			require.NoError(t, err)
 		}
 	}
+}
+
+func getNode(t *testing.T, address string) *Node {
+	return GetNode(t, address, "localhost:6000")
 }

@@ -10,23 +10,19 @@ import (
 
 var channelLogger = utils.GetLogger(slog.LevelWarn)
 
-type BRBObserver interface {
-	BRBDeliver(msg []byte)
-}
-
 type BRBChannel struct {
 	instances     map[UUID]*brbInstance
 	finished      map[UUID]bool
 	n             uint
 	f             uint
 	middleware    *brbMiddleware
-	observers     []BRBObserver
+	brbDeliver    chan<- []byte
 	commands      chan<- func() error
 	closeCommands chan<- struct{}
 	closeDeliver  chan<- struct{}
 }
 
-func CreateBRBChannel(n, f uint, node *overlayNetwork.Node, listenCode byte) *BRBChannel {
+func CreateBRBChannel(n, f uint, node *overlayNetwork.Node, brbDeliver chan<- []byte, listenCode byte) *BRBChannel {
 	commands := make(chan func() error)
 	deliverChan := make(chan *msg)
 	closeCommands := make(chan struct{})
@@ -37,22 +33,19 @@ func CreateBRBChannel(n, f uint, node *overlayNetwork.Node, listenCode byte) *BR
 		n:             n,
 		f:             f,
 		middleware:    newBRBMiddleware(node, listenCode, deliverChan),
-		observers:     make([]BRBObserver, 0),
+		brbDeliver:    brbDeliver,
 		commands:      commands,
 		closeCommands: closeCommands,
 		closeDeliver:  closeDeliver,
 	}
 	go invoker(commands, closeCommands)
 	go channel.bebDeliver(deliverChan, closeDeliver)
+	channelLogger.Info("BRB channel created", "n", n, "f", f, "listening", listenCode)
 	return channel
 }
 
-func (c *BRBChannel) AttachObserver(observer BRBObserver) {
-	channelLogger.Info("attaching observer to bcb channel", "observer", observer)
-	c.observers = append(c.observers, observer)
-}
-
 func (c *BRBChannel) BRBroadcast(msg []byte) error {
+	channelLogger.Debug("broadcasting message", "msg", string(msg))
 	return c.middleware.broadcastSend(msg)
 }
 
@@ -68,8 +61,10 @@ func (c *BRBChannel) processMsg(msg *msg) error {
 	}
 	switch msg.kind {
 	case send:
+		channelLogger.Debug("processing send message", "id", id, "from", msg.sender, "content", string(msg.content))
 		go instance.send(msg.content)
 	case echo:
+		channelLogger.Debug("processing echo message", "id", id, "from", msg.sender, "content", string(msg.content))
 		go func() {
 			err := instance.echo(msg.content, msg.sender)
 			if err != nil {
@@ -77,6 +72,7 @@ func (c *BRBChannel) processMsg(msg *msg) error {
 			}
 		}()
 	case ready:
+		channelLogger.Debug("processing ready message", "id", id, "from", msg.sender, "content", string(msg.content))
 		go func() {
 			err := instance.ready(msg.content, msg.sender)
 			if err != nil {
@@ -102,9 +98,7 @@ func (c *BRBChannel) processOutput(outputChan <-chan []byte, id UUID) {
 	output := <-outputChan
 	channelLogger.Debug("delivering output message", "id", id)
 	c.commands <- func() error {
-		for _, observer := range c.observers {
-			observer.BRBDeliver(output)
-		}
+		go func() { c.brbDeliver <- output }()
 		instance, ok := c.instances[id]
 		if !ok {
 			return fmt.Errorf("channel handler %s not found upon delivery", id)
