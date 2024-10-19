@@ -40,7 +40,7 @@ func TestShouldBroadcastSelf(t *testing.T) {
 	contact := "localhost:6000"
 	node := getNode(t, contact)
 	nmsg := newNodeMsg(node, [][]byte{[]byte("hello")})
-	testShouldBroadcast(t, []*nodeMsg{nmsg}, contact)
+	testShouldBroadcast(t, []*nodeMsg{nmsg})
 	assert.Equal(t, 1, len(nmsg.rMsgs))
 	assert.Equal(t, "hello", string(nmsg.rMsgs[0]))
 	assert.NoError(t, node.Disconnect())
@@ -52,7 +52,7 @@ func TestShouldBroadcastSelfManyMessages(t *testing.T) {
 	numMsgs := 10000
 	msgs := genNodeMsgs(0, numMsgs)
 	nmsg := newNodeMsg(node, msgs)
-	testShouldBroadcast(t, []*nodeMsg{nmsg}, contact)
+	testShouldBroadcast(t, []*nodeMsg{nmsg})
 	assert.Equal(t, numMsgs, len(nmsg.rMsgs))
 	assert.NoError(t, node.Disconnect())
 }
@@ -64,7 +64,7 @@ func TestShouldBroadcastTwoNodesSingleMessage(t *testing.T) {
 	node1 := getNode(t, address1)
 	nmsg0 := newNodeMsg(node0, [][]byte{[]byte("hello")})
 	nmsg1 := newNodeMsg(node1, [][]byte{})
-	testShouldBroadcast(t, []*nodeMsg{nmsg0, nmsg1}, contact)
+	testShouldBroadcast(t, []*nodeMsg{nmsg0, nmsg1})
 	assert.Equal(t, 1, len(nmsg0.rMsgs))
 	assert.Equal(t, 1, len(nmsg1.rMsgs))
 	assert.Equal(t, "hello", string(nmsg0.rMsgs[0]))
@@ -83,7 +83,7 @@ func TestShouldBroadcastTwoNodesManyMessages(t *testing.T) {
 	msgs1 := genNodeMsgs(1, numMsgs)
 	nmsg0 := newNodeMsg(node0, msgs0)
 	nmsg1 := newNodeMsg(node1, msgs1)
-	testShouldBroadcast(t, []*nodeMsg{nmsg0, nmsg1}, contact)
+	testShouldBroadcast(t, []*nodeMsg{nmsg0, nmsg1})
 	assert.Equal(t, len(msgs0)+len(msgs1), len(nmsg0.rMsgs))
 	assert.Equal(t, len(msgs0)+len(msgs1), len(nmsg1.rMsgs))
 	assert.NoError(t, node0.Disconnect())
@@ -91,14 +91,13 @@ func TestShouldBroadcastTwoNodesManyMessages(t *testing.T) {
 }
 
 func TestShouldBroadcastManyNodesManyMessages(t *testing.T) {
-	contact := "localhost:6000"
 	numNodes := 100
 	addresses := lo.Map(lo.Range(numNodes), func(_ int, i int) string { return fmt.Sprintf("localhost:%d", 6000+i) })
 	nodes := lo.Map(addresses, func(address string, _ int) *Node { return getNode(t, address) })
 	numMsgs := 100
 	msgs := lo.Map(lo.Range(numNodes), func(_ int, i int) [][]byte { return genNodeMsgs(i, numMsgs) })
 	nodeMsgs := lo.ZipBy2(nodes, msgs, func(node *Node, msgs [][]byte) *nodeMsg { return newNodeMsg(node, msgs) })
-	testShouldBroadcast(t, nodeMsgs, contact)
+	testShouldBroadcast(t, nodeMsgs)
 	totalMsgs := numMsgs * numNodes
 	assert.True(t, lo.EveryBy(nodeMsgs, func(nm *nodeMsg) bool { return len(nm.rMsgs) == totalMsgs }))
 	assert.True(t, lo.EveryBy(nodeMsgs, func(nm *nodeMsg) bool { return nm.node.Disconnect() == nil }))
@@ -108,9 +107,9 @@ func genNodeMsgs(nodeIdx, numMsgs int) [][]byte {
 	return lo.Map(lo.Range(numMsgs), func(_ int, i int) []byte { return []byte(fmt.Sprintf("hello %d %d", nodeIdx, i)) })
 }
 
-func testShouldBroadcast(t *testing.T, nodeMsgs []*nodeMsg, contact string) {
+func testShouldBroadcast(t *testing.T, nodeMsgs []*nodeMsg) {
 	nodes := lo.Map(nodeMsgs, func(nm *nodeMsg, _ int) *Node { return nm.node })
-	InitializeNodes(t, nodes, contact)
+	InitializeNodes(t, nodes)
 	totalMsgs := lo.Sum(lo.Map(nodeMsgs, func(nm *nodeMsg, _ int) int { return len(nm.bMsgs) }))
 	broadcastAllMsgs(t, nodeMsgs)
 	for _, nm := range nodeMsgs {

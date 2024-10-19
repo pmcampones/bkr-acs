@@ -65,7 +65,7 @@ func MakeNode(address, contact string, bufferMsg, bufferMem int) (*Node, *TestMe
 		barrier:   make(chan struct{}, bufferMem),
 	}
 	node.AttachMessageObserver(&msgObs)
-	err = node.Join(contact)
+	err = node.Join()
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("unable to join the overlayNetwork: %v", err)
 	}
@@ -80,10 +80,10 @@ func GetNode(t *testing.T, address, contact string) *Node {
 	return NewNode(address, contact, sk, cert)
 }
 
-func InitializeNodes(t *testing.T, nodes []*Node, contact string) {
+func InitializeNodes(t *testing.T, nodes []*Node) {
 	memChans := lo.Map(nodes, func(n *Node, _ int) chan struct{} { return n.memChan })
 	for _, n := range nodes {
-		err := n.Join(contact)
+		err := n.Join()
 		assert.NoError(t, err)
 	}
 	for _, ch := range memChans {
