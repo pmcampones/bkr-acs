@@ -13,7 +13,7 @@ func TestChannelShouldBroadcastToSelf(t *testing.T) {
 	node := getNode(t, "localhost:6000")
 	brbDeliver := make(chan []byte)
 	c := CreateBRBChannel(1, 0, node, brbDeliver, 'B')
-	overlayNetwork.InitializeNodes(t, []*overlayNetwork.Node{node}, "localhost:6000")
+	overlayNetwork.InitializeNodes(t, []*overlayNetwork.Node{node})
 	msg := []byte("hello")
 	err := c.BRBroadcast(msg)
 	assert.NoError(t, err)
@@ -31,7 +31,7 @@ func TestChannelShouldBroadcastToAllNoFaults(t *testing.T) {
 	channels := lo.Map(lo.Zip2(nodes, outputChans), func(t lo.Tuple2[*overlayNetwork.Node, chan []byte], _ int) *BRBChannel {
 		return getChannel(uint(numNodes), 0, t)
 	})
-	overlayNetwork.InitializeNodes(t, nodes, "localhost:6000")
+	overlayNetwork.InitializeNodes(t, nodes)
 	msg := []byte("hello")
 	err := channels[0].BRBroadcast(msg)
 	assert.NoError(t, err)
@@ -49,7 +49,7 @@ func TestChannelShouldBroadcastToAllMaxFaults(t *testing.T) {
 	channels := lo.Map(lo.Zip2(nodes, outputChans), func(t lo.Tuple2[*overlayNetwork.Node, chan []byte], _ int) *BRBChannel {
 		return getChannel(uint(numNodes), uint(f), t)
 	})
-	overlayNetwork.InitializeNodes(t, nodes, "localhost:6000")
+	overlayNetwork.InitializeNodes(t, nodes)
 	msg := []byte("hello")
 	err := channels[0].BRBroadcast(msg)
 	assert.NoError(t, err)
@@ -67,7 +67,7 @@ func TestChannelShouldBroadcastToAllMaxCrash(t *testing.T) {
 	channels := lo.Map(lo.Zip2(nodes[:numNodes-f], outputChans), func(t lo.Tuple2[*overlayNetwork.Node, chan []byte], _ int) *BRBChannel {
 		return getChannel(uint(numNodes), uint(f), t)
 	})
-	overlayNetwork.InitializeNodes(t, nodes, "localhost:6000")
+	overlayNetwork.InitializeNodes(t, nodes)
 	msg := []byte("hello")
 	err := channels[0].BRBroadcast(msg)
 	assert.NoError(t, err)
@@ -88,7 +88,7 @@ func TestChannelShouldBroadcastToAllMaxByzantine(t *testing.T) {
 	byzChannels := lo.Map(nodes[numNodes-f:], func(node *overlayNetwork.Node, _ int) *byzChannel {
 		return createByzChannel(node, 'B')
 	})
-	overlayNetwork.InitializeNodes(t, nodes, "localhost:6000")
+	overlayNetwork.InitializeNodes(t, nodes)
 	msg := []byte("hello")
 	err := channels[0].BRBroadcast(msg)
 	assert.NoError(t, err)

@@ -21,16 +21,9 @@ func newPhase2Handler(data *brbData, readyChan chan<- []byte, nextPhase *brbPhas
 	}
 }
 
-func (b *brbPhase2Handler) handleSend(msg []byte) {
-	if b.isFinished {
-		b.nextPhase.handleSend(msg)
-	}
-	instanceLogger.Debug("processing send message on phase 2")
-}
-
 func (b *brbPhase2Handler) handleEcho(msg []byte, id uuid.UUID) error {
 	if b.isFinished {
-		return b.nextPhase.handleEcho(msg, id)
+		return nil
 	} else {
 		instanceLogger.Debug("processing echo message on phase 2")
 		numEchoes, ok := b.data.echoes[id]
@@ -40,7 +33,7 @@ func (b *brbPhase2Handler) handleEcho(msg []byte, id uuid.UUID) error {
 		if numEchoes == b.data.n-b.data.f {
 			b.isFinished = true
 			b.sendReady(msg)
-			return b.nextPhase.handleEcho(msg, id)
+			return nil
 		}
 	}
 	return nil

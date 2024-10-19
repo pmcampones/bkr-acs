@@ -22,9 +22,7 @@ func newPhase1Handler(data *brbData, echoChan chan<- []byte, nextPhase *brbPhase
 }
 
 func (b *brbPhase1Handler) handleSend(msg []byte) {
-	if b.isFinished {
-		b.nextPhase.handleSend(msg)
-	} else {
+	if !b.isFinished {
 		instanceLogger.Debug("processing send message on phase 1")
 		b.isFinished = true
 		b.sendEcho(msg)
