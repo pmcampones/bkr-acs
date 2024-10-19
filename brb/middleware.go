@@ -20,15 +20,39 @@ const (
 	ready
 )
 
-type brbMiddleware struct {
-	bebChannel *overlayNetwork.Node
-	listenCode byte
+type msg struct {
+	kind    middlewareCode
+	id      uuid.UUID
+	sender  uuid.UUID
+	content []byte
 }
 
-func newBRBMiddleware(bebChannel *overlayNetwork.Node, code byte) *brbMiddleware {
-	return &brbMiddleware{
-		bebChannel: bebChannel,
-		listenCode: code,
+type brbMiddleware struct {
+	bebChannel  *overlayNetwork.Node
+	listenCode  byte
+	deliverChan chan<- *msg
+}
+
+func newBRBMiddleware(bebChannel *overlayNetwork.Node, code byte, deliverChan chan<- *msg) *brbMiddleware {
+	m := &brbMiddleware{
+		bebChannel:  bebChannel,
+		listenCode:  code,
+		deliverChan: deliverChan,
+	}
+	bebChannel.AttachMessageObserver(m)
+	return m
+}
+
+func (m *brbMiddleware) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
+	if msg[0] == m.listenCode {
+		structMsg, err := m.processMsg(msg, sender)
+		if err != nil {
+			channelLogger.Warn("unable to processMsg message during beb delivery", "error", err)
+		} else {
+			go func() { m.deliverChan <- structMsg }()
+		}
+	} else {
+		channelLogger.Debug("received message was not for me", "sender", sender, "listenCode", msg[0])
 	}
 }
 
@@ -116,13 +140,6 @@ func (m *brbMiddleware) wrapMessage(code middlewareCode, id uuid.UUID, msg []byt
 		return nil, fmt.Errorf("unable to write message to buffer: %v", err)
 	}
 	return buf.Bytes(), nil
-}
-
-type msg struct {
-	kind    middlewareCode
-	id      uuid.UUID
-	sender  uuid.UUID
-	content []byte
 }
 
 func (m *brbMiddleware) processMsg(msg []byte, sender *ecdsa.PublicKey) (*msg, error) {

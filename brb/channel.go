@@ -1,7 +1,6 @@
 package brb
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	. "github.com/google/uuid"
 	"log/slog"
@@ -20,26 +19,25 @@ type BRBChannel struct {
 	finished   map[UUID]bool
 	n          uint
 	f          uint
-	observers  []BRBObserver
 	middleware *brbMiddleware
+	observers  []BRBObserver
 	commands   chan<- func() error
-	listenCode byte
 }
 
 func CreateBRBChannel(n, f uint, node *overlayNetwork.Node, listenCode byte) *BRBChannel {
 	commands := make(chan func() error)
+	deliverChan := make(chan *msg)
 	channel := &BRBChannel{
 		instances:  make(map[UUID]*brbInstance),
 		finished:   make(map[UUID]bool),
 		n:          n,
 		f:          f,
-		middleware: newBRBMiddleware(node, listenCode),
+		middleware: newBRBMiddleware(node, listenCode, deliverChan),
 		observers:  make([]BRBObserver, 0),
 		commands:   commands,
-		listenCode: utils.GetCode("brb_code"),
 	}
-	node.AttachMessageObserver(channel)
 	go invoker(commands)
+	go channel.bebDeliver(deliverChan)
 	return channel
 }
 
@@ -50,18 +48,6 @@ func (c *BRBChannel) AttachObserver(observer BRBObserver) {
 
 func (c *BRBChannel) BRBroadcast(msg []byte) error {
 	return c.middleware.broadcastSend(msg)
-}
-
-func (c *BRBChannel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
-	if msg[0] == c.listenCode {
-		structMsg, err := c.middleware.processMsg(msg, sender)
-		if err != nil {
-			channelLogger.Warn("unable to processMsg message during beb delivery", "error", err)
-		}
-		c.commands <- func() error { return c.processMsg(structMsg) }
-	} else {
-		channelLogger.Debug("received message was not for me", "sender", sender, "listenCode", msg[0])
-	}
 }
 
 func (c *BRBChannel) processMsg(msg *msg) error {
@@ -121,6 +107,14 @@ func (c *BRBChannel) processOutput(outputChan <-chan []byte, id UUID) {
 		delete(c.instances, id)
 		go instance.close()
 		return nil
+	}
+}
+
+func (c *BRBChannel) bebDeliver(deliverChan <-chan *msg) {
+	for deliver := range deliverChan {
+		c.commands <- func() error {
+			return c.processMsg(deliver)
+		}
 	}
 }
 
