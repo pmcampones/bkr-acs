@@ -273,7 +273,7 @@ func (n *Node) processMessage(msg []byte, sender *ecdsa.PublicKey) {
 		n.processMembershipMsg(content)
 	case generic:
 		for _, observer := range n.msgObservers {
-			observer.BEBDeliver(content, sender)
+			go func() { observer.BEBDeliver(content, sender) }()
 		}
 	default:
 		logger.Error("unhandled default case", "msg type", msgType, "msg content", content)

@@ -36,7 +36,7 @@ func (to *TestMemObserver) NotifyPeerUp(p *Peer) {
 	to.UpBarrier <- struct{}{}
 }
 
-func (to *TestMemObserver) NotifyPeerDown(p *Peer) {
+func (to *TestMemObserver) NotifyPeerDown(_ *Peer) {
 	/*to.lock.Lock()
 	defer to.lock.Unlock()
 	to.Peers[p.name] = p
