@@ -15,29 +15,35 @@ type BRBObserver interface {
 }
 
 type BRBChannel struct {
-	instances  map[UUID]*brbInstance
-	finished   map[UUID]bool
-	n          uint
-	f          uint
-	middleware *brbMiddleware
-	observers  []BRBObserver
-	commands   chan<- func() error
+	instances     map[UUID]*brbInstance
+	finished      map[UUID]bool
+	n             uint
+	f             uint
+	middleware    *brbMiddleware
+	observers     []BRBObserver
+	commands      chan<- func() error
+	closeCommands chan<- struct{}
+	closeDeliver  chan<- struct{}
 }
 
 func CreateBRBChannel(n, f uint, node *overlayNetwork.Node, listenCode byte) *BRBChannel {
 	commands := make(chan func() error)
 	deliverChan := make(chan *msg)
+	closeCommands := make(chan struct{})
+	closeDeliver := make(chan struct{})
 	channel := &BRBChannel{
-		instances:  make(map[UUID]*brbInstance),
-		finished:   make(map[UUID]bool),
-		n:          n,
-		f:          f,
-		middleware: newBRBMiddleware(node, listenCode, deliverChan),
-		observers:  make([]BRBObserver, 0),
-		commands:   commands,
+		instances:     make(map[UUID]*brbInstance),
+		finished:      make(map[UUID]bool),
+		n:             n,
+		f:             f,
+		middleware:    newBRBMiddleware(node, listenCode, deliverChan),
+		observers:     make([]BRBObserver, 0),
+		commands:      commands,
+		closeCommands: closeCommands,
+		closeDeliver:  closeDeliver,
 	}
-	go invoker(commands)
-	go channel.bebDeliver(deliverChan)
+	go invoker(commands, closeCommands)
+	go channel.bebDeliver(deliverChan, closeDeliver)
 	return channel
 }
 
@@ -110,19 +116,36 @@ func (c *BRBChannel) processOutput(outputChan <-chan []byte, id UUID) {
 	}
 }
 
-func (c *BRBChannel) bebDeliver(deliverChan <-chan *msg) {
-	for deliver := range deliverChan {
-		c.commands <- func() error {
-			return c.processMsg(deliver)
+func (c *BRBChannel) Close() {
+	c.closeCommands <- struct{}{}
+	c.closeDeliver <- struct{}{}
+}
+
+func (c *BRBChannel) bebDeliver(deliverChan <-chan *msg, closeDeliver <-chan struct{}) {
+	for {
+		select {
+		case deliver := <-deliverChan:
+			c.commands <- func() error {
+				return c.processMsg(deliver)
+			}
+		case <-closeDeliver:
+			channelLogger.Info("closing deliver executor")
+			return
 		}
 	}
 }
 
-func invoker(commands <-chan func() error) {
-	for command := range commands {
-		err := command()
-		if err != nil {
-			channelLogger.Error("error executing command", "error", err)
+func invoker(commands <-chan func() error, closeCommands <-chan struct{}) {
+	for {
+		select {
+		case command := <-commands:
+			err := command()
+			if err != nil {
+				channelLogger.Error("error executing command", "error", err)
+			}
+		case <-closeCommands:
+			channelLogger.Info("closing executor")
+			return
 		}
 	}
 }
