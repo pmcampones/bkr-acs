@@ -1,13 +1,16 @@
 package brb
 
 import (
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"log/slog"
 	"math/rand"
+	"pace/utils"
 	"testing"
 	"time"
 )
+
+var schedulerLogger = utils.GetLogger(slog.LevelDebug)
 
 type scheduler interface {
 	getChannels(t *testing.T, sender uuid.UUID) (chan []byte, chan []byte)
@@ -29,14 +32,16 @@ func (o *orderedScheduler) getChannels(t *testing.T, sender uuid.UUID) (chan []b
 	readyChan := make(chan []byte)
 	go func() {
 		msg := <-echoChan
-		for _, inst := range o.instances {
+		for i, inst := range o.instances {
+			schedulerLogger.Debug("executing echo", "sender", sender, "instance", i)
 			err := inst.echo(msg, sender)
 			assert.NoError(t, err)
 		}
 	}()
 	go func() {
 		msg := <-readyChan
-		for _, inst := range o.instances {
+		for i, inst := range o.instances {
+			schedulerLogger.Debug("executing ready", "sender", sender, "instance", i)
 			err := inst.ready(msg, sender)
 			assert.NoError(t, err)
 		}
@@ -45,8 +50,10 @@ func (o *orderedScheduler) getChannels(t *testing.T, sender uuid.UUID) (chan []b
 }
 
 func (o *orderedScheduler) sendAll(msg []byte) {
-	for _, i := range o.instances {
-		i.send(msg)
+	schedulerLogger.Info("sending all", "msg", string(msg))
+	for i, inst := range o.instances {
+		schedulerLogger.Debug("executing send", "instance", i)
+		inst.send(msg)
 	}
 }
 
@@ -88,8 +95,8 @@ func newUnorderedScheduler() *unorderedScheduler {
 }
 
 func (u *unorderedScheduler) reorderOps(op func(), r *rand.Rand) {
-	fmt.Println("reordering ops")
 	u.ops = append(u.ops, op)
+	schedulerLogger.Debug("reordering ops", "num ops", len(u.ops))
 	r.Shuffle(len(u.ops), func(i, j int) { u.ops[i], u.ops[j] = u.ops[j], u.ops[i] })
 }
 
@@ -106,8 +113,9 @@ func (u *unorderedScheduler) getChannels(t *testing.T, sender uuid.UUID) (chan [
 	readyChan := make(chan []byte)
 	go func() {
 		msg := <-echoChan
-		for _, inst := range u.instances {
+		for i, inst := range u.instances {
 			u.scheduleChan <- func() {
+				schedulerLogger.Debug("executing echo", "sender", sender, "instance", i)
 				err := inst.echo(msg, sender)
 				assert.NoError(t, err)
 			}
@@ -115,8 +123,9 @@ func (u *unorderedScheduler) getChannels(t *testing.T, sender uuid.UUID) (chan [
 	}()
 	go func() {
 		msg := <-readyChan
-		for _, inst := range u.instances {
+		for i, inst := range u.instances {
 			u.scheduleChan <- func() {
+				schedulerLogger.Debug("executing ready", "sender", sender, "instance", i)
 				err := inst.ready(msg, sender)
 				assert.NoError(t, err)
 			}
@@ -126,8 +135,12 @@ func (u *unorderedScheduler) getChannels(t *testing.T, sender uuid.UUID) (chan [
 }
 
 func (u *unorderedScheduler) sendAll(msg []byte) {
-	for _, i := range u.instances {
-		u.scheduleChan <- func() { i.send(msg) }
+	schedulerLogger.Info("sending all", "msg", string(msg))
+	for i, inst := range u.instances {
+		u.scheduleChan <- func() {
+			schedulerLogger.Debug("executing send", "instance", i)
+			inst.send(msg)
+		}
 	}
 }
 
@@ -140,6 +153,7 @@ func (u *unorderedScheduler) getInstances() []*brbInstance {
 }
 
 func (u *unorderedScheduler) stop() {
+	schedulerLogger.Info("stopping scheduler")
 	u.ticker.Stop()
 }
 
