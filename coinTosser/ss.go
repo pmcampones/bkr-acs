@@ -22,6 +22,73 @@ type PointShare struct {
 	point group.Element
 }
 
+func emptyPointShare() PointShare {
+	return PointShare{
+		id:    group.Ristretto255.NewScalar(),
+		point: group.Ristretto255.NewElement(),
+	}
+}
+
+func (ps *PointShare) MarshalBinary() ([]byte, error) {
+	idBytes, err := ps.id.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal share ID: %v", err)
+	}
+	pointBytes, err := ps.point.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal share value: %v", err)
+	}
+	return append(idBytes, pointBytes...), nil
+}
+
+func (ps *PointShare) UnmarshalBinary(data []byte) error {
+	idSize, err := getScalarSize()
+	if err != nil {
+		return fmt.Errorf("unable to get scalar size: %v", err)
+	}
+	pointSize, err := getElementSize()
+	if err != nil {
+		return fmt.Errorf("unable to get element size: %v", err)
+	} else if len(data) != idSize+pointSize {
+		return fmt.Errorf("argument has incorrect size: got %d bytes, expected %d", len(data), idSize+pointSize)
+	} else if err := ps.id.UnmarshalBinary(data[:idSize]); err != nil {
+		return fmt.Errorf("unable to unmarshal share ID: %v", err)
+	} else if err := ps.point.UnmarshalBinary(data[idSize:]); err != nil {
+		return fmt.Errorf("unable to unmarshal share value: %v", err)
+	}
+	return nil
+}
+
+func getScalarSize() (int, error) {
+	scalar := group.Ristretto255.NewScalar()
+	scalarBytes, err := scalar.MarshalBinary()
+	if err != nil {
+		return 0, fmt.Errorf("unable to marshal scalar: %v", err)
+	}
+	return len(scalarBytes), nil
+}
+
+func getElementSize() (int, error) {
+	element := group.Ristretto255.NewElement()
+	elementBytes, err := element.MarshalBinary()
+	if err != nil {
+		return 0, fmt.Errorf("unable to marshal element: %v", err)
+	}
+	return len(elementBytes), nil
+}
+
+func getPointShareSize() (int, error) {
+	scalarSize, err := getScalarSize()
+	if err != nil {
+		return 0, fmt.Errorf("unable to get scalar size: %v", err)
+	}
+	elementSize, err := getElementSize()
+	if err != nil {
+		return 0, fmt.Errorf("unable to get element size: %v", err)
+	}
+	return scalarSize + elementSize, nil
+}
+
 func ShareSecret(threshold uint, nodes uint, secret group.Scalar) []secretsharing.Share {
 	secretSharing := secretsharing.New(rand.Reader, threshold, secret)
 	return secretSharing.Share(nodes)

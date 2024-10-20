@@ -30,11 +30,11 @@ func testShouldSSNoThreshold(t *testing.T, numNodes int) {
 	ss := lo.Map(nodes, func(node *Node, _ int) *SSChannel { return makeSSChannel(t, node) })
 	secret := group.Ristretto255.NewScalar().SetUint64(42)
 	commitment := []byte("commitment")
-	err := ss[0].SSBroadcast(secret, 0, commitment)
+	err := ss[0].SSBroadcast(secret, 0, dummyCommitMaker(commitment))
 	assert.NoError(t, err)
-	results := lo.Map(ss, func(s *SSChannel, _ int) SSMsg { return <-s.deliverChan })
-	assert.True(t, lo.EveryBy(results, func(msg SSMsg) bool { return areScalarEquals(t, secret, msg.Share.Value) }))
-	assert.True(t, lo.EveryBy(results, func(msg SSMsg) bool { return bytes.Equal(commitment, msg.Commitment) }))
+	results := lo.Map(ss, func(s *SSChannel, _ int) *SSMsg { return <-s.deliverChan })
+	assert.True(t, lo.EveryBy(results, func(msg *SSMsg) bool { return areScalarEquals(t, secret, msg.Share.Value) }))
+	assert.True(t, lo.EveryBy(results, func(msg *SSMsg) bool { return bytes.Equal(commitment, msg.Commitment) }))
 	assert.True(t, lo.EveryBy(nodes, func(node *Node) bool { return node.Disconnect() == nil }))
 }
 
@@ -56,11 +56,11 @@ func testShouldSSWithThreshold(t *testing.T, numNodes, threshold int) {
 	ss := lo.Map(nodes, func(node *Node, _ int) *SSChannel { return makeSSChannel(t, node) })
 	secret := group.Ristretto255.NewScalar().SetUint64(42)
 	commitment := []byte("commitment")
-	err := ss[0].SSBroadcast(secret, uint(threshold), commitment)
+	err := ss[0].SSBroadcast(secret, uint(threshold), dummyCommitMaker(commitment))
 	assert.NoError(t, err)
-	results := lo.Map(ss, func(s *SSChannel, _ int) SSMsg { return <-s.deliverChan })
-	assert.True(t, lo.EveryBy(results, func(msg SSMsg) bool { return bytes.Equal(commitment, msg.Commitment) }))
-	shares := lo.Map(results, func(msg SSMsg, _ int) secretsharing.Share { return msg.Share })
+	results := lo.Map(ss, func(s *SSChannel, _ int) *SSMsg { return <-s.deliverChan })
+	assert.True(t, lo.EveryBy(results, func(msg *SSMsg) bool { return bytes.Equal(commitment, msg.Commitment) }))
+	shares := lo.Map(results, func(msg *SSMsg, _ int) secretsharing.Share { return msg.Share })
 	recov, err := secretsharing.Recover(uint(threshold), shares)
 	assert.NoError(t, err)
 	assert.True(t, areScalarEquals(t, secret, recov))
@@ -79,4 +79,10 @@ func areScalarEquals(t *testing.T, a, b group.Scalar) bool {
 	bBytes, err := b.MarshalBinary()
 	assert.NoError(t, err)
 	return bytes.Equal(aBytes, bBytes)
+}
+
+func dummyCommitMaker(commit []byte) func([]secretsharing.Share) ([]byte, error) {
+	return func(shares []secretsharing.Share) ([]byte, error) {
+		return commit, nil
+	}
 }
