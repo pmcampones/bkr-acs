@@ -19,18 +19,18 @@ func DealSecret(ssChannel *overlayNetwork.SSChannel, secret group.Scalar, thresh
 
 func computeCommitment(shares []secretsharing.Share) ([]byte, error) {
 	base := group.Ristretto255.RandomElement(rand.Reader)
-	commits := lo.Map(shares, func(share secretsharing.Share, _ int) PointShare { return ShareToPoint(share, base) })
+	commits := lo.Map(shares, func(share secretsharing.Share, _ int) pointShare { return ShareToPoint(share, base) })
 	return marshalCommitment(base, commits)
 }
 
-func marshalCommitment(base group.Element, commits []PointShare) ([]byte, error) {
+func marshalCommitment(base group.Element, commits []pointShare) ([]byte, error) {
 	baseBytes, err := base.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal base: %v", err)
 	}
 	commitsBytes := make([][]byte, len(commits))
 	for i, commit := range commits {
-		commitBytes, err := commit.MarshalBinary()
+		commitBytes, err := commit.marshalBinary()
 		if err != nil {
 			return nil, fmt.Errorf("unable to marshal commit: %v", err)
 		}
@@ -64,7 +64,7 @@ func writeCommitment(base []byte, commits [][]byte) ([]byte, error) {
 type deal struct {
 	base    group.Element
 	share   secretsharing.Share
-	commits []PointShare
+	commits []pointShare
 }
 
 func listenDeal(ssChan <-chan *overlayNetwork.SSMsg) (*deal, error) {
@@ -80,7 +80,7 @@ func listenDeal(ssChan <-chan *overlayNetwork.SSMsg) (*deal, error) {
 	return &deal{base, share, commits}, nil
 }
 
-func unmarshalCommitment(data []byte) (group.Element, []PointShare, error) {
+func unmarshalCommitment(data []byte) (group.Element, []pointShare, error) {
 	base, data, err := unmarshalBase(data)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to unmarshal base: %v", err)
@@ -118,17 +118,17 @@ func unmarshalCommitLen(dataIn []byte) (uint32, []byte, error) {
 	return commitLen, dataIn[commitLenLen:], nil
 }
 
-func unmarshalPointShares(dataIn []byte, num int) ([]PointShare, error) {
+func unmarshalPointShares(dataIn []byte, num int) ([]pointShare, error) {
 	pointShareLen, err := getPointShareSize()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get point share length: %v", err)
 	} else if len(dataIn) != num*pointShareLen {
 		return nil, fmt.Errorf("argument is too short: got %d bytes, expected %d", len(dataIn), num*pointShareLen)
 	}
-	pointShares := make([]PointShare, num)
+	pointShares := make([]pointShare, num)
 	for i := 0; i < num; i++ {
 		pointShare := emptyPointShare()
-		if err := pointShare.UnmarshalBinary(dataIn[:pointShareLen]); err != nil {
+		if err := pointShare.unmarshalBinary(dataIn[:pointShareLen]); err != nil {
 			return nil, fmt.Errorf("unable to unmarshal %d-th point share: %v", i, err)
 		}
 		pointShares[i] = pointShare

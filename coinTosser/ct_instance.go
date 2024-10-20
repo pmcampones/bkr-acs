@@ -10,7 +10,7 @@ import (
 	"pace/utils"
 )
 
-var ctLogger = utils.GetLogger(slog.LevelDebug)
+var ctLogger = utils.GetLogger(slog.LevelWarn)
 
 const dleqDst = "DLEQ"
 
@@ -19,7 +19,7 @@ type coinObserver interface {
 }
 
 type coinTossShare struct {
-	ptShare PointShare
+	ptShare pointShare
 	proof   dleq.Proof
 }
 
@@ -28,7 +28,7 @@ type coinToss struct {
 	threshold     uint
 	base          group.Element
 	deal          Deal
-	hiddenShares  []PointShare
+	hiddenShares  []pointShare
 	observers     []coinObserver
 	peersReceived map[UUID]bool
 	commands      chan<- func() error
@@ -42,7 +42,7 @@ func newCoinToss(id UUID, threshold uint, base group.Element, deal Deal) *coinTo
 		threshold:     threshold,
 		base:          base,
 		deal:          deal,
-		hiddenShares:  make([]PointShare, 0),
+		hiddenShares:  make([]pointShare, 0),
 		observers:     make([]coinObserver, 0),
 		peersReceived: make(map[UUID]bool),
 		commands:      commands,
@@ -112,16 +112,18 @@ func (ct *coinToss) isTossValid(ctShare coinTossShare, senderId UUID) (bool, err
 	return verifier.Verify(ct.base, ctShare.ptShare.point, ct.deal.commitBase, peerCommit, &proof), nil
 }
 
-func (ct *coinToss) processShare(share PointShare) error {
+func (ct *coinToss) processShare(share pointShare) error {
 	ct.hiddenShares = append(ct.hiddenShares, share)
+	ctLogger.Debug("received share", "id", ct.id, "numShares", len(ct.hiddenShares))
 	if len(ct.hiddenShares) == int(ct.threshold)+1 {
 		secretPoint := RecoverSecretFromPoints(ct.hiddenShares)
-		coinToss, err := HashPointToBool(secretPoint)
+		coin, err := HashPointToBool(secretPoint)
 		if err != nil {
 			return fmt.Errorf("unable to hash point to bool: %v", err)
 		}
+		ctLogger.Debug("recovered secret", "id", ct.id, "secret", secretPoint, "coin", coin)
 		for _, observer := range ct.observers {
-			go observer.observeCoin(ct.id, coinToss)
+			go observer.observeCoin(ct.id, coin)
 		}
 	}
 	return nil
@@ -161,7 +163,7 @@ func (ct *coinToss) invoker(commands <-chan func() error, closeChan <-chan struc
 				ctLogger.Error("unable to compute command", "id", ct.id, "error", err)
 			}
 		case <-closeChan:
-			ctLogger.Debug("closing byzantineReliableBroadcast executor", "id", ct.id)
+			ctLogger.Debug("closing brb executor", "id", ct.id)
 			return
 		}
 	}

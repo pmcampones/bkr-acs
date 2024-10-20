@@ -15,21 +15,21 @@ const pointSize = 32
 const shareSize = scalarSize * 2
 const pointShareSize = scalarSize + pointSize
 
-// PointShare is a secret share hidden in a group operation.
+// pointShare is a secret share hidden in a group operation.
 // This is used in the coin tossing scheme to hide the secret while making it usable as a randomness source.
-type PointShare struct {
+type pointShare struct {
 	id    group.Scalar
 	point group.Element
 }
 
-func emptyPointShare() PointShare {
-	return PointShare{
+func emptyPointShare() pointShare {
+	return pointShare{
 		id:    group.Ristretto255.NewScalar(),
 		point: group.Ristretto255.NewElement(),
 	}
 }
 
-func (ps *PointShare) MarshalBinary() ([]byte, error) {
+func (ps *pointShare) marshalBinary() ([]byte, error) {
 	idBytes, err := ps.id.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal share ID: %v", err)
@@ -41,7 +41,7 @@ func (ps *PointShare) MarshalBinary() ([]byte, error) {
 	return append(idBytes, pointBytes...), nil
 }
 
-func (ps *PointShare) UnmarshalBinary(data []byte) error {
+func (ps *pointShare) unmarshalBinary(data []byte) error {
 	idSize, err := getScalarSize()
 	if err != nil {
 		return fmt.Errorf("unable to get scalar size: %v", err)
@@ -98,17 +98,17 @@ func RecoverSecret(threshold uint, shares []secretsharing.Share) (group.Scalar, 
 	return secretsharing.Recover(threshold, shares)
 }
 
-func ShareToPoint(share secretsharing.Share, base group.Element) PointShare {
-	return PointShare{
+func ShareToPoint(share secretsharing.Share, base group.Element) pointShare {
+	return pointShare{
 		id:    share.ID,
 		point: mulPoint(base, share.Value),
 	}
 }
 
-func RecoverSecretFromPoints(shares []PointShare) group.Element {
-	indices := lo.Map(shares, func(share PointShare, _ int) group.Scalar { return share.id })
+func RecoverSecretFromPoints(shares []pointShare) group.Element {
+	indices := lo.Map(shares, func(share pointShare, _ int) group.Scalar { return share.id })
 	coefficients := lo.Map(indices, func(i group.Scalar, _ int) group.Scalar { return lagrangeCoefficient(i, indices) })
-	terms := lo.ZipBy2(shares, coefficients, func(share PointShare, coeff group.Scalar) group.Element {
+	terms := lo.ZipBy2(shares, coefficients, func(share pointShare, coeff group.Scalar) group.Element {
 		return mulPoint(share.point, coeff)
 	})
 	return lo.Reduce(terms[1:], func(acc group.Element, term group.Element, _ int) group.Element {
@@ -180,7 +180,7 @@ func unmarshalShare(shareBytes []byte) (secretsharing.Share, error) {
 	return secretsharing.Share{ID: id, Value: value}, nil
 }
 
-func marshalPointShare(share PointShare) ([]byte, error) {
+func marshalPointShare(share pointShare) ([]byte, error) {
 	idBytes, err := share.id.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal share ID: %v", err)
@@ -192,32 +192,32 @@ func marshalPointShare(share PointShare) ([]byte, error) {
 	return append(idBytes, pointBytes...), nil
 }
 
-func unmarshalPointShare(shareBytes []byte) (PointShare, error) {
+func unmarshalPointShare(shareBytes []byte) (pointShare, error) {
 	if len(shareBytes) != pointShareSize {
-		return PointShare{}, fmt.Errorf("argument has incorrect size: got %d bytes, expected %d", len(shareBytes), pointShareSize)
+		return pointShare{}, fmt.Errorf("argument has incorrect size: got %d bytes, expected %d", len(shareBytes), pointShareSize)
 	}
 	idBuffer := make([]byte, scalarSize)
 	reader := bytes.NewReader(shareBytes)
 	num, err := reader.Read(idBuffer)
 	if err != nil {
-		return PointShare{}, fmt.Errorf("unable to read share ID bytes: %v", err)
+		return pointShare{}, fmt.Errorf("unable to read share ID bytes: %v", err)
 	} else if num != scalarSize {
-		return PointShare{}, fmt.Errorf("unable to read share ID bytes: read %d bytes, expected %d", num, scalarSize)
+		return pointShare{}, fmt.Errorf("unable to read share ID bytes: read %d bytes, expected %d", num, scalarSize)
 	}
 	id := group.Ristretto255.NewScalar()
 	if err := id.UnmarshalBinary(idBuffer); err != nil {
-		return PointShare{}, fmt.Errorf("unable to unmarshal share ID: %v", err)
+		return pointShare{}, fmt.Errorf("unable to unmarshal share ID: %v", err)
 	}
 	pointBuffer := make([]byte, pointSize)
 	num, err = reader.Read(pointBuffer)
 	if err != nil {
-		return PointShare{}, fmt.Errorf("unable to read share Value bytes: %v", err)
+		return pointShare{}, fmt.Errorf("unable to read share Value bytes: %v", err)
 	} else if num != pointSize {
-		return PointShare{}, fmt.Errorf("unable to read share Value bytes: read %d bytes, expected %d", num, pointSize)
+		return pointShare{}, fmt.Errorf("unable to read share Value bytes: read %d bytes, expected %d", num, pointSize)
 	}
 	point := group.Ristretto255.NewElement()
 	if err := point.UnmarshalBinary(pointBuffer); err != nil {
-		return PointShare{}, fmt.Errorf("unable to unmarshal share value: %v", err)
+		return pointShare{}, fmt.Errorf("unable to unmarshal share value: %v", err)
 	}
-	return PointShare{id: id, point: point}, nil
+	return pointShare{id: id, point: point}, nil
 }

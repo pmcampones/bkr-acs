@@ -15,8 +15,7 @@ import (
 // This test should work with threshold = 3 but does not. I don't know why but the broadcasts in some replicas aren't reaching all peers.
 func TestTrue(t *testing.T) {
 	setProperties(t)
-	utils.SetupDefaultLogger()
-	threshold := uint(2)
+	threshold := uint(3)
 	ctChannels := setupNodes(t, int(threshold))
 	err := ctChannels[0].ShareDeal()
 	assert.NoError(t, err)
@@ -67,6 +66,6 @@ func makeCTNode(t *testing.T, address, contact string, bufferMsg, bufferMem, thr
 	node, memObs, _, err := overlayNetwork.MakeNode(address, contact, bufferMsg, bufferMem)
 	assert.NoError(t, err)
 	ctChannel := NewCoinTosserChannel(node, uint(threshold))
-	node.AttachMessageObserver(ctChannel)
+	//node.attachMessageObserver(ctChannel)
 	return node, memObs, ctChannel
 }

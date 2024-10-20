@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"fmt"
-	"github.com/cloudflare/circl/group"
+	_ "github.com/cloudflare/circl/group"
 	. "github.com/google/uuid"
 	"github.com/samber/mo"
 	"io"
@@ -36,12 +36,12 @@ type CTChannel struct {
 
 func NewCoinTosserChannel(node *overlayNetwork.Node, t uint) *CTChannel {
 	commands := make(chan func() error)
-	myself, err := utils.PkToUUID(node.GetPk())
-	if err != nil {
-		panic(fmt.Errorf("unable to convert public key to UUID: %v", err))
-	}
+	//myself, err := utils.PkToUUID(node.GetPk())
+	//if err != nil {
+	//	panic(fmt.Errorf("unable to convert public key to UUID: %v", err))
+	//}
 	channel := &CTChannel{
-		myself:         myself,
+		myself:         UUID{},
 		instances:      make(map[UUID]*coinToss),
 		outputChannels: make(map[UUID]chan mo.Result[bool]),
 		unordered:      make(map[UUID][]func() error),
@@ -52,8 +52,8 @@ func NewCoinTosserChannel(node *overlayNetwork.Node, t uint) *CTChannel {
 		commands:       commands,
 		listenCode:     utils.GetCode("ct_code"),
 	}
-	node.AttachMessageObserver(channel)
-	node.AttachMessageObserver(channel.dealObs)
+	//node.attachMessageObserver(channel)
+	//node.attachMessageObserver(channel.dealObs)
 	go func() {
 		deal := <-channel.dealObs.dealChan
 		channel.deal = *deal
@@ -64,16 +64,17 @@ func NewCoinTosserChannel(node *overlayNetwork.Node, t uint) *CTChannel {
 }
 
 func (c *CTChannel) ShareDeal() error {
-	peers := c.network.GetPeers()
-	channelLogger.Info("sharing deal", "myself", c.myself, "peers", peers)
-	return shareDeals(c.t, c.network, peers, c.dealObs)
+	//peers := c.network.getPeers()
+	//channelLogger.Info("sharing deal", "myself", c.myself, "peers", peers)
+	//return shareDeals(c.t, c.network, peers, c.dealObs)
+	return nil
 }
 
 func (c *CTChannel) TossCoin(seed []byte, outputChan chan mo.Result[bool]) {
 	id := utils.BytesToUUID(seed)
 	channelLogger.Debug("issuing coin toss", "id", id, "myself", c.myself)
 	c.commands <- func() error {
-		base := group.Ristretto255.HashToElement(seed, []byte("coin_toss"))
+		/*base := group.Ristretto255.HashToElement(seed, []byte("coin_toss"))
 		coinTosserInstance := newCoinToss(id, c.t, base, c.deal)
 		c.instances[id] = coinTosserInstance
 		coinTosserInstance.AttachObserver(c)
@@ -88,7 +89,7 @@ func (c *CTChannel) TossCoin(seed []byte, outputChan chan mo.Result[bool]) {
 		if err != nil {
 			return fmt.Errorf("unable to broadcast coin toss message: %v", err)
 		}
-		c.processUnordered(id)
+		c.processUnordered(id)*/
 		return nil
 	}
 }
@@ -155,7 +156,7 @@ func readCoinTossMessage(msg []byte) (UUID, coinTossShare, error) {
 	return id, ctShare, nil
 }
 
-func (c *CTChannel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
+func (c *CTChannel) bebDeliver(msg []byte, sender *ecdsa.PublicKey) {
 	if msg[0] == c.listenCode {
 		msg = msg[1:]
 		id, ctShare, err := readCoinTossMessage(msg)
@@ -178,6 +179,7 @@ func (c *CTChannel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
 
 func (c *CTChannel) submitShare(id, senderId UUID, ctShare coinTossShare) error {
 	if c.finished[id] {
+		channelLogger.Debug("received share in finished coin toss", "id", id, "sender", senderId, "myself", c.myself)
 		return nil
 	}
 	ct := c.instances[id]
@@ -194,13 +196,17 @@ func (c *CTChannel) submitShare(id, senderId UUID, ctShare coinTossShare) error 
 
 func (c *CTChannel) scheduleShareSubmission(id UUID, senderId UUID, command func() error) {
 	c.commands <- func() error {
-		if c.instances[id] == nil {
+		if c.finished[id] {
+			channelLogger.Debug("received share in finished coin toss", "id", id, "sender", senderId, "myself", c.myself)
+			return nil
+		} else if c.instances[id] == nil {
 			if c.unordered[id] == nil {
 				c.unordered[id] = make([]func() error, 0)
 			}
 			channelLogger.Debug("received unordered coin toss share", "id", id, "sender", senderId, "myself", c.myself)
 			c.unordered[id] = append(c.unordered[id], command)
 		} else {
+			channelLogger.Debug("received ordered coin toss share", "id", id, "sender", senderId, "myself", c.myself)
 			return command()
 		}
 		return nil

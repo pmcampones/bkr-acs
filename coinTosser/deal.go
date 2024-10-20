@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/ecdsa"
-	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"github.com/cloudflare/circl/group"
@@ -18,7 +17,7 @@ import (
 	"pace/utils"
 )
 
-var dLogger = utils.GetLogger(slog.LevelInfo)
+var dLogger = utils.GetLogger(slog.LevelWarn)
 
 type Deal struct {
 	share       secretsharing.Share
@@ -41,7 +40,7 @@ func NewDealObserver() *DealObserver {
 	}
 }
 
-func (do *DealObserver) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
+func (do *DealObserver) bebDeliver(msg []byte, sender *ecdsa.PublicKey) {
 	if msg[0] == do.code {
 		dLogger.Debug("received deal from sender", "sender", sender)
 		if do.hasBeenDealt {
@@ -92,17 +91,17 @@ func (do *DealObserver) genDeal(share *secretsharing.Share, commitBase group.Ele
 	do.dealChan <- deal
 }
 
-func shareDeals(threshold uint, node *overlayNetwork.Node, peers []*overlayNetwork.Peer, obs *DealObserver) error {
+/*func shareDeals(threshold uint, node *overlayNetwork.Node, peers []*overlayNetwork.peer, obs *DealObserver) error {
 	g := group.Ristretto255
 	secret := g.RandomScalar(rand.Reader)
 	commitBase := g.RandomElement(rand.Reader)
-	marshaledBase, err := commitBase.MarshalBinary()
+	marshaledBase, err := commitBase.marshalBinary()
 	if err != nil {
 		return fmt.Errorf("unable to marshal commit base: %v", err)
 	}
 	ss := ShareSecret(threshold, uint(len(peers))+1, secret)
-	pks := lo.Map(peers, func(peer *overlayNetwork.Peer, _ int) ecdsa.PublicKey {
-		return *peer.Pk
+	pks := lo.Map(peers, func(peer *overlayNetwork.peer, _ int) ecdsa.PublicKey {
+		return *peer.pk
 	})
 	pks = append([]ecdsa.PublicKey{*node.GetPk()}, pks...)
 	commits, err := computeCommitments(ss, commitBase, pks)
@@ -116,13 +115,13 @@ func shareDeals(threshold uint, node *overlayNetwork.Node, peers []*overlayNetwo
 	go obs.genDeal(&ss[0], commitBase, commits)
 	dLogger.Info("sending deal to peers", "peers", peers)
 	for i, peer := range peers {
-		err = shareDeal(node, peer.Conn, ss[i+1], marshaledBase, serializedCommits)
+		err = shareDeal(node, peer.conn, ss[i+1], marshaledBase, serializedCommits)
 		if err != nil {
 			return fmt.Errorf("unable to share deal to peer %d: %v", i, err)
 		}
 	}
 	return nil
-}
+}*/
 
 func computeCommitments(ss []secretsharing.Share, commitBase group.Element, pks []ecdsa.PublicKey) ([]lo.Tuple2[group.Element, ecdsa.PublicKey], error) {
 	if len(ss) != len(pks) {
@@ -235,7 +234,7 @@ func shareDeal(node *overlayNetwork.Node, peer net.Conn, share secretsharing.Sha
 	if err != nil {
 		return fmt.Errorf("unable to flush writer: %v", err)
 	}
-	err = node.Unicast(buf.Bytes(), peer)
+	//err = node.unicast(buf.Bytes(), peer)
 	if err != nil {
 		return fmt.Errorf("unable to send deal to peer: %v", err)
 	}

@@ -37,7 +37,7 @@ func TestSSWithPoints(t *testing.T) {
 	base := g.HashToElement([]byte("base"), []byte("ss_tests"))
 	shares := ShareSecret(threshold, nodes, secret)
 	pointSecret := g.Identity().Mul(base, secret)
-	hiddenShares := lo.Map(shares, func(share secretsharing.Share, _ int) PointShare { return ShareToPoint(share, base) })
+	hiddenShares := lo.Map(shares, func(share secretsharing.Share, _ int) pointShare { return ShareToPoint(share, base) })
 	recov1 := RecoverSecretFromPoints(hiddenShares[:])
 	ptSecBytes, err := pointSecret.MarshalBinary()
 	require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestMarshalAndUnmarshal(t *testing.T) {
 func TestMarshalPointShare(t *testing.T) {
 	g := group.Ristretto255
 	base := g.HashToElement([]byte("base"), []byte("point"))
-	share := PointShare{id: g.NewScalar().SetUint64(1), point: base}
+	share := pointShare{id: g.NewScalar().SetUint64(1), point: base}
 	shareBytes, err := marshalPointShare(share)
 	require.NoError(t, err)
 	recovShare, err := unmarshalPointShare(shareBytes)
