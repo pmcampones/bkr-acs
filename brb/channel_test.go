@@ -11,8 +11,9 @@ import (
 
 func TestChannelShouldBroadcastToSelf(t *testing.T) {
 	node := getNode(t, "localhost:6000")
+	beb := overlayNetwork.CreateBEBChannel(node, 'b')
 	brbDeliver := make(chan []byte)
-	c := CreateBRBChannel(1, 0, node, brbDeliver, 'B')
+	c := CreateBRBChannel(1, 0, beb, brbDeliver)
 	overlayNetwork.InitializeNodes(t, []*overlayNetwork.Node{node})
 	msg := []byte("hello")
 	err := c.BRBroadcast(msg)
@@ -86,7 +87,8 @@ func TestChannelShouldBroadcastToAllMaxByzantine(t *testing.T) {
 		return getChannel(uint(numNodes), uint(f), t)
 	})
 	byzChannels := lo.Map(nodes[numNodes-f:], func(node *overlayNetwork.Node, _ int) *byzChannel {
-		return createByzChannel(node, 'B')
+		beb := overlayNetwork.CreateBEBChannel(node, 'b')
+		return createByzChannel(beb)
 	})
 	overlayNetwork.InitializeNodes(t, nodes)
 	msg := []byte("hello")
@@ -103,7 +105,8 @@ func getNode(t *testing.T, address string) *overlayNetwork.Node {
 
 func getChannel(n, f uint, tuple lo.Tuple2[*overlayNetwork.Node, chan []byte]) *BRBChannel {
 	node, brbDeliver := tuple.Unpack()
-	return CreateBRBChannel(n, f, node, brbDeliver, 'B')
+	beb := overlayNetwork.CreateBEBChannel(node, 'b')
+	return CreateBRBChannel(n, f, beb, brbDeliver)
 }
 
 func teardown(t *testing.T, channels []*BRBChannel, byzChannels []*byzChannel, nodes []*overlayNetwork.Node) {

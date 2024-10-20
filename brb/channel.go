@@ -8,7 +8,7 @@ import (
 	"pace/utils"
 )
 
-var channelLogger = utils.GetLogger(slog.LevelWarn)
+var channelLogger = utils.GetLogger(slog.LevelDebug)
 
 type BRBChannel struct {
 	instances     map[UUID]*brbInstance
@@ -22,7 +22,7 @@ type BRBChannel struct {
 	closeDeliver  chan<- struct{}
 }
 
-func CreateBRBChannel(n, f uint, node *overlayNetwork.Node, brbDeliver chan<- []byte, listenCode byte) *BRBChannel {
+func CreateBRBChannel(n, f uint, beb *overlayNetwork.BEBChannel, brbDeliver chan<- []byte) *BRBChannel {
 	commands := make(chan func() error)
 	deliverChan := make(chan *msg)
 	closeCommands := make(chan struct{})
@@ -32,7 +32,7 @@ func CreateBRBChannel(n, f uint, node *overlayNetwork.Node, brbDeliver chan<- []
 		finished:      make(map[UUID]bool),
 		n:             n,
 		f:             f,
-		middleware:    newBRBMiddleware(node, listenCode, deliverChan),
+		middleware:    newBRBMiddleware(beb, deliverChan),
 		brbDeliver:    brbDeliver,
 		commands:      commands,
 		closeCommands: closeCommands,
@@ -40,7 +40,7 @@ func CreateBRBChannel(n, f uint, node *overlayNetwork.Node, brbDeliver chan<- []
 	}
 	go invoker(commands, closeCommands)
 	go channel.bebDeliver(deliverChan, closeDeliver)
-	channelLogger.Info("BRB channel created", "n", n, "f", f, "listening", listenCode)
+	channelLogger.Info("BRB channel created", "n", n, "f", f)
 	return channel
 }
 

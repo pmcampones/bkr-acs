@@ -76,25 +76,6 @@ func (n *Node) AttachMessageObserver(observer NodeMessageObserver) {
 	n.msgObservers = append(n.msgObservers, observer)
 }
 
-func (n *Node) Broadcast(msg []byte) error {
-	if !n.hasJoined {
-		return fmt.Errorf("node has not joined the overlayNetwork")
-	}
-	toSend := append([]byte{byte(generic)}, msg...)
-	go n.processMessage(toSend, &n.sk.PublicKey)
-	n.peersLock.RLock()
-	defer n.peersLock.RUnlock()
-	logger.Debug("broadcasting message to peers", "peers", n.peers, "message", string(msg), "myself", n.address)
-	for _, peer := range n.peers {
-		go func() {
-			if err := send(peer.Conn, toSend); err != nil {
-				logger.Warn("error sending to connection", "Peer name", peer.name, "error", err)
-			}
-		}()
-	}
-	return nil
-}
-
 func (n *Node) unicast(msg []byte, c net.Conn) error {
 	if !n.hasJoined {
 		return fmt.Errorf("node has not joined the overlayNetwork")
@@ -112,7 +93,8 @@ func (n *Node) unicastSelf(msg []byte) error {
 	if !n.hasJoined {
 		return fmt.Errorf("node has not joined the overlayNetwork")
 	}
-	go n.processMessage(msg, &n.sk.PublicKey)
+	toSend := append([]byte{byte(generic)}, msg...)
+	go n.processMessage(toSend, &n.sk.PublicKey)
 	return nil
 }
 
@@ -268,7 +250,7 @@ func (n *Node) processMessage(msg []byte, sender *ecdsa.PublicKey) {
 			go func() { observer.BEBDeliver(content, sender) }()
 		}
 	default:
-		logger.Error("unhandled default case", "msg type", msgType, "msg content", content)
+		logger.Error("unhandled default case", "msg type", msgType, "msg content", string(content))
 	}
 }
 

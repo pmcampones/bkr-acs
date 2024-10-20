@@ -13,10 +13,10 @@ type byzChannel struct {
 	closeChan  chan struct{}
 }
 
-func createByzChannel(node *overlayNetwork.Node, listenCode byte) *byzChannel {
+func createByzChannel(beb *overlayNetwork.BEBChannel) *byzChannel {
 	deliverChan := make(chan *msg)
 	byz := &byzChannel{
-		middleware: newBRBMiddleware(node, listenCode, deliverChan),
+		middleware: newBRBMiddleware(beb, deliverChan),
 		received:   make(map[uuid.UUID]bool),
 		closeChan:  make(chan struct{}),
 	}

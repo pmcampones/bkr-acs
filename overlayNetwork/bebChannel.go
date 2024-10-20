@@ -43,3 +43,7 @@ func (b *BEBChannel) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
 		b.deliverChan <- BEBMsg{Content: msg[1:], Sender: sender}
 	}
 }
+
+func (b *BEBChannel) GetBEBChan() <-chan BEBMsg {
+	return b.deliverChan
+}

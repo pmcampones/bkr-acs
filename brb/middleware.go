@@ -28,31 +28,36 @@ type msg struct {
 }
 
 type brbMiddleware struct {
-	bebChannel  *overlayNetwork.Node
-	listenCode  byte
+	bebChannel  *overlayNetwork.BEBChannel
 	deliverChan chan<- *msg
+	closeChan   chan struct{}
 }
 
-func newBRBMiddleware(bebChannel *overlayNetwork.Node, code byte, deliverChan chan<- *msg) *brbMiddleware {
+func newBRBMiddleware(bebChannel *overlayNetwork.BEBChannel, deliverChan chan<- *msg) *brbMiddleware {
 	m := &brbMiddleware{
 		bebChannel:  bebChannel,
-		listenCode:  code,
 		deliverChan: deliverChan,
+		closeChan:   make(chan struct{}),
 	}
-	bebChannel.AttachMessageObserver(m)
+	go m.bebDeliver(bebChannel.GetBEBChan())
 	return m
 }
 
-func (m *brbMiddleware) BEBDeliver(msg []byte, sender *ecdsa.PublicKey) {
-	if msg[0] == m.listenCode {
-		structMsg, err := m.processMsg(msg, sender)
-		if err != nil {
-			channelLogger.Warn("unable to processMsg message during beb delivery", "error", err)
-		} else {
-			go func() { m.deliverChan <- structMsg }()
+func (m *brbMiddleware) bebDeliver(bebChan <-chan overlayNetwork.BEBMsg) {
+	for {
+		select {
+		case bebMsg := <-bebChan:
+			structMsg, err := m.processMsg(bebMsg.Content, bebMsg.Sender)
+			if err != nil {
+				channelLogger.Warn("unable to processMsg message during beb delivery", "error", err)
+			} else {
+				channelLogger.Debug("received message from beb", "sender", structMsg.sender, "type", structMsg.kind, "msg", string(structMsg.content))
+				go func() { m.deliverChan <- structMsg }()
+			}
+		case <-m.closeChan:
+			channelLogger.Info("closing brb middleware")
+			return
 		}
-	} else {
-		channelLogger.Debug("received message was not for me", "sender", sender, "listenCode", msg[0])
 	}
 }
 
@@ -68,7 +73,7 @@ func (m *brbMiddleware) broadcastSend(msg []byte) error {
 	structuredMsg, err := m.wrapSend(msg)
 	if err != nil {
 		return fmt.Errorf("error wrapping send: %v", err)
-	} else if err = m.bebChannel.Broadcast(structuredMsg); err != nil {
+	} else if err = m.bebChannel.BEBroadcast(structuredMsg); err != nil {
 		return fmt.Errorf("error broadcasting send: %v", err)
 	}
 	return nil
@@ -78,8 +83,8 @@ func (m *brbMiddleware) wrapSend(msg []byte) ([]byte, error) {
 	buf := bytes.NewBuffer([]byte{})
 	writer := bufio.NewWriter(buf)
 	nonce := rand.Uint32()
-	if _, err := writer.Write([]byte{m.listenCode, byte(send)}); err != nil {
-		return nil, fmt.Errorf("unable to write codes to buffer: %v", err)
+	if _, err := writer.Write([]byte{byte(send)}); err != nil {
+		return nil, fmt.Errorf("unable to write send code to buffer: %v", err)
 	} else if err := binary.Write(writer, binary.LittleEndian, nonce); err != nil {
 		return nil, fmt.Errorf("unable to write nonce to buffer: %v", err)
 	} else if _, err := writer.Write(msg); err != nil {
@@ -114,7 +119,7 @@ func (m *brbMiddleware) broadcastMsg(code middlewareCode, id uuid.UUID, msg []by
 	if err != nil {
 		channelLogger.Warn("error wrapping message", "error", err)
 		return
-	} else if err = m.bebChannel.Broadcast(structuredMsg); err != nil {
+	} else if err = m.bebChannel.BEBroadcast(structuredMsg); err != nil {
 		channelLogger.Warn("error broadcasting message", "error", err)
 	}
 }
@@ -122,7 +127,7 @@ func (m *brbMiddleware) broadcastMsg(code middlewareCode, id uuid.UUID, msg []by
 func (m *brbMiddleware) wrapMessage(code middlewareCode, id uuid.UUID, msg []byte) ([]byte, error) {
 	buf := bytes.NewBuffer([]byte{})
 	writer := bufio.NewWriter(buf)
-	if _, err := writer.Write([]byte{m.listenCode, byte(code)}); err != nil {
+	if _, err := writer.Write([]byte{byte(code)}); err != nil {
 		return nil, fmt.Errorf("unable to write codes to buffer: %v", err)
 	}
 	idBytes, err := id.MarshalBinary()
@@ -139,7 +144,7 @@ func (m *brbMiddleware) wrapMessage(code middlewareCode, id uuid.UUID, msg []byt
 }
 
 func (m *brbMiddleware) processMsg(msg []byte, sender *ecdsa.PublicKey) (*msg, error) {
-	reader := bytes.NewReader(msg[1:])
+	reader := bytes.NewReader(msg)
 	byteType, err := reader.ReadByte()
 	if err != nil {
 		return nil, fmt.Errorf("unable to read byte type from message during instance id computation: %v", err)
