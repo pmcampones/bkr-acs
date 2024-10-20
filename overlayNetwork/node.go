@@ -86,10 +86,11 @@ func (n *Node) Broadcast(msg []byte) error {
 	defer n.peersLock.RUnlock()
 	logger.Debug("broadcasting message to peers", "peers", n.peers, "message", string(msg), "myself", n.address)
 	for _, peer := range n.peers {
-		err := send(peer.Conn, toSend)
-		if err != nil {
-			logger.Warn("error sending to connection", "Peer name", peer.name, "error", err)
-		}
+		go func() {
+			if err := send(peer.Conn, toSend); err != nil {
+				logger.Warn("error sending to connection", "Peer name", peer.name, "error", err)
+			}
+		}()
 	}
 	return nil
 }

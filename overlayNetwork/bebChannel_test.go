@@ -1,7 +1,6 @@
 package overlayNetwork
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -9,37 +8,22 @@ import (
 	"testing"
 )
 
-type dummyMsgObserver struct {
-	msgs chan []byte
-}
-
-func newDummyMsgObserver() *dummyMsgObserver {
-	return &dummyMsgObserver{
-		msgs: make(chan []byte),
-	}
-}
-
-func (dmo *dummyMsgObserver) BEBDeliver(msg []byte, _ *ecdsa.PublicKey) {
-	dmo.msgs <- msg
-}
-
 type nodeMsg struct {
-	node   *Node
-	msgObs *dummyMsgObserver
-	bMsgs  [][]byte // messages to be broadcast by the node
-	rMsgs  [][]byte // messages to be received by the node
+	beb   *BEBChannel
+	bMsgs [][]byte // messages to be broadcast by the node
+	rMsgs [][]byte // messages to be received by the node
 }
 
-func newNodeMsg(node *Node, bMsgs [][]byte) *nodeMsg {
-	msgObs := newDummyMsgObserver()
-	node.AttachMessageObserver(msgObs)
-	return &nodeMsg{node, msgObs, bMsgs, make([][]byte, 0)}
+func newNodeMsg(beb *BEBChannel, bMsgs [][]byte) *nodeMsg {
+	return &nodeMsg{beb, bMsgs, make([][]byte, 0)}
 }
 
 func TestShouldBroadcastSelf(t *testing.T) {
 	contact := "localhost:6000"
 	node := getNode(t, contact)
-	nmsg := newNodeMsg(node, [][]byte{[]byte("hello")})
+	InitializeNodes(t, []*Node{node})
+	beb := CreateBEBChannel(node, 'b')
+	nmsg := newNodeMsg(beb, [][]byte{[]byte("hello")})
 	testShouldBroadcast(t, []*nodeMsg{nmsg})
 	assert.Equal(t, 1, len(nmsg.rMsgs))
 	assert.Equal(t, "hello", string(nmsg.rMsgs[0]))
@@ -49,9 +33,11 @@ func TestShouldBroadcastSelf(t *testing.T) {
 func TestShouldBroadcastSelfManyMessages(t *testing.T) {
 	contact := "localhost:6000"
 	node := getNode(t, contact)
+	beb := CreateBEBChannel(node, 'b')
+	InitializeNodes(t, []*Node{node})
 	numMsgs := 10000
 	msgs := genNodeMsgs(0, numMsgs)
-	nmsg := newNodeMsg(node, msgs)
+	nmsg := newNodeMsg(beb, msgs)
 	testShouldBroadcast(t, []*nodeMsg{nmsg})
 	assert.Equal(t, numMsgs, len(nmsg.rMsgs))
 	assert.NoError(t, node.Disconnect())
@@ -62,8 +48,11 @@ func TestShouldBroadcastTwoNodesSingleMessage(t *testing.T) {
 	address1 := "localhost:6001"
 	node0 := getNode(t, contact)
 	node1 := getNode(t, address1)
-	nmsg0 := newNodeMsg(node0, [][]byte{[]byte("hello")})
-	nmsg1 := newNodeMsg(node1, [][]byte{})
+	beb0 := CreateBEBChannel(node0, 'b')
+	beb1 := CreateBEBChannel(node1, 'b')
+	InitializeNodes(t, []*Node{node0, node1})
+	nmsg0 := newNodeMsg(beb0, [][]byte{[]byte("hello")})
+	nmsg1 := newNodeMsg(beb1, [][]byte{})
 	testShouldBroadcast(t, []*nodeMsg{nmsg0, nmsg1})
 	assert.Equal(t, 1, len(nmsg0.rMsgs))
 	assert.Equal(t, 1, len(nmsg1.rMsgs))
@@ -78,11 +67,14 @@ func TestShouldBroadcastTwoNodesManyMessages(t *testing.T) {
 	address1 := "localhost:6001"
 	node0 := getNode(t, contact)
 	node1 := getNode(t, address1)
+	beb0 := CreateBEBChannel(node0, 'b')
+	beb1 := CreateBEBChannel(node1, 'b')
+	InitializeNodes(t, []*Node{node0, node1})
 	numMsgs := 10000
 	msgs0 := genNodeMsgs(0, numMsgs)
 	msgs1 := genNodeMsgs(1, numMsgs)
-	nmsg0 := newNodeMsg(node0, msgs0)
-	nmsg1 := newNodeMsg(node1, msgs1)
+	nmsg0 := newNodeMsg(beb0, msgs0)
+	nmsg1 := newNodeMsg(beb1, msgs1)
 	testShouldBroadcast(t, []*nodeMsg{nmsg0, nmsg1})
 	assert.Equal(t, len(msgs0)+len(msgs1), len(nmsg0.rMsgs))
 	assert.Equal(t, len(msgs0)+len(msgs1), len(nmsg1.rMsgs))
@@ -94,13 +86,15 @@ func TestShouldBroadcastManyNodesManyMessages(t *testing.T) {
 	numNodes := 100
 	addresses := lo.Map(lo.Range(numNodes), func(_ int, i int) string { return fmt.Sprintf("localhost:%d", 6000+i) })
 	nodes := lo.Map(addresses, func(address string, _ int) *Node { return getNode(t, address) })
+	bebs := lo.Map(nodes, func(n *Node, _ int) *BEBChannel { return CreateBEBChannel(n, 'b') })
+	InitializeNodes(t, nodes)
 	numMsgs := 100
 	msgs := lo.Map(lo.Range(numNodes), func(_ int, i int) [][]byte { return genNodeMsgs(i, numMsgs) })
-	nodeMsgs := lo.ZipBy2(nodes, msgs, func(node *Node, msgs [][]byte) *nodeMsg { return newNodeMsg(node, msgs) })
+	nodeMsgs := lo.ZipBy2(bebs, msgs, func(b *BEBChannel, msgs [][]byte) *nodeMsg { return newNodeMsg(b, msgs) })
 	testShouldBroadcast(t, nodeMsgs)
 	totalMsgs := numMsgs * numNodes
 	assert.True(t, lo.EveryBy(nodeMsgs, func(nm *nodeMsg) bool { return len(nm.rMsgs) == totalMsgs }))
-	assert.True(t, lo.EveryBy(nodeMsgs, func(nm *nodeMsg) bool { return nm.node.Disconnect() == nil }))
+	assert.True(t, lo.EveryBy(nodes, func(n *Node) bool { return n.Disconnect() == nil }))
 }
 
 func genNodeMsgs(nodeIdx, numMsgs int) [][]byte {
@@ -108,13 +102,12 @@ func genNodeMsgs(nodeIdx, numMsgs int) [][]byte {
 }
 
 func testShouldBroadcast(t *testing.T, nodeMsgs []*nodeMsg) {
-	nodes := lo.Map(nodeMsgs, func(nm *nodeMsg, _ int) *Node { return nm.node })
-	InitializeNodes(t, nodes)
 	totalMsgs := lo.Sum(lo.Map(nodeMsgs, func(nm *nodeMsg, _ int) int { return len(nm.bMsgs) }))
 	broadcastAllMsgs(t, nodeMsgs)
 	for _, nm := range nodeMsgs {
 		for i := 0; i < totalMsgs; i++ {
-			nm.rMsgs = append(nm.rMsgs, <-nm.msgObs.msgs)
+			msg := <-nm.beb.deliverChan
+			nm.rMsgs = append(nm.rMsgs, msg.Content)
 		}
 	}
 }
@@ -122,7 +115,7 @@ func testShouldBroadcast(t *testing.T, nodeMsgs []*nodeMsg) {
 func broadcastAllMsgs(t *testing.T, nodeMsgs []*nodeMsg) {
 	for _, nm := range nodeMsgs {
 		for _, msg := range nm.bMsgs {
-			err := nm.node.Broadcast(msg)
+			err := nm.beb.BEBBroadcast(msg)
 			require.NoError(t, err)
 		}
 	}
