@@ -95,7 +95,7 @@ func (n *Node) Broadcast(msg []byte) error {
 	return nil
 }
 
-func (n *Node) Unicast(msg []byte, c net.Conn) error {
+func (n *Node) unicast(msg []byte, c net.Conn) error {
 	if !n.hasJoined {
 		return fmt.Errorf("node has not joined the overlayNetwork")
 	}
@@ -105,6 +105,14 @@ func (n *Node) Unicast(msg []byte, c net.Conn) error {
 	if err != nil {
 		logger.Warn("error sending to connection", "Conn", c.RemoteAddr(), "error", err)
 	}
+	return nil
+}
+
+func (n *Node) unicastSelf(msg []byte) error {
+	if !n.hasJoined {
+		return fmt.Errorf("node has not joined the overlayNetwork")
+	}
+	go n.processMessage(msg, &n.sk.PublicKey)
 	return nil
 }
 
