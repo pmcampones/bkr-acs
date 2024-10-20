@@ -17,68 +17,68 @@ func (l listenerCloseError) Error() string {
 	return fmt.Sprintf("listener closed:%v", l.err)
 }
 
-type Peer struct {
-	Conn net.Conn
+type peer struct {
+	conn net.Conn
 	name string
-	Pk   *ecdsa.PublicKey
+	pk   *ecdsa.PublicKey
 	pkId uuid.UUID
 }
 
-func newOutbound(myName, address string, config *tls.Config) (Peer, error) {
+func newOutbound(myName, address string, config *tls.Config) (peer, error) {
 	conn, err := tls.Dial("tcp", address, config)
 	if err != nil {
-		return Peer{}, fmt.Errorf("unable to dial while establishing Peer connection: %v", err)
+		return peer{}, fmt.Errorf("unable to dial while establishing peer connection: %v", err)
 	}
 	err = send(conn, []byte(myName))
 	if err != nil {
-		return Peer{}, fmt.Errorf("unable to send name of Peer: %v", err)
+		return peer{}, fmt.Errorf("unable to send name of peer: %v", err)
 	}
 	certs := conn.ConnectionState().PeerCertificates
 	if len(certs) == 0 {
-		return Peer{}, fmt.Errorf("no certificates found in connection")
+		return peer{}, fmt.Errorf("no certificates found in connection")
 	}
 	pk := certs[0].PublicKey.(*ecdsa.PublicKey)
 	pkId, err := utils.PkToUUID(pk)
 	if err != nil {
-		return Peer{}, fmt.Errorf("unable to convert public key to UUID: %v", err)
+		return peer{}, fmt.Errorf("unable to convert public key to UUID: %v", err)
 	}
-	peer := Peer{
-		Conn: conn,
+	peer := peer{
+		conn: conn,
 		name: address,
-		Pk:   pk,
+		pk:   pk,
 		pkId: pkId,
 	}
 	return peer, nil
 }
 
-func getInbound(listener net.Listener) (Peer, error) {
+func getInbound(listener net.Listener) (peer, error) {
 	conn, err := listener.Accept()
 	if err != nil {
-		return Peer{}, listenerCloseError{err: err}
+		return peer{}, listenerCloseError{err: err}
 	}
 	nameBytes, err := receive(conn)
 	if err != nil {
-		return Peer{}, fmt.Errorf("unable to receive initialization information of Peer: %s", err)
+		return peer{}, fmt.Errorf("unable to receive initialization information of peer: %s", err)
 	}
 	name := string(nameBytes)
 	certs := conn.(*tls.Conn).ConnectionState().PeerCertificates
 	if len(certs) == 0 {
-		return Peer{}, fmt.Errorf("no certificates found in connection")
+		return peer{}, fmt.Errorf("no certificates found in connection")
 	}
 	pk := certs[0].PublicKey.(*ecdsa.PublicKey)
 	pkId, err := utils.PkToUUID(pk)
 	if err != nil {
-		return Peer{}, fmt.Errorf("unable to convert public key to UUID: %v", err)
+		return peer{}, fmt.Errorf("unable to convert public key to UUID: %v", err)
 	}
-	peer := Peer{
-		Conn: conn,
+	peer := peer{
+		conn: conn,
 		name: name,
-		Pk:   pk,
+		pk:   pk,
 		pkId: pkId,
 	}
 	return peer, nil
 }
 
-func (p *Peer) String() string {
+func (p *peer) String() string {
 	return fmt.Sprintf("%s:%v", p.name, p.pkId)
 }

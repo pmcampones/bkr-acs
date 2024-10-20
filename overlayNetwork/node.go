@@ -15,8 +15,8 @@ import (
 
 var logger = utils.GetLogger(slog.LevelWarn)
 
-type NodeMessageObserver interface {
-	BEBDeliver(msg []byte, sender *ecdsa.PublicKey)
+type nodeMessageObserver interface {
+	bebDeliver(msg []byte, sender *ecdsa.PublicKey)
 }
 
 type Node struct {
@@ -24,8 +24,8 @@ type Node struct {
 	contact      string
 	hasJoined    bool
 	peersLock    sync.RWMutex
-	peers        map[string]*Peer
-	msgObservers []NodeMessageObserver
+	peers        map[string]*peer
+	msgObservers []nodeMessageObserver
 	memChan      chan struct{}
 	config       *tls.Config
 	sk           *ecdsa.PrivateKey
@@ -41,8 +41,8 @@ func NewNode(address, contact string, sk *ecdsa.PrivateKey, cert *tls.Certificat
 		contact:      contact,
 		hasJoined:    false,
 		peersLock:    sync.RWMutex{},
-		peers:        make(map[string]*Peer),
-		msgObservers: make([]NodeMessageObserver, 0),
+		peers:        make(map[string]*peer),
+		msgObservers: make([]nodeMessageObserver, 0),
 		memChan:      make(chan struct{}),
 		config:       config,
 		sk:           sk,
@@ -72,7 +72,7 @@ func (n *Node) Join() error {
 	return nil
 }
 
-func (n *Node) AttachMessageObserver(observer NodeMessageObserver) {
+func (n *Node) attachMessageObserver(observer nodeMessageObserver) {
 	n.msgObservers = append(n.msgObservers, observer)
 }
 
@@ -81,10 +81,10 @@ func (n *Node) unicast(msg []byte, c net.Conn) error {
 		return fmt.Errorf("node has not joined the overlayNetwork")
 	}
 	toSend := append([]byte{byte(generic)}, msg...)
-	logger.Debug("unicasting message to connection", "Conn", c.RemoteAddr(), "message", string(msg), "myself", n.address)
+	logger.Debug("unicasting message to connection", "conn", c.RemoteAddr(), "message", string(msg), "myself", n.address)
 	err := send(c, toSend)
 	if err != nil {
-		logger.Warn("error sending to connection", "Conn", c.RemoteAddr(), "error", err)
+		logger.Warn("error sending to connection", "conn", c.RemoteAddr(), "error", err)
 	}
 	return nil
 }
@@ -103,7 +103,7 @@ func (n *Node) connectToContact() error {
 	if err != nil {
 		return fmt.Errorf("unable to connect to contact: %v", err)
 	}
-	logger.Debug("establishing connection with Peer", "Peer name", peer.name, "Peer key", *peer.Pk)
+	logger.Debug("establishing connection with peer", "peer name", peer.name, "peer key", *peer.pk)
 	go n.maintainConnection(peer, false)
 	return nil
 }
@@ -116,11 +116,11 @@ func (n *Node) listenConnections(amContact bool) {
 				logger.Info("closing listener")
 				break
 			} else {
-				logger.Warn("error accepting connection with Peer", "Peer name", peer.name, "error", err)
+				logger.Warn("error accepting connection with peer", "peer name", peer.name, "error", err)
 				continue
 			}
 		}
-		logger.Debug("received connection from Peer", "Peer name", peer.name, "Peer key", *peer.Pk)
+		logger.Debug("received connection from peer", "peer name", peer.name, "peer key", *peer.pk)
 		go n.maintainConnection(peer, amContact)
 	}
 	n.closeChan <- struct{}{}
@@ -149,14 +149,14 @@ func computeConfig(cert *tls.Certificate) *tls.Config {
 	return config
 }
 
-func (n *Node) maintainConnection(peer Peer, amContact bool) {
+func (n *Node) maintainConnection(peer peer, amContact bool) {
 	defer n.closeConnection(peer)
-	logger.Debug("maintaining connection with Peer", "Peer name", peer.name)
+	logger.Debug("maintaining connection with peer", "peer name", peer.name)
 	n.updatePeers(peer)
 	if amContact {
 		err := n.sendMembership(peer)
 		if err != nil {
-			logger.Warn("unable to send membership to Peer", "Peer name", peer.name, "error", err)
+			logger.Warn("unable to send membership to peer", "peer name", peer.name, "error", err)
 			return
 		}
 	}
@@ -164,37 +164,37 @@ func (n *Node) maintainConnection(peer Peer, amContact bool) {
 	n.readFromConnection(peer)
 }
 
-func (n *Node) updatePeers(peer Peer) {
+func (n *Node) updatePeers(peer peer) {
 	n.peersLock.Lock()
 	defer n.peersLock.Unlock()
 	n.peers[peer.name] = &peer
 }
 
-func (n *Node) sendMembership(peer Peer) error {
+func (n *Node) sendMembership(peer peer) error {
 	n.peersLock.RLock()
 	defer n.peersLock.RUnlock()
-	logger.Debug("sending membership to Peer", "Peer name", peer.name, "membership", n.peers)
+	logger.Debug("sending membership to peer", "peer name", peer.name, "membership", n.peers)
 	for _, p := range n.peers {
 		if p.name != peer.name {
 			toSend := append([]byte{byte(membership)}, []byte(p.name)...)
-			err := send(peer.Conn, toSend)
+			err := send(peer.conn, toSend)
 			if err != nil {
-				return fmt.Errorf("unable to send membership to Peer: %v", err)
+				return fmt.Errorf("unable to send membership to peer: %v", err)
 			}
 		}
 	}
 	return nil
 }
 
-func (n *Node) closeConnection(peer Peer) {
-	err := peer.Conn.Close()
+func (n *Node) closeConnection(peer peer) {
+	err := peer.conn.Close()
 	if err != nil {
-		logger.Warn("error closing connection", "Peer name", peer.name, "error", err)
+		logger.Warn("error closing connection", "peer name", peer.name, "error", err)
 	}
 	n.forgetPeer(peer)
 }
 
-func (n *Node) forgetPeer(peer Peer) {
+func (n *Node) forgetPeer(peer peer) {
 	n.peersLock.Lock()
 	defer n.peersLock.Unlock()
 	delete(n.peers, peer.name)
@@ -205,9 +205,9 @@ func (n *Node) closeAllConnections() {
 	n.peersLock.Lock()
 	defer n.peersLock.Unlock()
 	for _, peer := range n.peers {
-		err := peer.Conn.Close()
+		err := peer.conn.Close()
 		if err != nil {
-			logger.Warn("error closing connection", "Peer name", peer.name, "error", err)
+			logger.Warn("error closing connection", "peer name", peer.name, "error", err)
 		}
 	}
 	pNames := slices.Collect(maps.Keys(n.peers))
@@ -217,20 +217,20 @@ func (n *Node) closeAllConnections() {
 	}
 }
 
-func (n *Node) readFromConnection(peer Peer) {
+func (n *Node) readFromConnection(peer peer) {
 	for {
-		msg, err := receive(peer.Conn)
+		msg, err := receive(peer.conn)
 		if err != nil {
 			if isConnectionClosed(err) {
-				logger.Debug("connection closed", "Peer name", peer.name)
+				logger.Debug("connection closed", "peer name", peer.name)
 				n.forgetPeer(peer)
 				return
 			} else {
-				logger.Warn("error reading from connection", "Peer name", peer.name, "error", err)
+				logger.Warn("error reading from connection", "peer name", peer.name, "error", err)
 				continue
 			}
 		}
-		go n.processMessage(msg, peer.Pk)
+		go n.processMessage(msg, peer.pk)
 	}
 }
 
@@ -247,7 +247,7 @@ func (n *Node) processMessage(msg []byte, sender *ecdsa.PublicKey) {
 		n.processMembershipMsg(content)
 	case generic:
 		for _, observer := range n.msgObservers {
-			go func() { observer.BEBDeliver(content, sender) }()
+			go func() { observer.bebDeliver(content, sender) }()
 		}
 	default:
 		logger.Error("unhandled default case", "msg type", msgType, "msg content", string(content))
@@ -258,26 +258,22 @@ func (n *Node) processMembershipMsg(msg []byte) {
 	address := string(msg)
 	outbound, err := newOutbound(n.address, address, n.config)
 	if err != nil {
-		logger.Warn("error connecting to Peer", "error", err)
+		logger.Warn("error connecting to peer", "error", err)
 	}
 	n.maintainConnection(outbound, false)
 }
 
-func (n *Node) GetPk() *ecdsa.PublicKey {
-	return &n.sk.PublicKey
-}
-
-func (n *Node) GetPeers() []*Peer {
+func (n *Node) getPeers() []*peer {
 	n.peersLock.RLock()
 	defer n.peersLock.RUnlock()
-	peers := make([]*Peer, 0, len(n.peers))
+	peers := make([]*peer, 0, len(n.peers))
 	for _, p := range n.peers {
 		peers = append(peers, p)
 	}
 	return peers
 }
 
-func (n *Node) GetMembershipChan() <-chan struct{} {
+func (n *Node) getMembershipChan() <-chan struct{} {
 	return n.memChan
 }
 

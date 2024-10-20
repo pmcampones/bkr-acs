@@ -18,7 +18,7 @@ type TestMsgObserver struct {
 	lock      sync.Mutex
 }
 
-func (to *TestMsgObserver) BEBDeliver(msg []byte, _ *ecdsa.PublicKey) {
+func (to *TestMsgObserver) bebDeliver(msg []byte, _ *ecdsa.PublicKey) {
 	to.lock.Lock()
 	defer to.lock.Unlock()
 	to.delivered[string(msg)] = true
@@ -26,20 +26,20 @@ func (to *TestMsgObserver) BEBDeliver(msg []byte, _ *ecdsa.PublicKey) {
 }
 
 type TestMemObserver struct {
-	Peers       map[string]*Peer
+	Peers       map[string]*peer
 	UpBarrier   chan struct{}
 	DownBarrier chan struct{}
 	lock        sync.Mutex
 }
 
-func (to *TestMemObserver) NotifyPeerUp(p *Peer) {
+func (to *TestMemObserver) NotifyPeerUp(p *peer) {
 	to.lock.Lock()
 	defer to.lock.Unlock()
 	to.Peers[p.name] = p
 	to.UpBarrier <- struct{}{}
 }
 
-func (to *TestMemObserver) NotifyPeerDown(_ *Peer) {
+func (to *TestMemObserver) NotifyPeerDown(_ *peer) {
 	/*to.lock.Lock()
 	defer to.lock.Unlock()
 	to.Peers[p.name] = p
@@ -57,14 +57,14 @@ func MakeNode(address, contact string, bufferMsg, bufferMem int) (*Node, *TestMe
 	}
 	node := NewNode(address, contact, sk, cert)
 	memObs := TestMemObserver{
-		Peers:     make(map[string]*Peer),
+		Peers:     make(map[string]*peer),
 		UpBarrier: make(chan struct{}, bufferMsg),
 	}
 	msgObs := TestMsgObserver{
 		delivered: make(map[string]bool),
 		barrier:   make(chan struct{}, bufferMem),
 	}
-	node.AttachMessageObserver(&msgObs)
+	node.attachMessageObserver(&msgObs)
 	err = node.Join()
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("unable to join the overlayNetwork: %v", err)
