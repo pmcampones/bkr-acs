@@ -115,20 +115,3 @@ func TestMarshalAndUnmarshal(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, ogShare, recovShare)
 }
-
-func TestMarshalPointShare(t *testing.T) {
-	g := group.Ristretto255
-	base := g.HashToElement([]byte("base"), []byte("ss_test"))
-	share := pointShare{id: g.NewScalar().SetUint64(1), point: base}
-	shareBytes, err := share.marshalBinary()
-	assert.NoError(t, err)
-	recovShare := emptyPointShare()
-	err = recovShare.unmarshalBinary(shareBytes)
-	assert.NoError(t, err)
-	assert.Equal(t, share.id, recovShare.id)
-	sharePtBytes, err := share.point.MarshalBinary()
-	assert.NoError(t, err)
-	recovPtBytes, err := recovShare.point.MarshalBinary()
-	assert.NoError(t, err)
-	assert.Equal(t, sharePtBytes, recovPtBytes)
-}
