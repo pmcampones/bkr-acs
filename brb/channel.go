@@ -8,7 +8,7 @@ import (
 	"pace/utils"
 )
 
-var channelLogger = utils.GetLogger(slog.LevelDebug)
+var channelLogger = utils.GetLogger(slog.LevelWarn)
 
 type BRBChannel struct {
 	instances     map[UUID]*brbInstance

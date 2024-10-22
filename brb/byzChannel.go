@@ -38,8 +38,10 @@ func (b *byzChannel) bebDeliver(deliverChan <-chan *msg) {
 func (b *byzChannel) processMsg(msg *msg) {
 	if !b.received[msg.id] {
 		b.received[msg.id] = true
-		b.middleware.broadcastMsg(echo, msg.id, []byte(byzMsg))
 		b.middleware.broadcastMsg(ready, msg.id, []byte(byzMsg))
+		b.middleware.broadcastMsg(ready, msg.id, []byte(byzMsg))
+		b.middleware.broadcastMsg(echo, msg.id, []byte(byzMsg))
+		b.middleware.broadcastMsg(echo, msg.id, []byte(byzMsg))
 	}
 }
 
