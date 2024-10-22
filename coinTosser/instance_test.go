@@ -28,12 +28,12 @@ func testShouldTossWithoutThreshold(t *testing.T, nodes uint) {
 	coinTossings := lo.ZipBy2(deals, outputChans, func(d *deal, oc chan bool) *coinToss {
 		return newCoinToss(threshold, base, *d, oc)
 	})
-	coinShares := lo.Map(coinTossings, func(ct *coinToss, _ int) coinTossShare {
+	coinShares := lo.Map(coinTossings, func(ct *coinToss, _ int) ctShare {
 		c, err := ct.tossCoin()
 		assert.NoError(t, err)
 		return c
 	})
-	assert.True(t, lo.EveryBy(coinShares, func(cs coinTossShare) bool { return areElementsEqualsTest(t, cs.pt.point, blindedSecret) }))
+	assert.True(t, lo.EveryBy(coinShares, func(cs ctShare) bool { return areElementsEqualsTest(t, cs.pt.point, blindedSecret) }))
 	for _, tuple := range lo.Zip2(coinTossings, coinShares) {
 		ct, cs := tuple.Unpack()
 		err := ct.submitShare(cs, uuid.New())
@@ -66,7 +66,7 @@ func testShouldAllSeeSameCoinWithThreshold(t *testing.T, nodes, threshold uint) 
 	coinTossings := lo.ZipBy2(deals, outputChans, func(d *deal, oc chan bool) *coinToss {
 		return newCoinToss(threshold, base, *d, oc)
 	})
-	coinShares := lo.Map(coinTossings, func(ct *coinToss, _ int) coinTossShare {
+	coinShares := lo.Map(coinTossings, func(ct *coinToss, _ int) ctShare {
 		c, err := ct.tossCoin()
 		assert.NoError(t, err)
 		return c

@@ -17,11 +17,6 @@ var ctLogger = utils.GetLogger(slog.LevelWarn)
 
 const dleqDst = "DLEQ"
 
-type coinTossShare struct {
-	pt    pointShare
-	proof dleq.Proof
-}
-
 type coinToss struct {
 	base group.Element
 	d    deal
@@ -43,13 +38,13 @@ func getDLEQParams() dleq.Params {
 	return dleq.Params{G: group.Ristretto255, H: crypto.SHA256, DST: []byte(dleqDst)}
 }
 
-func (ct *coinToss) tossCoin() (coinTossShare, error) {
+func (ct *coinToss) tossCoin() (ctShare, error) {
 	share := shareToPoint(ct.d.share, ct.base)
 	proof, err := ct.genProof(share.point)
 	if err != nil {
-		return coinTossShare{}, fmt.Errorf("unable to generate proof: %v", err)
+		return ctShare{}, fmt.Errorf("unable to generate proof: %v", err)
 	}
-	return coinTossShare{pt: share, proof: proof}, nil
+	return ctShare{pt: share, proof: proof}, nil
 }
 
 // Strange that the prover can choose the randomness seed for the proof
@@ -88,7 +83,7 @@ func (d *deal) getCommit(idx group.Scalar) (*group.Element, error) {
 	return nil, fmt.Errorf("commitment not found for share %v", idx)
 }
 
-func (ct *coinToss) submitShare(ctShare coinTossShare, senderId UUID) error {
+func (ct *coinToss) submitShare(ctShare ctShare, senderId UUID) error {
 	isValid, err := ct.isTossValid(ctShare)
 	if err != nil {
 		return fmt.Errorf("unable to validate share from peer %v: %v", senderId, err)
@@ -99,7 +94,7 @@ func (ct *coinToss) submitShare(ctShare coinTossShare, senderId UUID) error {
 	}
 }
 
-func (ct *coinToss) isTossValid(share coinTossShare) (bool, error) {
+func (ct *coinToss) isTossValid(share ctShare) (bool, error) {
 	peerCommit, err := ct.d.getCommit(share.pt.id)
 	if err != nil {
 		return false, fmt.Errorf("unable to get peer commitment: %v", err)
