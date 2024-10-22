@@ -1,6 +1,7 @@
 package coinTosser
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/rand"
 	"github.com/cloudflare/circl/group"
@@ -40,4 +41,12 @@ func genProof(t *testing.T, val group.Scalar, base group.Element) *dleq.Proof {
 	proof, err := prover.ProveWithRandomness(val, base, hiddenVal, commitBase, commitment, rnd)
 	assert.NoError(t, err)
 	return proof
+}
+
+func areProofsEqual(t *testing.T, a, b *dleq.Proof) bool {
+	aBytes, err := a.MarshalBinary()
+	assert.NoError(t, err)
+	bBytes, err := b.MarshalBinary()
+	assert.NoError(t, err)
+	return bytes.Equal(aBytes, bBytes)
 }
