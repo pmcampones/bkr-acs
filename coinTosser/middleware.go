@@ -69,3 +69,16 @@ func (m *ctMiddleware) processMsg(content []byte, sender *ecdsa.PublicKey) (*msg
 		share:  share,
 	}, nil
 }
+
+func (m *ctMiddleware) broadcastCTShare(id uuid.UUID, share ctShare) error {
+	idBytes, err := id.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("unable to marshal id: %v", err)
+	}
+	shareBytes, err := share.marshalBinary()
+	if err != nil {
+		return fmt.Errorf("unable to marshal share: %v", err)
+	}
+	msgBytes := append(idBytes, shareBytes...)
+	return m.bebChannel.BEBroadcast(msgBytes)
+}
