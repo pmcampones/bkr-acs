@@ -1,7 +1,6 @@
 package coinTosser
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/cloudflare/circl/group"
 	"github.com/cloudflare/circl/secretsharing"
@@ -37,9 +36,9 @@ func TestShouldDealToMany(t *testing.T) {
 	err := DealSecret(ssChans[0], secret, 0)
 	assert.NoError(t, err)
 	deals := lo.Map(ssChans, func(ssChan *overlayNetwork.SSChannel, _ int) *deal { return listenDealTest(t, ssChan) })
-	assert.True(t, lo.EveryBy(deals, func(d *deal) bool { return areScalarEquals(t, secret, d.share.Value) }))
+	assert.True(t, lo.EveryBy(deals, func(d *deal) bool { return areScalarEqualsTest(t, secret, d.share.Value) }))
 	commitBase := deals[0].base
-	assert.True(t, lo.EveryBy(deals, func(d *deal) bool { return areElementsEquals(t, commitBase, d.base) }))
+	assert.True(t, lo.EveryBy(deals, func(d *deal) bool { return areElementsEqualsTest(t, commitBase, d.base) }))
 	pointShares := deals[0].commits
 	assert.True(t, lo.EveryBy(deals, func(d *deal) bool { return arePointShareEqualsArray(t, pointShares, d.commits) }))
 	assert.True(t, lo.EveryBy(nodes, func(node *overlayNetwork.Node) bool { return node.Disconnect() == nil }))
@@ -60,7 +59,7 @@ func TestShouldDealRecoverableSecret(t *testing.T) {
 	shares := lo.Map(deals, func(d *deal, _ int) secretsharing.Share { return d.share })
 	recov, err := secretsharing.Recover(uint(numNodes-1), shares)
 	assert.NoError(t, err)
-	assert.True(t, areScalarEquals(t, secret, recov))
+	assert.True(t, areScalarEqualsTest(t, secret, recov))
 }
 
 func makeSSChannel(t *testing.T, node *overlayNetwork.Node) *overlayNetwork.SSChannel {
@@ -75,20 +74,16 @@ func listenDealTest(t *testing.T, ssChan *overlayNetwork.SSChannel) *deal {
 	return d
 }
 
-func areScalarEquals(t *testing.T, a, b group.Scalar) bool {
-	aBytes, err := a.MarshalBinary()
+func areScalarEqualsTest(t *testing.T, a, b group.Scalar) bool {
+	ok, err := areScalarEquals(a, b)
 	assert.NoError(t, err)
-	bBytes, err := b.MarshalBinary()
-	assert.NoError(t, err)
-	return bytes.Equal(aBytes, bBytes)
+	return ok
 }
 
-func areElementsEquals(t *testing.T, a, b group.Element) bool {
-	aBytes, err := a.MarshalBinary()
+func areElementsEqualsTest(t *testing.T, a, b group.Element) bool {
+	ok, err := areElementsEquals(a, b)
 	assert.NoError(t, err)
-	bBytes, err := b.MarshalBinary()
-	assert.NoError(t, err)
-	return bytes.Equal(aBytes, bBytes)
+	return ok
 }
 
 func arePointShareEqualsArray(t *testing.T, as, bs []pointShare) bool {
@@ -99,5 +94,5 @@ func arePointShareEqualsArray(t *testing.T, as, bs []pointShare) bool {
 }
 
 func arePointShareEquals(t *testing.T, a, b pointShare) bool {
-	return areScalarEquals(t, a.id, b.id) && areElementsEquals(t, a.point, b.point)
+	return areScalarEqualsTest(t, a.id, b.id) && areElementsEqualsTest(t, a.point, b.point)
 }

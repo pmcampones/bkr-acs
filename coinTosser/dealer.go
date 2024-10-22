@@ -19,7 +19,7 @@ func DealSecret(ssChannel *overlayNetwork.SSChannel, secret group.Scalar, thresh
 
 func computeCommitment(shares []secretsharing.Share) ([]byte, error) {
 	base := group.Ristretto255.RandomElement(rand.Reader)
-	commits := lo.Map(shares, func(share secretsharing.Share, _ int) pointShare { return ShareToPoint(share, base) })
+	commits := lo.Map(shares, func(share secretsharing.Share, _ int) pointShare { return shareToPoint(share, base) })
 	return marshalCommitment(base, commits)
 }
 
