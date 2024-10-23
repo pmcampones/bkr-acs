@@ -16,9 +16,9 @@ type round struct {
 	closeChan chan struct{}
 }
 
-func newRound(n, f uint, bValChan, auxChan, decideChan chan byte, coinRequest chan struct{}) *round {
+func newRound(n, f uint, bValChan, auxChan chan byte, coinRequest chan struct{}) *round {
 	r := &round{
-		handler:   newRoundHandler(n, f, bValChan, auxChan, decideChan, coinRequest),
+		handler:   newRoundHandler(n, f, bValChan, auxChan, coinRequest),
 		bValChan:  bValChan,
 		commands:  make(chan func()),
 		closeChan: make(chan struct{}),
@@ -60,15 +60,23 @@ func (r *round) submitAux(aux byte, sender uuid.UUID) error {
 	return <-errChan
 }
 
-func (r *round) submitCoin(coin byte) (byte, error) {
+type roundTransitionResult struct {
+	estimate byte
+	decided  bool
+	err      error
+}
+
+func (r *round) submitCoin(coin byte) roundTransitionResult {
 	if !isInputValid(coin) {
-		return 2, fmt.Errorf("invalid input %d", coin)
+		return roundTransitionResult{
+			estimate: 2,
+			decided:  false,
+			err:      fmt.Errorf("invalid input %d", coin),
+		}
 	}
-	nxtEstimate := make(chan byte)
-	r.commands <- func() {
-		nxtEstimate <- r.handler.submitCoin(coin)
-	}
-	return <-nxtEstimate, nil
+	transitionChan := make(chan roundTransitionResult)
+	r.commands <- func() { transitionChan <- r.handler.submitCoin(coin) }
+	return <-transitionChan
 }
 
 func isInputValid(bVal byte) bool {
@@ -102,12 +110,11 @@ type roundHandler struct {
 	receivedAux      map[uuid.UUID]bool
 	bValChan         chan byte
 	auxChan          chan byte
-	decideChan       chan byte
 	coinReqChan      chan struct{}
 	hasRequestedCoin bool
 }
 
-func newRoundHandler(n, f uint, bValChan, auxChan, decideChan chan byte, coinReqChan chan struct{}) *roundHandler {
+func newRoundHandler(n, f uint, bValChan, auxChan chan byte, coinReqChan chan struct{}) *roundHandler {
 	return &roundHandler{
 		n:                n,
 		f:                f,
@@ -118,7 +125,6 @@ func newRoundHandler(n, f uint, bValChan, auxChan, decideChan chan byte, coinReq
 		receivedAux:      make(map[uuid.UUID]bool),
 		bValChan:         bValChan,
 		auxChan:          auxChan,
-		decideChan:       decideChan,
 		coinReqChan:      coinReqChan,
 		hasRequestedCoin: false,
 	}
@@ -178,16 +184,25 @@ func (h *roundHandler) requestCoin() {
 	go func() { h.coinReqChan <- struct{}{} }()
 }
 
-func (h *roundHandler) submitCoin(coin byte) byte {
-	nextEstimate := coin
-	values := h.computeValues()
-	if len(values) == 1 {
-		nextEstimate = values[0]
-		if nextEstimate == coin {
-			go func() { h.decideChan <- coin }()
+func (h *roundHandler) submitCoin(coin byte) roundTransitionResult {
+	if !h.hasRequestedCoin {
+		return roundTransitionResult{
+			estimate: 2,
+			decided:  false,
+			err:      fmt.Errorf("coin not requested"),
 		}
 	}
-	return nextEstimate
+	nextEstimate := coin
+	hasDecided := false
+	if values := h.computeValues(); len(values) == 1 {
+		nextEstimate = values[0]
+		hasDecided = nextEstimate == coin
+	}
+	return roundTransitionResult{
+		estimate: nextEstimate,
+		decided:  hasDecided,
+		err:      nil,
+	}
 }
 
 func (h *roundHandler) computeValues() []byte {
