@@ -1,8 +1,9 @@
 package overlayNetwork
 
 import (
+	"bytes"
 	"fmt"
-	"github.com/magiconair/properties/assert"
+	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
 )
@@ -44,32 +45,20 @@ func auxTestShouldReceiveWhatWasSent(messages [][]byte, t *testing.T) {
 	listening := make(chan struct{})
 	go func() {
 		listener, err := net.Listen("tcp", address)
-		if err != nil {
-			t.Errorf("unable to listen on address: %v", err)
-			return
-		}
+		assert.NoError(t, err)
 		listening <- struct{}{}
 		connSend, err := listener.Accept()
+		assert.NoError(t, err)
 		for _, msg := range messages {
-			err = send(connSend, msg)
-			if err != nil {
-				t.Errorf("unable to send message: %v", err)
-				return
-			}
+			assert.NoError(t, send(connSend, msg))
 		}
 	}()
 	<-listening
 	connReceive, err := net.Dial("tcp", address)
-	if err != nil {
-		t.Errorf("unable to dial: %v", err)
-		return
-	}
+	assert.NoError(t, err)
 	for _, msg := range messages {
 		received, err := receive(connReceive)
-		if err != nil {
-			t.Errorf("unable to receive message: %v", err)
-			return
-		}
-		assert.Equal(t, string(received), string(msg))
+		assert.NoError(t, err)
+		assert.True(t, bytes.Equal(msg, received))
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"fmt"
-	"github.com/magiconair/properties/assert"
+	"github.com/stretchr/testify/assert"
 	"pace/utils"
 	"testing"
 	"time"
@@ -14,26 +14,16 @@ import (
 
 func TestShouldEstablishCorrectConnection(t *testing.T) {
 	serverConfig, serverSk, err := makeTLSConfig()
-	if err != nil {
-		t.Fatalf("unable to create server config: %v", err)
-	}
+	assert.NoError(t, err)
 	clientConfig, clientSk, err := makeTLSConfig()
-	if err != nil {
-		t.Fatalf("unable to create client config: %v", err)
-	}
+	assert.NoError(t, err)
 	server := "localhost:6000"
 	client := "localhost:6001"
 	go func() {
 		listener, err := tls.Listen("tcp", server, serverConfig)
-		if err != nil {
-			t.Errorf("unable to listen on address: %v", err)
-			return
-		}
+		assert.NoError(t, err)
 		inboundPeer, err := getInbound(listener)
-		if err != nil {
-			t.Errorf("unable to get inbound peer: %v", err)
-			return
-		}
+		assert.NoError(t, err)
 		assert.Equal(t, inboundPeer.name, client)
 		assert.Equal(t, *inboundPeer.pk, clientSk.PublicKey)
 	}()

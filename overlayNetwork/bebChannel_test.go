@@ -115,8 +115,7 @@ func testShouldBroadcast(t *testing.T, nodeMsgs []*nodeMsg) {
 func broadcastAllMsgs(t *testing.T, nodeMsgs []*nodeMsg) {
 	for _, nm := range nodeMsgs {
 		for _, msg := range nm.bMsgs {
-			err := nm.beb.BEBroadcast(msg)
-			require.NoError(t, err)
+			require.NoError(t, nm.beb.BEBroadcast(msg))
 		}
 	}
 }
