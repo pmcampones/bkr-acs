@@ -7,7 +7,7 @@ import (
 	"pace/utils"
 )
 
-var roundLogger = utils.GetLogger(slog.LevelWarn)
+var roundLogger = utils.GetLogger(slog.LevelDebug)
 
 type round struct {
 	handler   *roundHandler
@@ -28,6 +28,7 @@ func newRound(n, f uint, bValChan, auxChan chan byte, coinRequest chan struct{})
 }
 
 func (r *round) proposeEstimate(est byte) error {
+	roundLogger.Info("scheduling proposal estimate", "est", est)
 	if !isInputValid(est) {
 		return fmt.Errorf("invalid input %d", est)
 	}
@@ -39,6 +40,7 @@ func (r *round) proposeEstimate(est byte) error {
 }
 
 func (r *round) submitBVal(bVal byte, sender uuid.UUID) error {
+	roundLogger.Debug("scheduling submit bVal", "bVal", bVal, "sender", sender)
 	if !isInputValid(bVal) {
 		return fmt.Errorf("invalid input %d", bVal)
 	}
@@ -50,6 +52,7 @@ func (r *round) submitBVal(bVal byte, sender uuid.UUID) error {
 }
 
 func (r *round) submitAux(aux byte, sender uuid.UUID) error {
+	roundLogger.Debug("scheduling submit aux", "aux", aux, "sender", sender)
 	if !isInputValid(aux) {
 		return fmt.Errorf("invalid input %d", aux)
 	}
@@ -74,6 +77,7 @@ func (r *round) submitCoin(coin byte) roundTransitionResult {
 			err:      fmt.Errorf("invalid input %d", coin),
 		}
 	}
+	roundLogger.Debug("scheduling submit coin", "coin", coin)
 	transitionChan := make(chan roundTransitionResult)
 	r.commands <- func() { transitionChan <- r.handler.submitCoin(coin) }
 	return <-transitionChan
@@ -131,6 +135,7 @@ func newRoundHandler(n, f uint, bValChan, auxChan chan byte, coinReqChan chan st
 }
 
 func (h *roundHandler) proposeEstimate(est byte) error {
+	roundLogger.Info("proposing estimate", "est", est)
 	if h.sentBVal[est] {
 		return fmt.Errorf("already broadcast bVal %d", est)
 	}
@@ -142,6 +147,7 @@ func (h *roundHandler) submitBVal(bVal byte, sender uuid.UUID) error {
 	if h.receivedBVal[bVal][sender] {
 		return fmt.Errorf("duplicate bVal from %s", sender)
 	}
+	roundLogger.Debug("submitting bVal", "bVal", bVal, "sender", sender)
 	h.receivedBVal[bVal][sender] = true
 	if numBval := len(h.receivedBVal[bVal]); numBval == int(h.f+1) && !h.sentBVal[bVal] {
 		h.broadcastBVal(bVal)
@@ -166,6 +172,7 @@ func (h *roundHandler) submitAux(aux byte, sender uuid.UUID) error {
 	if h.receivedAux[sender] {
 		return fmt.Errorf("duplicate aux from %s", sender)
 	}
+	roundLogger.Debug("submitting aux", "aux", aux, "sender", sender)
 	h.receivedAux[sender] = true
 	h.auxVals[aux] = true
 	if h.canRequestCoin() {
@@ -192,6 +199,7 @@ func (h *roundHandler) submitCoin(coin byte) roundTransitionResult {
 			err:      fmt.Errorf("coin not requested"),
 		}
 	}
+	roundLogger.Debug("submitting coin", "coin", coin)
 	nextEstimate := coin
 	hasDecided := false
 	if values := h.computeValues(); len(values) == 1 {
