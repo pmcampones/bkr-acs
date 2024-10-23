@@ -102,10 +102,8 @@ func testShouldBroadcastToAllMaxByzantine(t *testing.T, s scheduler) {
 	byzantine := lo.Map(lo.Range(f), func(_ int, _ int) uuid.UUID { return uuid.New() })
 	for _, correct := range s.getInstances() {
 		for _, byz := range byzantine {
-			err := correct.ready(byzMsg, byz)
-			assert.NoError(t, err)
-			err = correct.echo(byzMsg, byz)
-			assert.NoError(t, err)
+			assert.NoError(t, correct.ready(byzMsg, byz))
+			assert.NoError(t, correct.echo(byzMsg, byz))
 		}
 	}
 	s.sendAll(msg)
@@ -132,10 +130,8 @@ func testShouldDetectRepeatedEchoes(t *testing.T, s scheduler) {
 	byzMsg := []byte("bye")
 	byzantine := uuid.New()
 	for _, correct := range s.getInstances() {
-		err := correct.echo(byzMsg, byzantine)
-		assert.NoError(t, err)
-		err = correct.echo(byzMsg, byzantine)
-		assert.True(t, err != nil)
+		assert.NoError(t, correct.echo(byzMsg, byzantine))
+		assert.Error(t, correct.echo(byzMsg, byzantine))
 	}
 	s.sendAll(msg)
 	outputs := lo.Map(outputChans, func(o chan []byte, _ int) []byte { return <-o })
@@ -161,10 +157,8 @@ func testShouldDetectRepeatedReadies(t *testing.T, s scheduler) {
 	byzMsg := []byte("bye")
 	byzantine := uuid.New()
 	for _, correct := range s.getInstances() {
-		err := correct.ready(byzMsg, byzantine)
-		assert.NoError(t, err)
-		err = correct.ready(byzMsg, byzantine)
-		assert.True(t, err != nil)
+		assert.NoError(t, correct.ready(byzMsg, byzantine))
+		assert.Error(t, correct.ready(byzMsg, byzantine))
 	}
 	s.sendAll(msg)
 	outputs := lo.Map(outputChans, func(o chan []byte, _ int) []byte { return <-o })

@@ -34,16 +34,14 @@ func (o *orderedScheduler) getChannels(t *testing.T, sender uuid.UUID) (chan []b
 		msg := <-echoChan
 		for i, inst := range o.instances {
 			schedulerLogger.Debug("executing echo", "sender", sender, "instance", i)
-			err := inst.echo(msg, sender)
-			assert.NoError(t, err)
+			assert.NoError(t, inst.echo(msg, sender))
 		}
 	}()
 	go func() {
 		msg := <-readyChan
 		for i, inst := range o.instances {
 			schedulerLogger.Debug("executing ready", "sender", sender, "instance", i)
-			err := inst.ready(msg, sender)
-			assert.NoError(t, err)
+			assert.NoError(t, inst.ready(msg, sender))
 		}
 	}()
 	return echoChan, readyChan
@@ -116,8 +114,7 @@ func (u *unorderedScheduler) getChannels(t *testing.T, sender uuid.UUID) (chan [
 		for i, inst := range u.instances {
 			u.scheduleChan <- func() {
 				schedulerLogger.Debug("executing echo", "sender", sender, "instance", i)
-				err := inst.echo(msg, sender)
-				assert.NoError(t, err)
+				assert.NoError(t, inst.echo(msg, sender))
 			}
 		}
 	}()
@@ -126,8 +123,7 @@ func (u *unorderedScheduler) getChannels(t *testing.T, sender uuid.UUID) (chan [
 		for i, inst := range u.instances {
 			u.scheduleChan <- func() {
 				schedulerLogger.Debug("executing ready", "sender", sender, "instance", i)
-				err := inst.ready(msg, sender)
-				assert.NoError(t, err)
+				assert.NoError(t, inst.ready(msg, sender))
 			}
 		}
 	}()
