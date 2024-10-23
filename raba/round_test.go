@@ -35,6 +35,38 @@ func TestRoundShouldRejectInvalidAux(t *testing.T) {
 	r.close()
 }
 
+func TestRoundShouldRejectRepeatedAux(t *testing.T) {
+	sender := uuid.New()
+	bValChan := make(chan byte)
+	auxChan := make(chan byte)
+	coinRequest := make(chan struct{})
+	r := newRound(1, 0, bValChan, auxChan, coinRequest)
+	assert.NoError(t, r.submitAux(0, sender))
+	assert.Error(t, r.submitAux(0, sender))
+}
+
+func TestRoundShouldNotRejectDifferentBValSameSender(t *testing.T) {
+	sender := uuid.New()
+	bValChan := make(chan byte)
+	auxChan := make(chan byte)
+	coinRequest := make(chan struct{})
+	r := newRound(1, 0, bValChan, auxChan, coinRequest)
+	assert.NoError(t, r.submitBVal(0, sender))
+	assert.NoError(t, r.submitBVal(1, sender))
+}
+
+func TestRoundShouldRejectSameBValSameSender(t *testing.T) {
+	sender := uuid.New()
+	bValChan := make(chan byte)
+	auxChan := make(chan byte)
+	coinRequest := make(chan struct{})
+	r := newRound(1, 0, bValChan, auxChan, coinRequest)
+	assert.NoError(t, r.submitBVal(0, sender))
+	assert.Error(t, r.submitBVal(0, sender))
+	assert.NoError(t, r.submitBVal(1, sender))
+	assert.Error(t, r.submitBVal(1, sender))
+}
+
 func TestRoundShouldWaitForCoinRequest(t *testing.T) {
 	bValChan := make(chan byte)
 	auxChan := make(chan byte)
