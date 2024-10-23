@@ -77,7 +77,7 @@ func (r *round) submitCoin(coin byte) roundTransitionResult {
 			err:      fmt.Errorf("invalid input %d", coin),
 		}
 	}
-	roundLogger.Debug("scheduling submit coin", "coin", coin)
+	roundLogger.Info("scheduling submit coin", "coin", coin)
 	transitionChan := make(chan roundTransitionResult)
 	r.commands <- func() { transitionChan <- r.handler.submitCoin(coin) }
 	return <-transitionChan
@@ -137,9 +137,10 @@ func newRoundHandler(n, f uint, bValChan, auxChan chan byte, coinReqChan chan st
 func (h *roundHandler) proposeEstimate(est byte) error {
 	roundLogger.Info("proposing estimate", "est", est)
 	if h.sentBVal[est] {
-		return fmt.Errorf("already broadcast bVal %d", est)
+		roundLogger.Debug("already sent bVal", "est", est)
+	} else {
+		h.broadcastBVal(est)
 	}
-	h.broadcastBVal(est)
 	return nil
 }
 
@@ -153,8 +154,9 @@ func (h *roundHandler) submitBVal(bVal byte, sender uuid.UUID) error {
 		h.broadcastBVal(bVal)
 	} else if numBval == int(h.n-h.f) {
 		h.binVals[bVal] = true
+		roundLogger.Info("updating binVals", "bVal", bVal, "binVals", h.binVals)
 		if h.binVals[0] != h.binVals[1] {
-			go func() { h.auxChan <- bVal }()
+			h.broadcastAux(bVal)
 		}
 		if h.canRequestCoin() {
 			h.requestCoin()
@@ -164,8 +166,14 @@ func (h *roundHandler) submitBVal(bVal byte, sender uuid.UUID) error {
 }
 
 func (h *roundHandler) broadcastBVal(bVal byte) {
+	roundLogger.Info("broadcasting bVal", "bVal", bVal)
 	h.sentBVal[bVal] = true
 	go func() { h.bValChan <- bVal }()
+}
+
+func (h *roundHandler) broadcastAux(bVal byte) {
+	roundLogger.Info("submitting aux", "aux", bVal)
+	go func() { h.auxChan <- bVal }()
 }
 
 func (h *roundHandler) submitAux(aux byte, sender uuid.UUID) error {
@@ -188,6 +196,7 @@ func (h *roundHandler) canRequestCoin() bool {
 
 func (h *roundHandler) requestCoin() {
 	h.hasRequestedCoin = true
+	roundLogger.Info("requesting coin")
 	go func() { h.coinReqChan <- struct{}{} }()
 }
 
@@ -199,7 +208,7 @@ func (h *roundHandler) submitCoin(coin byte) roundTransitionResult {
 			err:      fmt.Errorf("coin not requested"),
 		}
 	}
-	roundLogger.Debug("submitting coin", "coin", coin)
+	roundLogger.Info("submitting coin", "coin", coin)
 	nextEstimate := coin
 	hasDecided := false
 	if values := h.computeValues(); len(values) == 1 {
@@ -214,7 +223,7 @@ func (h *roundHandler) submitCoin(coin byte) roundTransitionResult {
 }
 
 func (h *roundHandler) computeValues() []byte {
-	values := make([]byte, 0)
+	values := make([]byte, 0, 2)
 	for i := 0; i < 2; i++ {
 		if h.binVals[i] && h.auxVals[i] {
 			values = append(values, byte(i))

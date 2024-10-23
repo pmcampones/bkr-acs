@@ -136,3 +136,65 @@ func followSingleNodeCommonPath(t *testing.T, est byte) *round {
 	<-coinRequest
 	return r
 }
+
+func TestRoundShouldAllDecide0Coin0NoFaults(t *testing.T) {
+	est := byte(0)
+	numNodes := 10
+	f := 0
+	testRoundAllProposeTheSame(t, numNodes, f, est, est, true)
+}
+
+func TestRoundAllDecide1Coin1NoFaults(t *testing.T) {
+	est := byte(1)
+	numNodes := 10
+	f := 0
+	testRoundAllProposeTheSame(t, numNodes, f, est, est, true)
+}
+
+func TestRoundShouldNotDecide0Coin1NoFaults(t *testing.T) {
+	est := byte(0)
+	coin := byte(1)
+	numNodes := 10
+	f := 0
+	testRoundAllProposeTheSame(t, numNodes, f, est, coin, false)
+}
+
+func TestRoundShouldNotDecide1Coin0NoFaults(t *testing.T) {
+	est := byte(1)
+	coin := byte(0)
+	numNodes := 10
+	f := 0
+	testRoundAllProposeTheSame(t, numNodes, f, est, coin, false)
+}
+
+func testRoundAllProposeTheSame(t *testing.T, numNodes int, f int, est, coin byte, decided bool) {
+	rounds, coinChans := instantiateCorrect(t, numNodes, f)
+	for _, r := range rounds {
+		assert.NoError(t, r.proposeEstimate(est))
+	}
+	for _, cc := range coinChans {
+		<-cc
+	}
+	for _, r := range rounds {
+		transition := r.submitCoin(coin)
+		assert.NoError(t, transition.err)
+		assert.Equal(t, est, transition.estimate)
+		assert.Equal(t, decided, transition.decided)
+		r.close()
+	}
+}
+
+func instantiateCorrect(t *testing.T, numNodes int, f int) ([]*round, []chan struct{}) {
+	s := newOrderedScheduler()
+	rounds := make([]*round, numNodes)
+	coinChans := make([]chan struct{}, numNodes)
+	for i := 0; i < numNodes; i++ {
+		bValChan, auxChan := s.getChannels(t, uuid.New())
+		coinChan := make(chan struct{})
+		r := newRound(uint(numNodes), uint(f), bValChan, auxChan, coinChan)
+		s.addRound(r)
+		rounds[i] = r
+		coinChans[i] = coinChan
+	}
+	return rounds, coinChans
+}
