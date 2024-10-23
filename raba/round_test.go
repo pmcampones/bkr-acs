@@ -11,8 +11,8 @@ func TestRoundShouldRejectInvalidEstimate(t *testing.T) {
 	auxChan := make(chan byte)
 	coinRequest := make(chan struct{})
 	r := newRound(1, 0, bValChan, auxChan, coinRequest)
-	err := r.proposeEstimate(2)
-	assert.Error(t, err)
+	assert.Error(t, r.proposeEstimate(2))
+	r.close()
 }
 
 func TestRoundShouldRejectInvalidBVal(t *testing.T) {
@@ -21,8 +21,8 @@ func TestRoundShouldRejectInvalidBVal(t *testing.T) {
 	auxChan := make(chan byte)
 	coinRequest := make(chan struct{})
 	r := newRound(1, 0, bValChan, auxChan, coinRequest)
-	err := r.submitBVal(2, someId)
-	assert.Error(t, err)
+	assert.Error(t, r.submitBVal(2, someId))
+	r.close()
 }
 
 func TestRoundShouldRejectInvalidAux(t *testing.T) {
@@ -31,8 +31,8 @@ func TestRoundShouldRejectInvalidAux(t *testing.T) {
 	auxChan := make(chan byte)
 	coinRequest := make(chan struct{})
 	r := newRound(1, 0, bValChan, auxChan, coinRequest)
-	err := r.submitAux(2, someId)
-	assert.Error(t, err)
+	assert.Error(t, r.submitAux(2, someId))
+	r.close()
 }
 
 func TestRoundShouldWaitForCoinRequest(t *testing.T) {
@@ -42,12 +42,14 @@ func TestRoundShouldWaitForCoinRequest(t *testing.T) {
 	r := newRound(1, 0, bValChan, auxChan, coinRequest)
 	transition := r.submitCoin(0)
 	assert.Error(t, transition.err)
+	r.close()
 }
 
 func TestRoundShouldRejectInvalidCoin(t *testing.T) {
 	r := followSingleNodeCommonPath(t, 0)
 	transition := r.submitCoin(2)
 	assert.Error(t, transition.err)
+	r.close()
 }
 
 func TestRoundShouldDecideOwnEstimate0Coin0(t *testing.T) {
@@ -56,6 +58,7 @@ func TestRoundShouldDecideOwnEstimate0Coin0(t *testing.T) {
 	assert.NoError(t, transition.err)
 	assert.Equal(t, byte(0), transition.estimate)
 	assert.True(t, transition.decided)
+	r.close()
 }
 
 func TestRoundShouldNotDecideOwnEstimate0Coin1(t *testing.T) {
@@ -64,6 +67,7 @@ func TestRoundShouldNotDecideOwnEstimate0Coin1(t *testing.T) {
 	assert.NoError(t, transition.err)
 	assert.Equal(t, byte(0), transition.estimate)
 	assert.False(t, transition.decided)
+	r.close()
 }
 
 func TestRoundShouldDecideOwnEstimate1Coin1(t *testing.T) {
@@ -72,6 +76,7 @@ func TestRoundShouldDecideOwnEstimate1Coin1(t *testing.T) {
 	assert.NoError(t, transition.err)
 	assert.Equal(t, byte(1), transition.estimate)
 	assert.True(t, transition.decided)
+	r.close()
 }
 
 func TestRoundShouldNotDecideOwnEstimate1Coin0(t *testing.T) {
@@ -80,6 +85,7 @@ func TestRoundShouldNotDecideOwnEstimate1Coin0(t *testing.T) {
 	assert.NoError(t, transition.err)
 	assert.Equal(t, byte(1), transition.estimate)
 	assert.False(t, transition.decided)
+	r.close()
 }
 
 func followSingleNodeCommonPath(t *testing.T, est byte) *round {
@@ -88,16 +94,13 @@ func followSingleNodeCommonPath(t *testing.T, est byte) *round {
 	auxChan := make(chan byte)
 	coinRequest := make(chan struct{})
 	r := newRound(1, 0, bValChan, auxChan, coinRequest)
-	err := r.proposeEstimate(est)
-	assert.NoError(t, err)
+	assert.NoError(t, r.proposeEstimate(est))
 	bVal := <-bValChan
 	assert.Equal(t, est, bVal)
-	err = r.submitBVal(bVal, myId)
-	assert.NoError(t, err)
+	assert.NoError(t, r.submitBVal(bVal, myId))
 	aux := <-auxChan
 	assert.Equal(t, est, aux)
-	err = r.submitAux(aux, myId)
-	assert.NoError(t, err)
+	assert.NoError(t, r.submitAux(aux, myId))
 	<-coinRequest
 	return r
 }
