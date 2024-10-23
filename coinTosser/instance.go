@@ -19,11 +19,11 @@ const dleqDst = "DLEQ"
 
 type coinToss struct {
 	base group.Element
-	d    deal
+	d    *deal
 	sp   *shareProcessor
 }
 
-func newCoinToss(threshold uint, base group.Element, d deal, outputChan chan bool) *coinToss {
+func newCoinToss(threshold uint, base group.Element, d *deal, outputChan chan bool) *coinToss {
 	sp := newShareProcessor(threshold, outputChan)
 	ct := &coinToss{
 		base: base,

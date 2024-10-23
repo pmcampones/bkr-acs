@@ -2,70 +2,59 @@ package coinTosser
 
 import (
 	"fmt"
-	"github.com/magiconair/properties"
 	"github.com/samber/lo"
-	"github.com/samber/mo"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"pace/overlayNetwork"
-	"pace/utils"
 	"testing"
 )
 
-// This test should work with threshold = 3 but does not. I don't know why but the broadcasts in some replicas aren't reaching all peers.
-func TestTrue(t *testing.T) {
-	setProperties(t)
-	threshold := uint(3)
-	ctChannels := setupNodes(t, int(threshold))
-	err := ctChannels[0].ShareDeal()
+func TestChannelShouldDeliverOwnCoin(t *testing.T) {
+	testShouldDeliverWithTheshold(t, 1, 0)
+}
+
+func TestChannelShouldDeliverManyNodesNoThreshold(t *testing.T) {
+	testShouldDeliverWithTheshold(t, 10, 0)
+}
+
+func TestChannelShouldDeliverManyNodesHalfThreshold(t *testing.T) {
+	numNodes := uint(10)
+	threshold := numNodes / 2
+	testShouldDeliverWithTheshold(t, numNodes, threshold)
+}
+
+func TestChannelShouldDeliverManyNodesFullThreshold(t *testing.T) {
+	numNodes := uint(10)
+	threshold := numNodes - 1
+	testShouldDeliverWithTheshold(t, numNodes, threshold)
+}
+
+func testShouldDeliverWithTheshold(t *testing.T, numNodes, threshold uint) {
+	nodes := lo.Map(lo.Range(int(numNodes)), func(i int, _ int) *overlayNetwork.Node {
+		return overlayNetwork.GetNode(t, fmt.Sprintf("localhost:%d", 6000+i), "localhost:6000")
+	})
+	ssChans := lo.Map(nodes, func(n *overlayNetwork.Node, _ int) *overlayNetwork.SSChannel { return makeSSChannel(t, n) })
+	bebChans := lo.Map(nodes, func(n *overlayNetwork.Node, _ int) *overlayNetwork.BEBChannel {
+		return overlayNetwork.CreateBEBChannel(n, 'c')
+	})
+	overlayNetwork.InitializeNodes(t, nodes)
+	ctChannels := lo.ZipBy2(ssChans, bebChans, func(ss *overlayNetwork.SSChannel, beb *overlayNetwork.BEBChannel) *CTChannel {
+		ct, err := NewCoinTosserChannel(ss, beb, threshold)
+		assert.NoError(t, err)
+		return ct
+	})
+	secret := newScalar(42)
+	err := DealSecret(ssChans[0], secret, threshold)
 	assert.NoError(t, err)
-	coinReceivers := lo.Map(ctChannels, func(_ *CTChannel, _ int) chan mo.Result[bool] { return make(chan mo.Result[bool], 2) })
-	fmt.Println("CT Channels created")
-	for _, tuple := range lo.Zip2(ctChannels, coinReceivers) {
-		ctChannel, coinRec := tuple.Unpack()
-		ctChannel.TossCoin([]byte("seed"), coinRec)
+	outputChans := lo.Map(ctChannels, func(ct *CTChannel, _ int) chan bool { return make(chan bool) })
+	for _, tuple := range lo.Zip2(ctChannels, outputChans) {
+		ct, oc := tuple.Unpack()
+		ct.TossCoin([]byte("test"), oc)
 	}
-	fmt.Println("Coins tossed")
-	coinsRes := make([]mo.Result[bool], 4)
-	for i, coinRec := range coinReceivers {
-		coinsRes[i] = <-coinRec
+	outcomes := lo.Map(outputChans, func(oc chan bool, _ int) bool { return <-oc })
+	firstOutcome := outcomes[0]
+	assert.True(t, lo.EveryBy(outcomes, func(outcome bool) bool { return outcome == firstOutcome }))
+	for _, ct := range ctChannels {
+		ct.Close()
 	}
-	assert.True(t, lo.EveryBy(coinsRes, func(coin mo.Result[bool]) bool { return coin.IsOk() }))
-	fmt.Println("Coins received")
-	coins := lo.Map(coinsRes, func(coin mo.Result[bool], _ int) bool { return coin.MustGet() })
-	assert.True(t, lo.EveryBy(coins, func(coin bool) bool { return coin == coins[0] }))
-}
-
-func setProperties(t *testing.T) {
-	props := properties.NewProperties()
-	_, _, err := props.Set("ct_code", "C")
-	require.NoError(t, err)
-	_, _, err = props.Set("deal_code", "D")
-	require.NoError(t, err)
-	err = utils.SetProps(props)
-	require.NoError(t, err)
-}
-
-// setupNodes creates 4 nodes attached message listeners and connects them to each other.
-func setupNodes(t *testing.T, threshold int) []*CTChannel {
-	contact := "localhost:6000"
-	_, memObs, ct0 := makeCTNode(t, "localhost:6000", contact, 4, 4, threshold)
-	_, _, ct1 := makeCTNode(t, "localhost:6001", contact, 4, 4, threshold)
-	_, _, ct2 := makeCTNode(t, "localhost:6002", contact, 4, 4, threshold)
-	_, _, ct3 := makeCTNode(t, "localhost:6003", contact, 4, 4, threshold)
-	fmt.Println("Nodes created")
-	<-memObs.UpBarrier
-	<-memObs.UpBarrier
-	<-memObs.UpBarrier
-	fmt.Println("Contact connected to all")
-	ctChannels := []*CTChannel{ct0, ct1, ct2, ct3}
-	return ctChannels
-}
-
-func makeCTNode(t *testing.T, address, contact string, bufferMsg, bufferMem, threshold int) (*overlayNetwork.Node, *overlayNetwork.TestMemObserver, *CTChannel) {
-	node, memObs, _, err := overlayNetwork.MakeNode(address, contact, bufferMsg, bufferMem)
-	assert.NoError(t, err)
-	ctChannel := NewCoinTosserChannel(node, uint(threshold))
-	//node.attachMessageObserver(ctChannel)
-	return node, memObs, ctChannel
+	assert.True(t, lo.EveryBy(nodes, func(n *overlayNetwork.Node) bool { return n.Disconnect() == nil }))
 }

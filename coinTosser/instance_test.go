@@ -26,7 +26,7 @@ func testShouldTossWithoutThreshold(t *testing.T, nodes uint) {
 	base := group.Ristretto255.HashToElement([]byte("base"), []byte("instance_tests"))
 	blindedSecret := mulPoint(base, secret)
 	coinTossings := lo.ZipBy2(deals, outputChans, func(d *deal, oc chan bool) *coinToss {
-		return newCoinToss(threshold, base, *d, oc)
+		return newCoinToss(threshold, base, d, oc)
 	})
 	coinShares := lo.Map(coinTossings, func(ct *coinToss, _ int) ctShare {
 		c, err := ct.tossCoin()
@@ -64,7 +64,7 @@ func testShouldAllSeeSameCoinWithThreshold(t *testing.T, nodes, threshold uint) 
 	outputChans := lo.Map(deals, func(deal *deal, _ int) chan bool { return make(chan bool) })
 	base := group.Ristretto255.HashToElement([]byte("base"), []byte("instance_tests"))
 	coinTossings := lo.ZipBy2(deals, outputChans, func(d *deal, oc chan bool) *coinToss {
-		return newCoinToss(threshold, base, *d, oc)
+		return newCoinToss(threshold, base, d, oc)
 	})
 	coinShares := lo.Map(coinTossings, func(ct *coinToss, _ int) ctShare {
 		c, err := ct.tossCoin()
