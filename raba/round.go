@@ -9,6 +9,8 @@ import (
 
 var roundLogger = utils.GetLogger(slog.LevelDebug)
 
+const BOT byte = 2
+
 type round struct {
 	handler   *roundHandler
 	bValChan  chan byte
@@ -27,38 +29,52 @@ func newRound(n, f uint, bValChan, auxChan chan byte, coinRequest chan struct{})
 	return r
 }
 
-func (r *round) proposeEstimate(est byte) error {
+func isNonBotInputValid(bVal byte) bool {
+	return bVal == 0 || bVal == 1
+}
+
+func isBotInputValid(bVal byte) bool {
+	return bVal <= BOT
+}
+
+func (r *round) proposeEstimate(est, maj byte) error {
 	roundLogger.Info("scheduling proposal estimate", "est", est)
-	if !isInputValid(est) {
+	if !isNonBotInputValid(est) {
 		return fmt.Errorf("invalid input %d", est)
+	} else if !isBotInputValid(maj) {
+		return fmt.Errorf("invalid maj input %d", maj)
 	}
 	errChan := make(chan error)
 	r.commands <- func() {
-		errChan <- r.handler.proposeEstimate(est)
+		errChan <- r.handler.proposeEstimate(est, maj)
 	}
 	return <-errChan
 }
 
-func (r *round) submitBVal(bVal byte, sender uuid.UUID) error {
+func (r *round) submitBVal(bVal, maj byte, sender uuid.UUID) error {
 	roundLogger.Debug("scheduling submit bVal", "bVal", bVal, "sender", sender)
-	if !isInputValid(bVal) {
+	if !isNonBotInputValid(bVal) {
 		return fmt.Errorf("invalid input %d", bVal)
+	} else if !isBotInputValid(maj) {
+		return fmt.Errorf("invalid maj input %d", maj)
 	}
 	errChan := make(chan error)
 	r.commands <- func() {
-		errChan <- r.handler.submitBVal(bVal, sender)
+		errChan <- r.handler.submitBVal(bVal, maj, sender)
 	}
 	return <-errChan
 }
 
-func (r *round) submitAux(aux byte, sender uuid.UUID) error {
-	roundLogger.Debug("scheduling submit aux", "aux", aux, "sender", sender)
-	if !isInputValid(aux) {
-		return fmt.Errorf("invalid input %d", aux)
+func (r *round) submitAux(est, aux byte, sender uuid.UUID) error {
+	roundLogger.Debug("scheduling submit aux", "aux", est, "sender", sender)
+	if !isBotInputValid(est) {
+		return fmt.Errorf("invalid est input %d", est)
+	} else if !isNonBotInputValid(aux) {
+		return fmt.Errorf("invalid aux input %d", aux)
 	}
 	errChan := make(chan error)
 	r.commands <- func() {
-		errChan <- r.handler.submitAux(aux, sender)
+		errChan <- r.handler.submitAux(est, aux, sender)
 	}
 	return <-errChan
 }
@@ -70,7 +86,7 @@ type roundTransitionResult struct {
 }
 
 func (r *round) submitCoin(coin byte) roundTransitionResult {
-	if !isInputValid(coin) {
+	if !isNonBotInputValid(coin) {
 		return roundTransitionResult{
 			estimate: 2,
 			decided:  false,
@@ -81,10 +97,6 @@ func (r *round) submitCoin(coin byte) roundTransitionResult {
 	transitionChan := make(chan roundTransitionResult)
 	r.commands <- func() { transitionChan <- r.handler.submitCoin(coin) }
 	return <-transitionChan
-}
-
-func isInputValid(bVal byte) bool {
-	return bVal == 0 || bVal == 1
 }
 
 func (r *round) invoker() {
@@ -134,7 +146,7 @@ func newRoundHandler(n, f uint, bValChan, auxChan chan byte, coinReqChan chan st
 	}
 }
 
-func (h *roundHandler) proposeEstimate(est byte) error {
+func (h *roundHandler) proposeEstimate(est, maj byte) error {
 	roundLogger.Info("proposing estimate", "est", est)
 	if h.sentBVal[est] {
 		roundLogger.Debug("already sent bVal", "est", est)
@@ -144,7 +156,7 @@ func (h *roundHandler) proposeEstimate(est byte) error {
 	return nil
 }
 
-func (h *roundHandler) submitBVal(bVal byte, sender uuid.UUID) error {
+func (h *roundHandler) submitBVal(bVal, maj byte, sender uuid.UUID) error {
 	if h.receivedBVal[bVal][sender] {
 		return fmt.Errorf("duplicate bVal from %s", sender)
 	}
@@ -176,13 +188,13 @@ func (h *roundHandler) broadcastAux(bVal byte) {
 	go func() { h.auxChan <- bVal }()
 }
 
-func (h *roundHandler) submitAux(aux byte, sender uuid.UUID) error {
+func (h *roundHandler) submitAux(est, aux byte, sender uuid.UUID) error {
 	if h.receivedAux[sender] {
 		return fmt.Errorf("duplicate aux from %s", sender)
 	}
-	roundLogger.Debug("submitting aux", "aux", aux, "sender", sender)
+	roundLogger.Debug("submitting aux", "aux", est, "sender", sender)
 	h.receivedAux[sender] = true
-	h.auxVals[aux] = true
+	h.auxVals[est] = true
 	if h.canRequestCoin() {
 		h.requestCoin()
 	}

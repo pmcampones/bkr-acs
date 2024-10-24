@@ -26,13 +26,13 @@ func (os *orderedScheduler) getChannels(t *testing.T, sender uuid.UUID) (chan by
 	go func() {
 		bVal := <-bValChan
 		for _, r := range os.rounds {
-			go func() { assert.NoError(t, r.submitBVal(bVal, sender)) }()
+			go func() { assert.NoError(t, r.submitBVal(bVal, BOT, sender)) }()
 		}
 	}()
 	go func() {
 		aux := <-auxChan
 		for _, r := range os.rounds {
-			go func() { assert.NoError(t, r.submitAux(aux, sender)) }()
+			go func() { assert.NoError(t, r.submitAux(aux, 0, sender)) }()
 		}
 	}()
 	return bValChan, auxChan

@@ -12,7 +12,7 @@ func TestRoundShouldRejectInvalidEstimate(t *testing.T) {
 	auxChan := make(chan byte)
 	coinRequest := make(chan struct{})
 	r := newRound(1, 0, bValChan, auxChan, coinRequest)
-	assert.Error(t, r.proposeEstimate(2))
+	assert.Error(t, r.proposeEstimate(2, BOT))
 	r.close()
 }
 
@@ -22,7 +22,7 @@ func TestRoundShouldRejectInvalidBVal(t *testing.T) {
 	auxChan := make(chan byte)
 	coinRequest := make(chan struct{})
 	r := newRound(1, 0, bValChan, auxChan, coinRequest)
-	assert.Error(t, r.submitBVal(2, someId))
+	assert.Error(t, r.submitBVal(2, BOT, someId))
 	r.close()
 }
 
@@ -32,7 +32,7 @@ func TestRoundShouldRejectInvalidAux(t *testing.T) {
 	auxChan := make(chan byte)
 	coinRequest := make(chan struct{})
 	r := newRound(1, 0, bValChan, auxChan, coinRequest)
-	assert.Error(t, r.submitAux(2, someId))
+	assert.Error(t, r.submitAux(3, 0, someId))
 	r.close()
 }
 
@@ -42,8 +42,8 @@ func TestRoundShouldRejectRepeatedAux(t *testing.T) {
 	auxChan := make(chan byte)
 	coinRequest := make(chan struct{})
 	r := newRound(1, 0, bValChan, auxChan, coinRequest)
-	assert.NoError(t, r.submitAux(0, sender))
-	assert.Error(t, r.submitAux(0, sender))
+	assert.NoError(t, r.submitAux(0, 0, sender))
+	assert.Error(t, r.submitAux(0, 0, sender))
 }
 
 func TestRoundShouldNotRejectDifferentBValSameSender(t *testing.T) {
@@ -52,8 +52,8 @@ func TestRoundShouldNotRejectDifferentBValSameSender(t *testing.T) {
 	auxChan := make(chan byte)
 	coinRequest := make(chan struct{})
 	r := newRound(1, 0, bValChan, auxChan, coinRequest)
-	assert.NoError(t, r.submitBVal(0, sender))
-	assert.NoError(t, r.submitBVal(1, sender))
+	assert.NoError(t, r.submitBVal(0, BOT, sender))
+	assert.NoError(t, r.submitBVal(1, BOT, sender))
 }
 
 func TestRoundShouldRejectSameBValSameSender(t *testing.T) {
@@ -62,10 +62,10 @@ func TestRoundShouldRejectSameBValSameSender(t *testing.T) {
 	auxChan := make(chan byte)
 	coinRequest := make(chan struct{})
 	r := newRound(1, 0, bValChan, auxChan, coinRequest)
-	assert.NoError(t, r.submitBVal(0, sender))
-	assert.Error(t, r.submitBVal(0, sender))
-	assert.NoError(t, r.submitBVal(1, sender))
-	assert.Error(t, r.submitBVal(1, sender))
+	assert.NoError(t, r.submitBVal(0, BOT, sender))
+	assert.Error(t, r.submitBVal(0, BOT, sender))
+	assert.NoError(t, r.submitBVal(1, BOT, sender))
+	assert.Error(t, r.submitBVal(1, BOT, sender))
 }
 
 func TestRoundShouldWaitForCoinRequest(t *testing.T) {
@@ -127,13 +127,13 @@ func followSingleNodeCommonPath(t *testing.T, est byte) *round {
 	auxChan := make(chan byte)
 	coinRequest := make(chan struct{})
 	r := newRound(1, 0, bValChan, auxChan, coinRequest)
-	assert.NoError(t, r.proposeEstimate(est))
+	assert.NoError(t, r.proposeEstimate(est, BOT))
 	bVal := <-bValChan
 	assert.Equal(t, est, bVal)
-	assert.NoError(t, r.submitBVal(bVal, myId))
+	assert.NoError(t, r.submitBVal(bVal, BOT, myId))
 	aux := <-auxChan
 	assert.Equal(t, est, aux)
-	assert.NoError(t, r.submitAux(aux, myId))
+	assert.NoError(t, r.submitAux(aux, 0, myId))
 	<-coinRequest
 	return r
 }
@@ -270,12 +270,12 @@ func testRoundAllProposeTheSame(t *testing.T, correctNodes, n, f, byzantine int,
 	byzIds := lo.Map(lo.Range(byzantine), func(_ int, _ int) uuid.UUID { return uuid.New() })
 	for _, r := range rounds {
 		for _, byz := range byzIds {
-			assert.NoError(t, r.submitBVal(1-est, byz))
-			assert.NoError(t, r.submitAux(1-est, byz))
+			assert.NoError(t, r.submitBVal(1-est, BOT, byz))
+			assert.NoError(t, r.submitAux(1-est, 0, byz))
 		}
 	}
 	for _, r := range rounds {
-		assert.NoError(t, r.proposeEstimate(est))
+		assert.NoError(t, r.proposeEstimate(est, BOT))
 	}
 	for _, cc := range coinChans {
 		<-cc
