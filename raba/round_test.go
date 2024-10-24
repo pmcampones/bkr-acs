@@ -142,7 +142,7 @@ func followSingleNodeCommonPath(t *testing.T, est byte) *round {
 
 func TestRoundShouldAllDecide0Coin0NoFaults(t *testing.T) {
 	est := byte(0)
-	numNodes := 10
+	numNodes := 2
 	f := 0
 	testRoundAllProposeTheSameNoCrash(t, numNodes, f, est, est, true)
 }

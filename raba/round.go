@@ -120,6 +120,7 @@ func (r *round) invoker() {
 }
 
 func (r *round) close() {
+	r.handler.close()
 	roundLogger.Info("signaling to close round instance")
 	r.closeChan <- struct{}{}
 }
@@ -127,34 +128,33 @@ func (r *round) close() {
 type roundHandler struct {
 	n                uint
 	f                uint
-	proposedMaj      byte
 	binVals          []bool
 	auxVals          []bool
-	sentBVal         []bool
 	majs             []bool
 	receivedBVal     []map[uuid.UUID]bool
 	receivedAux      map[uuid.UUID]bool
 	bValChan         chan bValMsg
 	auxChan          chan auxMsg
 	coinReqChan      chan struct{}
+	bvBroadcaster    *bValBroadcaster
 	hasRequestedCoin bool
 	hasProposed      bool
 }
 
 func newRoundHandler(n, f uint, bValChan chan bValMsg, auxChan chan auxMsg, coinReqChan chan struct{}) *roundHandler {
+	bvBroadcaster := newBValBroadcaster(bValChan)
 	return &roundHandler{
 		n:                n,
 		f:                f,
-		proposedMaj:      BOT,
 		binVals:          []bool{false, false},
 		auxVals:          []bool{false, false},
-		sentBVal:         []bool{false, false},
 		majs:             []bool{false, false, false},
 		receivedBVal:     []map[uuid.UUID]bool{make(map[uuid.UUID]bool), make(map[uuid.UUID]bool)},
 		receivedAux:      make(map[uuid.UUID]bool),
 		bValChan:         bValChan,
 		auxChan:          auxChan,
 		coinReqChan:      coinReqChan,
+		bvBroadcaster:    bvBroadcaster,
 		hasRequestedCoin: false,
 		hasProposed:      false,
 	}
@@ -164,12 +164,13 @@ func (h *roundHandler) proposeEstimate(est, maj byte) error {
 	roundLogger.Info("proposing estimate", "est", est, "maj", maj)
 	if h.hasProposed {
 		return fmt.Errorf("already proposed")
+	} else if err := h.bvBroadcaster.initialize(maj); err != nil {
+		return fmt.Errorf("error initializing bVal broadcaster: %w", err)
 	}
-	h.proposedMaj = maj
 	h.hasProposed = true
-	if h.sentBVal[est] {
+	if h.bvBroadcaster.hasSent(est) {
 		roundLogger.Debug("already sent bVal", "est", est)
-	} else if err := h.broadcastBVal(est); err != nil {
+	} else if err := h.bvBroadcaster.broadcast(est); err != nil {
 		return fmt.Errorf("error broadcasting bVal: %w", err)
 	}
 	return nil
@@ -182,8 +183,8 @@ func (h *roundHandler) submitBVal(bVal, maj byte, sender uuid.UUID) error {
 	roundLogger.Debug("submitting bVal", "bVal", bVal, "sender", sender)
 	h.receivedBVal[bVal][sender] = true
 	h.majs[maj] = true
-	if numBval := len(h.receivedBVal[bVal]); numBval == int(h.f+1) && !h.sentBVal[bVal] {
-		if err := h.broadcastBVal(bVal); err != nil {
+	if numBval := len(h.receivedBVal[bVal]); numBval == int(h.f+1) && !h.bvBroadcaster.hasSent(bVal) {
+		if err := h.bvBroadcaster.broadcast(bVal); err != nil {
 			return fmt.Errorf("error broadcasting bVal: %w", err)
 		}
 	} else if numBval == int(h.n-h.f) {
@@ -196,20 +197,6 @@ func (h *roundHandler) submitBVal(bVal, maj byte, sender uuid.UUID) error {
 			h.requestCoin()
 		}
 	}
-	return nil
-}
-
-func (h *roundHandler) broadcastBVal(bVal byte) error {
-	if !h.hasProposed {
-		return fmt.Errorf("round has not proposed yet")
-	}
-	roundLogger.Info("broadcasting bVal", "bVal", bVal)
-	h.sentBVal[bVal] = true
-	bvMsg := bValMsg{
-		bVal: bVal,
-		maj:  h.proposedMaj,
-	}
-	go func() { h.bValChan <- bvMsg }()
 	return nil
 }
 
@@ -276,4 +263,8 @@ func (h *roundHandler) computeValues() []byte {
 		}
 	}
 	return values
+}
+
+func (h *roundHandler) close() {
+	h.bvBroadcaster.close()
 }
