@@ -2,6 +2,7 @@ package raba
 
 import (
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -197,18 +198,22 @@ func TestRoundShouldNotDecide1Coin0MaxFaults(t *testing.T) {
 	testRoundAllProposeTheSameNoCrash(t, numNodes, f, est, coin, false)
 }
 
+func testRoundAllProposeTheSameNoCrash(t *testing.T, numNodes, f int, est, coin byte, decided bool) {
+	testRoundAllProposeTheSame(t, numNodes, numNodes, f, 0, est, coin, decided)
+}
+
 func TestRoundShouldAllDecide0Coin0MaxCrash(t *testing.T) {
 	est := byte(0)
 	f := 4
 	numNodes := 3*f + 1
-	testRoundAllProposeTheSame(t, numNodes, numNodes-f, f, est, est, true)
+	testRoundAllProposeTheSame(t, numNodes-f, numNodes, f, 0, est, est, true)
 }
 
 func TestRoundShouldAllDecide1Coin1MaxCrash(t *testing.T) {
 	est := byte(1)
 	f := 4
 	numNodes := 3*f + 1
-	testRoundAllProposeTheSame(t, numNodes, numNodes-f, f, est, est, true)
+	testRoundAllProposeTheSame(t, numNodes-f, numNodes, f, 0, est, est, true)
 }
 
 func TestRoundShouldNotDecide0Coin1MaxCrash(t *testing.T) {
@@ -216,7 +221,7 @@ func TestRoundShouldNotDecide0Coin1MaxCrash(t *testing.T) {
 	coin := byte(1)
 	f := 4
 	numNodes := 3*f + 1
-	testRoundAllProposeTheSame(t, numNodes, numNodes-f, f, est, coin, false)
+	testRoundAllProposeTheSame(t, numNodes-f, numNodes, f, 0, est, coin, false)
 }
 
 func TestRoundShouldNotDecide1Coin0MaxCrash(t *testing.T) {
@@ -224,18 +229,51 @@ func TestRoundShouldNotDecide1Coin0MaxCrash(t *testing.T) {
 	coin := byte(0)
 	f := 4
 	numNodes := 3*f + 1
-	testRoundAllProposeTheSame(t, numNodes, numNodes-f, f, est, coin, false)
+	testRoundAllProposeTheSame(t, numNodes-f, numNodes, f, 0, est, coin, false)
 }
 
-func testRoundAllProposeTheSameNoCrash(t *testing.T, numNodes, f int, est, coin byte, decided bool) {
-	testRoundAllProposeTheSame(t, numNodes, numNodes, f, est, coin, decided)
+func TestRoundShouldAllDecide0Coin0MaxByzantine(t *testing.T) {
+	est := byte(0)
+	f := 4
+	numNodes := 3*f + 1
+	testRoundAllProposeTheSame(t, numNodes-f, numNodes, f, f, est, est, true)
 }
 
-func testRoundAllProposeTheSame(t *testing.T, maxNodes, numNodes, f int, est, coin byte, decided bool) {
-	if numNodes > maxNodes {
-		t.Fatalf("numNodes %d is greater than maxNodes %d. You messed the order of the arguments", numNodes, maxNodes)
+func TestRoundShouldAllDecide1Coin1MaxByzantine(t *testing.T) {
+	est := byte(1)
+	f := 4
+	numNodes := 3*f + 1
+	testRoundAllProposeTheSame(t, numNodes-f, numNodes, f, f, est, est, true)
+}
+
+func TestRoundShouldNotDecide0Coin1MaxByzantine(t *testing.T) {
+	est := byte(0)
+	coin := byte(1)
+	f := 4
+	numNodes := 3*f + 1
+	testRoundAllProposeTheSame(t, numNodes-f, numNodes, f, f, est, coin, false)
+}
+
+func TestRoundShouldNotDecide1Coin0MaxByzantine(t *testing.T) {
+	est := byte(1)
+	coin := byte(0)
+	f := 4
+	numNodes := 3*f + 1
+	testRoundAllProposeTheSame(t, numNodes-f, numNodes, f, f, est, coin, false)
+}
+
+func testRoundAllProposeTheSame(t *testing.T, correctNodes, n, f, byzantine int, est, coin byte, decided bool) {
+	if correctNodes > n {
+		t.Fatalf("correctNodes %d is greater than n %d. You messed the order of the arguments", correctNodes, n)
 	}
-	rounds, coinChans := instantiateCorrect(t, maxNodes, numNodes, f)
+	rounds, coinChans := instantiateCorrect(t, n, correctNodes, f)
+	byzIds := lo.Map(lo.Range(byzantine), func(_ int, _ int) uuid.UUID { return uuid.New() })
+	for _, r := range rounds {
+		for _, byz := range byzIds {
+			assert.NoError(t, r.submitBVal(1-est, byz))
+			assert.NoError(t, r.submitAux(1-est, byz))
+		}
+	}
 	for _, r := range rounds {
 		assert.NoError(t, r.proposeEstimate(est))
 	}
