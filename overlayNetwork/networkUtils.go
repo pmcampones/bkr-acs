@@ -7,43 +7,8 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"pace/utils"
-	"sync"
 	"testing"
 )
-
-type TestMsgObserver struct {
-	delivered map[string]bool
-	barrier   chan struct{}
-	lock      sync.Mutex
-}
-
-func (to *TestMsgObserver) bebDeliver(msg []byte, _ *ecdsa.PublicKey) {
-	to.lock.Lock()
-	defer to.lock.Unlock()
-	to.delivered[string(msg)] = true
-	to.barrier <- struct{}{}
-}
-
-type TestMemObserver struct {
-	Peers       map[string]*peer
-	UpBarrier   chan struct{}
-	DownBarrier chan struct{}
-	lock        sync.Mutex
-}
-
-func (to *TestMemObserver) NotifyPeerUp(p *peer) {
-	to.lock.Lock()
-	defer to.lock.Unlock()
-	to.Peers[p.name] = p
-	to.UpBarrier <- struct{}{}
-}
-
-func (to *TestMemObserver) NotifyPeerDown(_ *peer) {
-	/*to.lock.Lock()
-	defer to.lock.Unlock()
-	to.Peers[p.name] = p
-	go func() { to.DownBarrier <- struct{}{} }()*/
-}
 
 func GetNode(t *testing.T, address, contact string) *Node {
 	sk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
