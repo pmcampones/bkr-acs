@@ -141,14 +141,14 @@ func TestRoundShouldAllDecide0Coin0NoFaults(t *testing.T) {
 	est := byte(0)
 	numNodes := 10
 	f := 0
-	testRoundAllProposeTheSame(t, numNodes, f, est, est, true)
+	testRoundAllProposeTheSameNoCrash(t, numNodes, f, est, est, true)
 }
 
-func TestRoundAllDecide1Coin1NoFaults(t *testing.T) {
+func TestRoundAllShouldDecide1Coin1NoFaults(t *testing.T) {
 	est := byte(1)
 	numNodes := 10
 	f := 0
-	testRoundAllProposeTheSame(t, numNodes, f, est, est, true)
+	testRoundAllProposeTheSameNoCrash(t, numNodes, f, est, est, true)
 }
 
 func TestRoundShouldNotDecide0Coin1NoFaults(t *testing.T) {
@@ -156,7 +156,7 @@ func TestRoundShouldNotDecide0Coin1NoFaults(t *testing.T) {
 	coin := byte(1)
 	numNodes := 10
 	f := 0
-	testRoundAllProposeTheSame(t, numNodes, f, est, coin, false)
+	testRoundAllProposeTheSameNoCrash(t, numNodes, f, est, coin, false)
 }
 
 func TestRoundShouldNotDecide1Coin0NoFaults(t *testing.T) {
@@ -164,11 +164,78 @@ func TestRoundShouldNotDecide1Coin0NoFaults(t *testing.T) {
 	coin := byte(0)
 	numNodes := 10
 	f := 0
-	testRoundAllProposeTheSame(t, numNodes, f, est, coin, false)
+	testRoundAllProposeTheSameNoCrash(t, numNodes, f, est, coin, false)
 }
 
-func testRoundAllProposeTheSame(t *testing.T, numNodes int, f int, est, coin byte, decided bool) {
-	rounds, coinChans := instantiateCorrect(t, numNodes, f)
+func TestRoundShouldAllDecide0Coin0MaxFaults(t *testing.T) {
+	est := byte(0)
+	f := 4
+	numNodes := 3*f + 1
+	testRoundAllProposeTheSameNoCrash(t, numNodes, f, est, est, true)
+}
+
+func TestRoundShouldAllDecide1Coin1MaxFaults(t *testing.T) {
+	est := byte(1)
+	f := 4
+	numNodes := 3*f + 1
+	testRoundAllProposeTheSameNoCrash(t, numNodes, f, est, est, true)
+}
+
+func TestRoundShouldNotDecide0Coin1MaxFaults(t *testing.T) {
+	est := byte(0)
+	coin := byte(1)
+	f := 4
+	numNodes := 3*f + 1
+	testRoundAllProposeTheSameNoCrash(t, numNodes, f, est, coin, false)
+}
+
+func TestRoundShouldNotDecide1Coin0MaxFaults(t *testing.T) {
+	est := byte(1)
+	coin := byte(0)
+	f := 4
+	numNodes := 3*f + 1
+	testRoundAllProposeTheSameNoCrash(t, numNodes, f, est, coin, false)
+}
+
+func TestRoundShouldAllDecide0Coin0MaxCrash(t *testing.T) {
+	est := byte(0)
+	f := 4
+	numNodes := 3*f + 1
+	testRoundAllProposeTheSame(t, numNodes, numNodes-f, f, est, est, true)
+}
+
+func TestRoundShouldAllDecide1Coin1MaxCrash(t *testing.T) {
+	est := byte(1)
+	f := 4
+	numNodes := 3*f + 1
+	testRoundAllProposeTheSame(t, numNodes, numNodes-f, f, est, est, true)
+}
+
+func TestRoundShouldNotDecide0Coin1MaxCrash(t *testing.T) {
+	est := byte(0)
+	coin := byte(1)
+	f := 4
+	numNodes := 3*f + 1
+	testRoundAllProposeTheSame(t, numNodes, numNodes-f, f, est, coin, false)
+}
+
+func TestRoundShouldNotDecide1Coin0MaxCrash(t *testing.T) {
+	est := byte(1)
+	coin := byte(0)
+	f := 4
+	numNodes := 3*f + 1
+	testRoundAllProposeTheSame(t, numNodes, numNodes-f, f, est, coin, false)
+}
+
+func testRoundAllProposeTheSameNoCrash(t *testing.T, numNodes, f int, est, coin byte, decided bool) {
+	testRoundAllProposeTheSame(t, numNodes, numNodes, f, est, coin, decided)
+}
+
+func testRoundAllProposeTheSame(t *testing.T, maxNodes, numNodes, f int, est, coin byte, decided bool) {
+	if numNodes > maxNodes {
+		t.Fatalf("numNodes %d is greater than maxNodes %d. You messed the order of the arguments", numNodes, maxNodes)
+	}
+	rounds, coinChans := instantiateCorrect(t, maxNodes, numNodes, f)
 	for _, r := range rounds {
 		assert.NoError(t, r.proposeEstimate(est))
 	}
@@ -184,14 +251,14 @@ func testRoundAllProposeTheSame(t *testing.T, numNodes int, f int, est, coin byt
 	}
 }
 
-func instantiateCorrect(t *testing.T, numNodes int, f int) ([]*round, []chan struct{}) {
+func instantiateCorrect(t *testing.T, maxNodes, numNodes, f int) ([]*round, []chan struct{}) {
 	s := newOrderedScheduler()
 	rounds := make([]*round, numNodes)
 	coinChans := make([]chan struct{}, numNodes)
 	for i := 0; i < numNodes; i++ {
 		bValChan, auxChan := s.getChannels(t, uuid.New())
 		coinChan := make(chan struct{})
-		r := newRound(uint(numNodes), uint(f), bValChan, auxChan, coinChan)
+		r := newRound(uint(maxNodes), uint(f), bValChan, auxChan, coinChan)
 		s.addRound(r)
 		rounds[i] = r
 		coinChans[i] = coinChan
