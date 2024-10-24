@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"fmt"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"pace/utils"
@@ -44,32 +43,6 @@ func (to *TestMemObserver) NotifyPeerDown(_ *peer) {
 	defer to.lock.Unlock()
 	to.Peers[p.name] = p
 	go func() { to.DownBarrier <- struct{}{} }()*/
-}
-
-func MakeNode(address, contact string, bufferMsg, bufferMem int) (*Node, *TestMemObserver, *TestMsgObserver, error) {
-	sk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("unable to generate key: %v", err)
-	}
-	cert, err := utils.MakeSelfSignedCert(sk)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("unable to create cert: %v", err)
-	}
-	node := NewNode(address, contact, sk, cert)
-	memObs := TestMemObserver{
-		Peers:     make(map[string]*peer),
-		UpBarrier: make(chan struct{}, bufferMsg),
-	}
-	msgObs := TestMsgObserver{
-		delivered: make(map[string]bool),
-		barrier:   make(chan struct{}, bufferMem),
-	}
-	node.attachMessageObserver(&msgObs)
-	err = node.Join()
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("unable to join the overlayNetwork: %v", err)
-	}
-	return node, &memObs, &msgObs, nil
 }
 
 func GetNode(t *testing.T, address, contact string) *Node {
