@@ -11,17 +11,31 @@ var roundLogger = utils.GetLogger(slog.LevelDebug)
 
 const BOT byte = 2
 
+type bValMsg struct {
+	bVal byte
+	maj  byte
+}
+
+type auxMsg struct {
+	est byte
+	aux byte
+}
+
+type roundTransitionResult struct {
+	estimate byte
+	decided  bool
+	err      error
+}
+
 type round struct {
 	handler   *roundHandler
-	bValChan  chan byte
 	commands  chan func()
 	closeChan chan struct{}
 }
 
-func newRound(n, f uint, bValChan, auxChan chan byte, coinRequest chan struct{}) *round {
+func newRound(n, f uint, bValChan chan bValMsg, auxChan chan auxMsg, coinRequest chan struct{}) *round {
 	r := &round{
 		handler:   newRoundHandler(n, f, bValChan, auxChan, coinRequest),
-		bValChan:  bValChan,
 		commands:  make(chan func()),
 		closeChan: make(chan struct{}),
 	}
@@ -79,16 +93,10 @@ func (r *round) submitAux(est, aux byte, sender uuid.UUID) error {
 	return <-errChan
 }
 
-type roundTransitionResult struct {
-	estimate byte
-	decided  bool
-	err      error
-}
-
 func (r *round) submitCoin(coin byte) roundTransitionResult {
 	if !isNonBotInputValid(coin) {
 		return roundTransitionResult{
-			estimate: 2,
+			estimate: BOT,
 			decided:  false,
 			err:      fmt.Errorf("invalid input %d", coin),
 		}
@@ -119,39 +127,50 @@ func (r *round) close() {
 type roundHandler struct {
 	n                uint
 	f                uint
+	proposedMaj      byte
 	binVals          []bool
 	auxVals          []bool
 	sentBVal         []bool
+	majs             []bool
 	receivedBVal     []map[uuid.UUID]bool
 	receivedAux      map[uuid.UUID]bool
-	bValChan         chan byte
-	auxChan          chan byte
+	bValChan         chan bValMsg
+	auxChan          chan auxMsg
 	coinReqChan      chan struct{}
 	hasRequestedCoin bool
+	hasProposed      bool
 }
 
-func newRoundHandler(n, f uint, bValChan, auxChan chan byte, coinReqChan chan struct{}) *roundHandler {
+func newRoundHandler(n, f uint, bValChan chan bValMsg, auxChan chan auxMsg, coinReqChan chan struct{}) *roundHandler {
 	return &roundHandler{
 		n:                n,
 		f:                f,
+		proposedMaj:      BOT,
 		binVals:          []bool{false, false},
 		auxVals:          []bool{false, false},
 		sentBVal:         []bool{false, false},
+		majs:             []bool{false, false, false},
 		receivedBVal:     []map[uuid.UUID]bool{make(map[uuid.UUID]bool), make(map[uuid.UUID]bool)},
 		receivedAux:      make(map[uuid.UUID]bool),
 		bValChan:         bValChan,
 		auxChan:          auxChan,
 		coinReqChan:      coinReqChan,
 		hasRequestedCoin: false,
+		hasProposed:      false,
 	}
 }
 
 func (h *roundHandler) proposeEstimate(est, maj byte) error {
-	roundLogger.Info("proposing estimate", "est", est)
+	roundLogger.Info("proposing estimate", "est", est, "maj", maj)
+	if h.hasProposed {
+		return fmt.Errorf("already proposed")
+	}
+	h.proposedMaj = maj
+	h.hasProposed = true
 	if h.sentBVal[est] {
 		roundLogger.Debug("already sent bVal", "est", est)
-	} else {
-		h.broadcastBVal(est)
+	} else if err := h.broadcastBVal(est); err != nil {
+		return fmt.Errorf("error broadcasting bVal: %w", err)
 	}
 	return nil
 }
@@ -162,13 +181,16 @@ func (h *roundHandler) submitBVal(bVal, maj byte, sender uuid.UUID) error {
 	}
 	roundLogger.Debug("submitting bVal", "bVal", bVal, "sender", sender)
 	h.receivedBVal[bVal][sender] = true
+	h.majs[maj] = true
 	if numBval := len(h.receivedBVal[bVal]); numBval == int(h.f+1) && !h.sentBVal[bVal] {
-		h.broadcastBVal(bVal)
+		if err := h.broadcastBVal(bVal); err != nil {
+			return fmt.Errorf("error broadcasting bVal: %w", err)
+		}
 	} else if numBval == int(h.n-h.f) {
 		h.binVals[bVal] = true
 		roundLogger.Info("updating binVals", "bVal", bVal, "binVals", h.binVals)
 		if h.binVals[0] != h.binVals[1] {
-			h.broadcastAux(bVal)
+			h.broadcastAux(bVal, 0)
 		}
 		if h.canRequestCoin() {
 			h.requestCoin()
@@ -177,15 +199,27 @@ func (h *roundHandler) submitBVal(bVal, maj byte, sender uuid.UUID) error {
 	return nil
 }
 
-func (h *roundHandler) broadcastBVal(bVal byte) {
+func (h *roundHandler) broadcastBVal(bVal byte) error {
+	if !h.hasProposed {
+		return fmt.Errorf("round has not proposed yet")
+	}
 	roundLogger.Info("broadcasting bVal", "bVal", bVal)
 	h.sentBVal[bVal] = true
-	go func() { h.bValChan <- bVal }()
+	bvMsg := bValMsg{
+		bVal: bVal,
+		maj:  h.proposedMaj,
+	}
+	go func() { h.bValChan <- bvMsg }()
+	return nil
 }
 
-func (h *roundHandler) broadcastAux(bVal byte) {
-	roundLogger.Info("submitting aux", "aux", bVal)
-	go func() { h.auxChan <- bVal }()
+func (h *roundHandler) broadcastAux(est, aux byte) {
+	roundLogger.Info("submitting aux", "est", est, "aux", aux)
+	aMsg := auxMsg{
+		est: est,
+		aux: aux,
+	}
+	go func() { h.auxChan <- aMsg }()
 }
 
 func (h *roundHandler) submitAux(est, aux byte, sender uuid.UUID) error {
@@ -215,7 +249,7 @@ func (h *roundHandler) requestCoin() {
 func (h *roundHandler) submitCoin(coin byte) roundTransitionResult {
 	if !h.hasRequestedCoin {
 		return roundTransitionResult{
-			estimate: 2,
+			estimate: BOT,
 			decided:  false,
 			err:      fmt.Errorf("coin not requested"),
 		}
