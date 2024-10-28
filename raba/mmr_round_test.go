@@ -132,7 +132,7 @@ func followSingleNodeCommonPath(t *testing.T, est byte) *round {
 	assert.Equal(t, est, bVal)
 	assert.NoError(t, r.submitBVal(bVal, myId))
 	aux := <-auxChan
-	assert.Equal(t, est, aux)
+	assert.Equal(t, est, aux, "aux should be the same as the estimate")
 	assert.NoError(t, r.submitAux(aux, myId))
 	<-coinRequest
 	return r
@@ -283,8 +283,8 @@ func testRoundAllProposeTheSame(t *testing.T, correctNodes, n, f, byzantine int,
 	for _, r := range rounds {
 		transition := r.submitCoin(coin)
 		assert.NoError(t, transition.err)
-		assert.Equal(t, est, transition.estimate)
-		assert.Equal(t, decided, transition.decided)
+		assert.Equal(t, est, transition.estimate, "estimate for next round should be %d but was %d", est, transition.estimate)
+		assert.Equal(t, decided, transition.decided, "decision should be %t but was %t", decided, transition.decided)
 		r.close()
 	}
 }

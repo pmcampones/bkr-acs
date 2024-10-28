@@ -112,6 +112,7 @@ type roundHandler struct {
 	sentBVal         []bool
 	receivedBVal     []map[uuid.UUID]bool
 	receivedAux      map[uuid.UUID]bool
+	values           []byte
 	bValChan         chan byte
 	auxChan          chan byte
 	coinReqChan      chan struct{}
@@ -127,6 +128,7 @@ func newRoundHandler(n, f uint, bValChan, auxChan chan byte, coinReqChan chan st
 		sentBVal:         []bool{false, false},
 		receivedBVal:     []map[uuid.UUID]bool{make(map[uuid.UUID]bool), make(map[uuid.UUID]bool)},
 		receivedAux:      make(map[uuid.UUID]bool),
+		values:           make([]byte, 0, 2),
 		bValChan:         bValChan,
 		auxChan:          auxChan,
 		coinReqChan:      coinReqChan,
@@ -194,9 +196,20 @@ func (h *roundHandler) canRequestCoin() bool {
 	return !h.hasRequestedCoin && len(h.receivedAux) >= int(h.n-h.f) && len(values) > 0
 }
 
+func (h *roundHandler) computeValues() []byte {
+	values := make([]byte, 0, 2)
+	for i := 0; i < 2; i++ {
+		if h.binVals[i] && h.auxVals[i] {
+			values = append(values, byte(i))
+		}
+	}
+	return values
+}
+
 func (h *roundHandler) requestCoin() {
 	h.hasRequestedCoin = true
-	roundLogger.Info("requesting coin")
+	h.values = h.computeValues()
+	roundLogger.Info("requesting coin", "values", h.values)
 	go func() { h.coinReqChan <- struct{}{} }()
 }
 
@@ -208,11 +221,11 @@ func (h *roundHandler) submitCoin(coin byte) roundTransitionResult {
 			err:      fmt.Errorf("coin not requested"),
 		}
 	}
-	roundLogger.Info("submitting coin", "coin", coin)
 	nextEstimate := coin
 	hasDecided := false
-	if values := h.computeValues(); len(values) == 1 {
-		nextEstimate = values[0]
+	roundLogger.Info("submitting coin", "coin", coin, "values", h.values)
+	if len(h.values) == 1 {
+		nextEstimate = h.values[0]
 		hasDecided = nextEstimate == coin
 	}
 	return roundTransitionResult{
@@ -220,14 +233,4 @@ func (h *roundHandler) submitCoin(coin byte) roundTransitionResult {
 		decided:  hasDecided,
 		err:      nil,
 	}
-}
-
-func (h *roundHandler) computeValues() []byte {
-	values := make([]byte, 0, 2)
-	for i := 0; i < 2; i++ {
-		if h.binVals[i] && h.auxVals[i] {
-			values = append(values, byte(i))
-		}
-	}
-	return values
 }
