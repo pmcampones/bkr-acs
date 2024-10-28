@@ -10,19 +10,24 @@ import (
 
 var channelLogger = utils.GetLogger(slog.LevelWarn)
 
+type BRBMsg struct {
+	Content []byte
+	Sender  UUID
+}
+
 type BRBChannel struct {
 	instances     map[UUID]*brbInstance
 	finished      map[UUID]bool
 	n             uint
 	f             uint
 	middleware    *brbMiddleware
-	brbDeliver    chan<- []byte
+	BrbDeliver    chan BRBMsg
 	commands      chan<- func() error
 	closeCommands chan<- struct{}
 	closeDeliver  chan<- struct{}
 }
 
-func CreateBRBChannel(n, f uint, beb *overlayNetwork.BEBChannel, brbDeliver chan<- []byte) *BRBChannel {
+func CreateBRBChannel(n, f uint, beb *overlayNetwork.BEBChannel, brbDeliver chan BRBMsg) *BRBChannel {
 	commands := make(chan func() error)
 	deliverChan := make(chan *msg)
 	closeCommands := make(chan struct{})
@@ -33,7 +38,7 @@ func CreateBRBChannel(n, f uint, beb *overlayNetwork.BEBChannel, brbDeliver chan
 		n:             n,
 		f:             f,
 		middleware:    newBRBMiddleware(beb, deliverChan),
-		brbDeliver:    brbDeliver,
+		BrbDeliver:    brbDeliver,
 		commands:      commands,
 		closeCommands: closeCommands,
 		closeDeliver:  closeDeliver,
@@ -62,7 +67,12 @@ func (c *BRBChannel) processMsg(msg *msg) error {
 	switch msg.kind {
 	case send:
 		channelLogger.Debug("processing send message", "id", id, "from", msg.sender, "content", string(msg.content))
-		go instance.send(msg.content)
+		go func() {
+			err := instance.send(msg.content, msg.sender)
+			if err != nil {
+				channelLogger.Warn("unable to process send message", "id", id, "err", err)
+			}
+		}()
 	case echo:
 		channelLogger.Debug("processing echo message", "id", id, "from", msg.sender, "content", string(msg.content))
 		go func() {
@@ -87,18 +97,18 @@ func (c *BRBChannel) processMsg(msg *msg) error {
 
 func (c *BRBChannel) createInstance(id UUID) *brbInstance {
 	echoChan, readyChan := c.middleware.makeChannels(id)
-	outputChan := make(chan []byte)
+	outputChan := make(chan BRBMsg)
 	instance := newBrbInstance(c.n, c.f, echoChan, readyChan, outputChan)
 	c.instances[id] = instance
 	go c.processOutput(outputChan, id)
 	return instance
 }
 
-func (c *BRBChannel) processOutput(outputChan <-chan []byte, id UUID) {
+func (c *BRBChannel) processOutput(outputChan <-chan BRBMsg, id UUID) {
 	output := <-outputChan
 	channelLogger.Debug("delivering output message", "id", id)
 	c.commands <- func() error {
-		go func() { c.brbDeliver <- output }()
+		go func() { c.BrbDeliver <- output }()
 		instance, ok := c.instances[id]
 		if !ok {
 			return fmt.Errorf("channel handler %s not found upon delivery", id)

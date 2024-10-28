@@ -21,12 +21,18 @@ func newPhase1Handler(data *brbData, echoChan chan<- []byte, nextPhase *brbPhase
 	}
 }
 
-func (b *brbPhase1Handler) handleSend(msg []byte) {
+func (b *brbPhase1Handler) handleSend(msg []byte, sender uuid.UUID) error {
 	if !b.isFinished {
 		instanceLogger.Debug("processing send message on phase 1")
 		b.isFinished = true
-		b.sendEcho(msg)
+		senderBytes, err := sender.MarshalBinary()
+		if err != nil {
+			return fmt.Errorf("unable to marshal sender uuid: %v", err)
+		}
+		b.sendEcho(append(senderBytes, msg...))
+		//b.sendEcho(msg)
 	}
+	return nil
 }
 
 func (b *brbPhase1Handler) handleEcho(msg []byte, id uuid.UUID) error {

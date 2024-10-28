@@ -201,11 +201,10 @@ func (m *brbMiddleware) deserializeMsg(kind middlewareCode, reader *bytes.Reader
 func (m *brbMiddleware) deserializeIDMsg(kind middlewareCode, reader *bytes.Reader, sender *ecdsa.PublicKey, id uuid.UUID) (*msg, error) {
 	senderId, err := utils.PkToUUID(sender)
 	if err != nil {
-		return nil, fmt.Errorf("unable to convert sender to UUID: %v", err)
+		return nil, fmt.Errorf("unable to convert sender public key to UUID: %w", err)
 	}
 	content := make([]byte, reader.Len())
-	_, err = reader.Read(content)
-	if err != nil {
+	if n, err := reader.Read(content); err != nil || n != len(content) {
 		return nil, fmt.Errorf("unable to read content: %v", err)
 	}
 	return &msg{
