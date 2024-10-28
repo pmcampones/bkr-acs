@@ -11,7 +11,6 @@ var roundLogger = utils.GetLogger(slog.LevelDebug)
 
 type round struct {
 	handler   *roundHandler
-	bValChan  chan byte
 	commands  chan func()
 	closeChan chan struct{}
 }
@@ -19,7 +18,6 @@ type round struct {
 func newRound(n, f uint, bValChan, auxChan chan byte, coinRequest chan struct{}) *round {
 	r := &round{
 		handler:   newRoundHandler(n, f, bValChan, auxChan, coinRequest),
-		bValChan:  bValChan,
 		commands:  make(chan func()),
 		closeChan: make(chan struct{}),
 	}
