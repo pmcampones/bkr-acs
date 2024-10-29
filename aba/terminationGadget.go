@@ -20,14 +20,14 @@ type terminationGadget struct {
 	output      chan byte
 }
 
-func newTerminationGadget(roundPrefix []byte, brb *brb.BRBChannel, f uint, output chan byte) *terminationGadget {
+func newTerminationGadget(roundPrefix []byte, brb *brb.BRBChannel, f uint) *terminationGadget {
 	tg := &terminationGadget{
 		roundPrefix: roundPrefix,
 		brb:         brb,
 		received:    make(map[uuid.UUID]bool),
 		results:     []uint{0, 0},
 		f:           f,
-		output:      output,
+		output:      make(chan byte),
 	}
 	go tg.listenDecisions()
 	return tg
