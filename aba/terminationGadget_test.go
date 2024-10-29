@@ -39,6 +39,8 @@ func TestShouldTerminateWithOwnDecision(t *testing.T) {
 	assert.NoError(t, brbChan.BRBroadcast(append(prefix, 0)))
 	decision := <-tg.output
 	assert.Equal(t, byte(0), decision)
+	brbChan.Close()
+	assert.NoError(t, node.Disconnect())
 }
 
 func TestShouldWaitForThresholdDecisions(t *testing.T) {
@@ -69,4 +71,8 @@ func TestShouldWaitForThresholdDecisions(t *testing.T) {
 	}
 	decisions := lo.Map(tgs, func(tg *terminationGadget, _ int) byte { return <-tg.output })
 	assert.True(t, lo.EveryBy(decisions, func(decision byte) bool { return decision == 1 }))
+	for _, brbChan := range brbs {
+		brbChan.Close()
+	}
+	assert.True(t, lo.EveryBy(nodes, func(node *on.Node) bool { return assert.NoError(t, node.Disconnect()) }))
 }
