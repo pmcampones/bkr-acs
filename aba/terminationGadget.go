@@ -37,23 +37,29 @@ func (tg *terminationGadget) listenDecisions() {
 	for brbMsg := range tg.brb.BrbDeliver {
 		msg := brbMsg.Content
 		if tg.pertainsThisRound(msg) {
-			msg = msg[len(tg.roundPrefix):]
-			if tg.received[brbMsg.Sender] {
-				termLogger.Warn("duplicate decision", "sender", brbMsg.Sender)
-				continue
-			} else if decision := msg[0]; decision > 1 {
-				termLogger.Warn("invalid decision", "decision", decision)
-				continue
-			} else {
-				tg.received[brbMsg.Sender] = true
-				tg.results[decision]++
-				if tg.results[decision] > tg.f {
-					tg.output <- decision
-					return
-				}
+			err := tg.processMsg(msg[len(tg.roundPrefix):], brbMsg.Sender)
+			if err != nil {
+				termLogger.Warn("unable to process message", "error", err)
 			}
 		}
 	}
+}
+
+func (tg *terminationGadget) processMsg(msg []byte, sender uuid.UUID) error {
+	if tg.received[sender] {
+		return fmt.Errorf("duplicate message from %s", sender)
+	} else if len(msg) != 1 {
+		return fmt.Errorf("invalid message length %d, expected single byte", len(msg))
+	} else if decision := msg[0]; decision > 1 {
+		return fmt.Errorf("invalid decision %d", decision)
+	} else {
+		tg.received[sender] = true
+		tg.results[decision]++
+		if tg.results[decision] > tg.f {
+			tg.output <- decision
+		}
+	}
+	return nil
 }
 
 func (tg *terminationGadget) pertainsThisRound(msg []byte) bool {
