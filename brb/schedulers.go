@@ -14,7 +14,7 @@ var schedulerLogger = utils.GetLogger(slog.LevelDebug)
 
 type scheduler interface {
 	getChannels(t *testing.T, sender uuid.UUID) (chan []byte, chan []byte)
-	sendAll(msg []byte)
+	sendAll(t *testing.T, msg []byte)
 	addInstance(instance *brbInstance)
 	getInstances() []*brbInstance
 }
@@ -47,11 +47,12 @@ func (o *orderedScheduler) getChannels(t *testing.T, sender uuid.UUID) (chan []b
 	return echoChan, readyChan
 }
 
-func (o *orderedScheduler) sendAll(msg []byte) {
+func (o *orderedScheduler) sendAll(t *testing.T, msg []byte) {
 	schedulerLogger.Info("sending all", "msg", string(msg))
+	sender := uuid.New()
 	for i, inst := range o.instances {
 		schedulerLogger.Debug("executing send", "instance", i)
-		inst.send(msg)
+		assert.NoError(t, inst.send(msg, sender))
 	}
 }
 
@@ -130,12 +131,13 @@ func (u *unorderedScheduler) getChannels(t *testing.T, sender uuid.UUID) (chan [
 	return echoChan, readyChan
 }
 
-func (u *unorderedScheduler) sendAll(msg []byte) {
+func (u *unorderedScheduler) sendAll(t *testing.T, msg []byte) {
 	schedulerLogger.Info("sending all", "msg", string(msg))
+	sender := uuid.New()
 	for i, inst := range u.instances {
 		u.scheduleChan <- func() {
 			schedulerLogger.Debug("executing send", "instance", i)
-			inst.send(msg)
+			assert.NoError(t, inst.send(msg, sender))
 		}
 	}
 }
@@ -153,7 +155,7 @@ func (u *unorderedScheduler) stop() {
 	u.ticker.Stop()
 }
 
-func instantiateCorrect(t *testing.T, outputChans []chan []byte, scheduler scheduler, n, f uint) {
+func instantiateCorrect(t *testing.T, outputChans []chan BRBMsg, scheduler scheduler, n, f uint) {
 	for _, o := range outputChans {
 		echoChan, readyChan := scheduler.getChannels(t, uuid.New())
 		instance := newBrbInstance(n, f, echoChan, readyChan, o)

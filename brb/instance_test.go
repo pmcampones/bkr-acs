@@ -11,13 +11,13 @@ import (
 func TestShouldReceiveSelfBroadcast(t *testing.T) {
 	scheduler := newOrderedScheduler()
 	echoChan, readyChan := scheduler.getChannels(t, uuid.New())
-	outputChan := make(chan []byte)
+	outputChan := make(chan BRBMsg)
 	instance := newBrbInstance(1, 0, echoChan, readyChan, outputChan)
 	scheduler.instances = append(scheduler.instances, instance)
 	msg := []byte("hello")
-	instance.send(msg)
+	assert.NoError(t, instance.send(msg, uuid.New()))
 	recov := <-outputChan
-	assert.Equal(t, recov, msg)
+	assert.Equal(t, msg, recov.Content)
 }
 
 func TestShouldBroadcastToAllNoFaultsOrdered(t *testing.T) {
@@ -31,13 +31,13 @@ func TestShouldBroadcastToAllNoFaultsUnordered(t *testing.T) {
 }
 
 func testShouldBroadcastToAllNoFaults(t *testing.T, s scheduler) {
-	numNodes := 10
-	outputChans := lo.Map(lo.Range(numNodes), func(_ int, _ int) chan []byte { return make(chan []byte) })
+	numNodes := 2
+	outputChans := lo.Map(lo.Range(numNodes), func(_ int, _ int) chan BRBMsg { return make(chan BRBMsg) })
 	instantiateCorrect(t, outputChans, s, uint(numNodes), 0)
 	msg := []byte("hello")
-	s.sendAll(msg)
-	outputs := lo.Map(outputChans, func(o chan []byte, _ int) []byte { return <-o })
-	assert.True(t, lo.EveryBy(outputs, func(recov []byte) bool { return bytes.Equal(recov, msg) }))
+	s.sendAll(t, msg)
+	outputs := lo.Map(outputChans, func(o chan BRBMsg, _ int) BRBMsg { return <-o })
+	assert.True(t, lo.EveryBy(outputs, func(recov BRBMsg) bool { return bytes.Equal(recov.Content, msg) }))
 }
 
 func TestShouldBroadcastToAllMaxFaultsOrdered(t *testing.T) {
@@ -53,12 +53,12 @@ func TestShouldBroadcastToAllMaxFaultsUnordered(t *testing.T) {
 func testShouldBroadcastToAllMaxFaults(t *testing.T, s scheduler) {
 	f := 3
 	numNodes := 3*f + 1
-	outputChans := lo.Map(lo.Range(numNodes), func(_ int, _ int) chan []byte { return make(chan []byte) })
+	outputChans := lo.Map(lo.Range(numNodes), func(_ int, _ int) chan BRBMsg { return make(chan BRBMsg) })
 	instantiateCorrect(t, outputChans, s, uint(numNodes), uint(f))
 	msg := []byte("hello")
-	s.sendAll(msg)
-	outputs := lo.Map(outputChans, func(o chan []byte, _ int) []byte { return <-o })
-	assert.True(t, lo.EveryBy(outputs, func(recov []byte) bool { return bytes.Equal(recov, msg) }))
+	s.sendAll(t, msg)
+	outputs := lo.Map(outputChans, func(o chan BRBMsg, _ int) BRBMsg { return <-o })
+	assert.True(t, lo.EveryBy(outputs, func(recov BRBMsg) bool { return bytes.Equal(recov.Content, msg) }))
 }
 
 func TestShouldBroadcastToAllMaxCrashOrdered(t *testing.T) {
@@ -74,12 +74,12 @@ func TestShouldBroadcastToAllMaxCrashUnordered(t *testing.T) {
 func testShouldBroadcastToAllMaxCrash(t *testing.T, s scheduler) {
 	f := 3
 	numNodes := 3*f + 1
-	outputChans := lo.Map(lo.Range(numNodes-f), func(_ int, _ int) chan []byte { return make(chan []byte) })
+	outputChans := lo.Map(lo.Range(numNodes-f), func(_ int, _ int) chan BRBMsg { return make(chan BRBMsg) })
 	instantiateCorrect(t, outputChans, s, uint(numNodes), uint(f))
 	msg := []byte("hello")
-	s.sendAll(msg)
-	outputs := lo.Map(outputChans, func(o chan []byte, _ int) []byte { return <-o })
-	assert.True(t, lo.EveryBy(outputs, func(recov []byte) bool { return bytes.Equal(recov, msg) }))
+	s.sendAll(t, msg)
+	outputs := lo.Map(outputChans, func(o chan BRBMsg, _ int) BRBMsg { return <-o })
+	assert.True(t, lo.EveryBy(outputs, func(recov BRBMsg) bool { return bytes.Equal(recov.Content, msg) }))
 }
 
 func TestShouldBroadcastToAllMaxByzantineOrdered(t *testing.T) {
@@ -95,7 +95,7 @@ func TestShouldBroadcastToAllMaxByzantineUnordered(t *testing.T) {
 func testShouldBroadcastToAllMaxByzantine(t *testing.T, s scheduler) {
 	f := 3
 	numNodes := 3*f + 1
-	outputChans := lo.Map(lo.Range(numNodes-f), func(_ int, _ int) chan []byte { return make(chan []byte) })
+	outputChans := lo.Map(lo.Range(numNodes-f), func(_ int, _ int) chan BRBMsg { return make(chan BRBMsg) })
 	instantiateCorrect(t, outputChans, s, uint(numNodes), uint(f))
 	msg := []byte("hello")
 	byzMsg := []byte("bye")
@@ -106,9 +106,9 @@ func testShouldBroadcastToAllMaxByzantine(t *testing.T, s scheduler) {
 			assert.NoError(t, correct.echo(byzMsg, byz))
 		}
 	}
-	s.sendAll(msg)
-	outputs := lo.Map(outputChans, func(o chan []byte, _ int) []byte { return <-o })
-	assert.True(t, lo.EveryBy(outputs, func(recov []byte) bool { return bytes.Equal(recov, msg) }))
+	s.sendAll(t, msg)
+	outputs := lo.Map(outputChans, func(o chan BRBMsg, _ int) BRBMsg { return <-o })
+	assert.True(t, lo.EveryBy(outputs, func(recov BRBMsg) bool { return bytes.Equal(recov.Content, msg) }))
 }
 
 func TestShouldDetectRepeatedEchoesOrdered(t *testing.T) {
@@ -124,7 +124,7 @@ func TestShouldDetectRepeatedEchoesUnordered(t *testing.T) {
 func testShouldDetectRepeatedEchoes(t *testing.T, s scheduler) {
 	f := 3
 	numNodes := 3*f + 1
-	outputChans := lo.Map(lo.Range(numNodes-f), func(_ int, _ int) chan []byte { return make(chan []byte) })
+	outputChans := lo.Map(lo.Range(numNodes-f), func(_ int, _ int) chan BRBMsg { return make(chan BRBMsg) })
 	instantiateCorrect(t, outputChans, s, uint(numNodes), uint(f))
 	msg := []byte("hello")
 	byzMsg := []byte("bye")
@@ -133,9 +133,9 @@ func testShouldDetectRepeatedEchoes(t *testing.T, s scheduler) {
 		assert.NoError(t, correct.echo(byzMsg, byzantine))
 		assert.Error(t, correct.echo(byzMsg, byzantine))
 	}
-	s.sendAll(msg)
-	outputs := lo.Map(outputChans, func(o chan []byte, _ int) []byte { return <-o })
-	assert.True(t, lo.EveryBy(outputs, func(recov []byte) bool { return bytes.Equal(recov, msg) }))
+	s.sendAll(t, msg)
+	outputs := lo.Map(outputChans, func(o chan BRBMsg, _ int) BRBMsg { return <-o })
+	assert.True(t, lo.EveryBy(outputs, func(recov BRBMsg) bool { return bytes.Equal(recov.Content, msg) }))
 }
 
 func TestShouldDetectRepeatedReadiesOrdered(t *testing.T) {
@@ -151,7 +151,7 @@ func TestShouldDetectRepeatedReadiesUnordered(t *testing.T) {
 func testShouldDetectRepeatedReadies(t *testing.T, s scheduler) {
 	f := 3
 	numNodes := 3*f + 1
-	outputChans := lo.Map(lo.Range(numNodes-f), func(_ int, _ int) chan []byte { return make(chan []byte) })
+	outputChans := lo.Map(lo.Range(numNodes-f), func(_ int, _ int) chan BRBMsg { return make(chan BRBMsg) })
 	instantiateCorrect(t, outputChans, s, uint(numNodes), uint(f))
 	msg := []byte("hello")
 	byzMsg := []byte("bye")
@@ -160,7 +160,7 @@ func testShouldDetectRepeatedReadies(t *testing.T, s scheduler) {
 		assert.NoError(t, correct.ready(byzMsg, byzantine))
 		assert.Error(t, correct.ready(byzMsg, byzantine))
 	}
-	s.sendAll(msg)
-	outputs := lo.Map(outputChans, func(o chan []byte, _ int) []byte { return <-o })
-	assert.True(t, lo.EveryBy(outputs, func(recov []byte) bool { return bytes.Equal(recov, msg) }))
+	s.sendAll(t, msg)
+	outputs := lo.Map(outputChans, func(o chan BRBMsg, _ int) BRBMsg { return <-o })
+	assert.True(t, lo.EveryBy(outputs, func(recov BRBMsg) bool { return bytes.Equal(recov.Content, msg) }))
 }

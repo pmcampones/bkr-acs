@@ -7,7 +7,7 @@ import (
 	"pace/utils"
 )
 
-var instanceLogger = utils.GetLogger(slog.LevelWarn)
+var instanceLogger = utils.GetLogger(slog.LevelDebug)
 
 type brbInstance struct {
 	handler   *brbHandler
@@ -15,7 +15,7 @@ type brbInstance struct {
 	closeChan chan<- struct{}
 }
 
-func newBrbInstance(n, f uint, echo, ready, output chan []byte) *brbInstance {
+func newBrbInstance(n, f uint, echo, ready chan []byte, output chan BRBMsg) *brbInstance {
 	handler := newBrbHandler(n, f, echo, ready, output)
 	commands := make(chan func())
 	closeChan := make(chan struct{})
@@ -28,11 +28,13 @@ func newBrbInstance(n, f uint, echo, ready, output chan []byte) *brbInstance {
 	return executor
 }
 
-func (e *brbInstance) send(msg []byte) {
+func (e *brbInstance) send(msg []byte, sender UUID) error {
 	instanceLogger.Debug("submitting send message handling command")
+	errChan := make(chan error)
 	e.commands <- func() {
-		e.handler.handleSend(msg)
+		errChan <- e.handler.handleSend(msg, sender)
 	}
+	return <-errChan
 }
 
 func (e *brbInstance) echo(msg []byte, sender UUID) error {
@@ -84,7 +86,7 @@ type brbData struct {
 	readies map[UUID]uint
 }
 
-func newBrbHandler(n, f uint, echo, ready, output chan []byte) *brbHandler {
+func newBrbHandler(n, f uint, echo, ready chan []byte, output chan BRBMsg) *brbHandler {
 	data := brbData{
 		n:       n,
 		f:       f,
@@ -103,12 +105,16 @@ func newBrbHandler(n, f uint, echo, ready, output chan []byte) *brbHandler {
 	return instance
 }
 
-func (h *brbHandler) handleSend(msg []byte) {
-	h.handler.handleSend(msg)
+func (h *brbHandler) handleSend(msg []byte, sender UUID) error {
+	instanceLogger.Debug("submitting send message", "sender", sender, "msg", string(msg))
+	if err := h.handler.handleSend(msg, sender); err != nil {
+		return fmt.Errorf("unable to handle send: %v", err)
+	}
+	return nil
 }
 
 func (h *brbHandler) handleEcho(msg []byte, sender UUID) error {
-	instanceLogger.Debug("submitting echo message")
+	instanceLogger.Debug("submitting echo message", "sender", sender, "msg", string(msg))
 	ok := h.peersEchoed[sender]
 	if ok {
 		return fmt.Errorf("already received echo from peer %s", sender)
@@ -124,7 +130,7 @@ func (h *brbHandler) handleEcho(msg []byte, sender UUID) error {
 }
 
 func (h *brbHandler) handleReady(msg []byte, sender UUID) error {
-	instanceLogger.Debug("submitting ready message")
+	instanceLogger.Debug("submitting ready message", "sender", sender, "msg", string(msg))
 	ok := h.peersReadied[sender]
 	if ok {
 		return fmt.Errorf("already received ready from peer %s", sender)
