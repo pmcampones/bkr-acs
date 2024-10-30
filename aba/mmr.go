@@ -47,7 +47,7 @@ func (m *mmr) invoker() {
 }
 
 func (m *mmr) propose(est byte) error {
-	abaLogger.Info("scheduling proposal estimate", "est", est)
+	abaLogger.Info("scheduling initial proposal estimate", "est", est)
 	errChan := make(chan error)
 	m.commands <- func() {
 		errChan <- m.handler.propose(est, firstRound)
@@ -56,7 +56,7 @@ func (m *mmr) propose(est byte) error {
 }
 
 func (m *mmr) submitBVal(bVal byte, sender uuid.UUID, r uint16) error {
-	abaLogger.Debug("scheduling submit bVal", "bVal", bVal, "mmrRound", r)
+	abaLogger.Debug("scheduling submit bVal", "bVal", bVal, "mmrRound", r, "sender", sender)
 	errChan := make(chan error)
 	m.commands <- func() {
 		errChan <- m.handler.submitBVal(bVal, sender, r)
@@ -137,6 +137,7 @@ func newMMRHandler(n, f uint, deliverBVal, deliverAux chan roundMsg, deliverDeci
 }
 
 func (m *mmrHandler) propose(est byte, r uint16) error {
+	abaLogger.Debug("proposing estimate", "est", est, "mmrRound", r)
 	if round, err := m.getRound(r); err != nil {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
 	} else if err := round.round.propose(est); err != nil {

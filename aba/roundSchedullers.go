@@ -6,21 +6,21 @@ import (
 	"testing"
 )
 
-type orderedScheduler struct {
+type orderedRoundScheduler struct {
 	rounds []*mmrRound
 }
 
-func newOrderedScheduler() *orderedScheduler {
-	return &orderedScheduler{
+func newOrderedScheduler() *orderedRoundScheduler {
+	return &orderedRoundScheduler{
 		rounds: make([]*mmrRound, 0),
 	}
 }
 
-func (os *orderedScheduler) addRound(r *mmrRound) {
+func (os *orderedRoundScheduler) addRound(r *mmrRound) {
 	os.rounds = append(os.rounds, r)
 }
 
-func (os *orderedScheduler) getChannels(t *testing.T, sender uuid.UUID) (chan byte, chan byte) {
+func (os *orderedRoundScheduler) getChannels(t *testing.T, sender uuid.UUID) (chan byte, chan byte) {
 	bValChan := make(chan byte)
 	auxChan := make(chan byte)
 	go func() {

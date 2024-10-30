@@ -149,3 +149,8 @@ func GetCode(propName string) byte {
 	}
 	return []byte(props.MustGet(propName))[0]
 }
+
+func HashToBool(seed []byte) bool {
+	hash := sha256.Sum256(seed)
+	return hash[0]%2 == 0
+}
