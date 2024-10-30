@@ -5,7 +5,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const bot = 2
+const bot byte = 2
 
 type termOutput struct {
 	decision byte
@@ -56,11 +56,12 @@ func (t *mmrTermination) submitDecision(decision byte, sender uuid.UUID) (byte, 
 			res.err = fmt.Errorf("sender %s already submitted a decision", sender)
 		} else if decision >= bot {
 			res.err = fmt.Errorf("invalid decision %d", decision)
-		}
-		t.received[sender] = true
-		t.results[decision]++
-		if t.results[decision] > t.f {
-			res.decision = decision
+		} else {
+			t.received[sender] = true
+			t.results[decision]++
+			if t.results[decision] > t.f {
+				res.decision = decision
+			}
 		}
 		output <- res
 	}
