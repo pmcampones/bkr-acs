@@ -27,15 +27,15 @@ type abaMsg struct {
 }
 
 type abaMiddleware struct {
-	beb       on.BEBChannel
-	output    chan<- *abaMsg
+	beb       *on.BEBChannel
+	output    chan *abaMsg
 	closeChan chan struct{}
 }
 
-func newMiddleware(beb on.BEBChannel) *abaMiddleware {
+func newABAMiddleware(beb *on.BEBChannel) *abaMiddleware {
 	m := &abaMiddleware{
 		beb:       beb,
-		output:    make(chan<- *abaMsg),
+		output:    make(chan *abaMsg),
 		closeChan: make(chan struct{}),
 	}
 	go m.bebDeliver()
@@ -116,4 +116,9 @@ func (m *abaMiddleware) broadcastMsg(instance uuid.UUID, kind middlewareCode, ro
 		return fmt.Errorf("unable to broadcast message: %v", err)
 	}
 	return nil
+}
+
+func (m *abaMiddleware) close() {
+	termLogger.Info("closing termination gadget")
+	m.closeChan <- struct{}{}
 }
