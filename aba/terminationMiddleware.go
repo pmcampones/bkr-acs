@@ -63,7 +63,7 @@ func (tg *terminationGadget) processMsg(msg []byte, sender uuid.UUID) error {
 }
 
 func (tg *terminationGadget) pertainsThisRound(msg []byte) bool {
-	return len(msg) >= len(tg.roundPrefix) && bytes.Equal(msg[:len(tg.roundPrefix)], tg.roundPrefix)
+	return bytes.HasPrefix(msg, tg.roundPrefix)
 }
 
 func (tg *terminationGadget) decide(decision byte) error {
