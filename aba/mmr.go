@@ -17,16 +17,18 @@ type roundMsg struct {
 }
 
 type mmr struct {
-	handler   *mmrHandler
-	commands  chan func()
-	closeChan chan struct{}
+	handler    *mmrHandler
+	termGadget *mmrTermination
+	commands   chan func()
+	closeChan  chan struct{}
 }
 
 func newMMR(n, f uint, deliverBVal, deliverAux chan roundMsg, deliverDecision chan byte, coinReq chan uint16) *mmr {
 	m := &mmr{
-		handler:   newMMRHandler(n, f, deliverBVal, deliverAux, deliverDecision, coinReq),
-		commands:  make(chan func()),
-		closeChan: make(chan struct{}),
+		handler:    newMMRHandler(n, f, deliverBVal, deliverAux, deliverDecision, coinReq),
+		termGadget: newMmrTermination(f),
+		commands:   make(chan func()),
+		closeChan:  make(chan struct{}),
 	}
 	go m.invoker()
 	return m
@@ -80,7 +82,23 @@ func (m *mmr) submitCoin(coin byte, r uint16) error {
 	return <-errChan
 }
 
+func (m *mmr) submitDecision(decision byte, sender uuid.UUID) (byte, error) {
+	abaLogger.Debug("submitting decision", "decision", decision, "sender", sender)
+	if result, err := m.termGadget.submitDecision(decision, sender); err != nil {
+		return bot, fmt.Errorf("unable to submit decision: %v", err)
+	} else {
+		return result, nil
+	}
+}
+
 func (m *mmr) close() {
+	m.termGadget.close()
+	closedHandler := make(chan struct{})
+	m.commands <- func() {
+		m.handler.close()
+		closedHandler <- struct{}{}
+	}
+	<-closedHandler
 	abaLogger.Info("signaling close mmr")
 	m.closeChan <- struct{}{}
 }
@@ -115,12 +133,7 @@ func newMMRHandler(n, f uint, deliverBVal, deliverAux chan roundMsg, deliverDeci
 		deliverDecision: deliverDecision,
 		coinReq:         coinReq,
 		rounds:          make(map[uint16]*cancelableRound),
-		termGadget:      newMmrTermination(f),
 	}
-}
-
-func (m *mmrHandler) initialProposal(est byte) error {
-	return m.propose(est, 0)
 }
 
 func (m *mmrHandler) propose(est byte, r uint16) error {
@@ -213,5 +226,11 @@ func (m *mmrHandler) listenRequests(bValChan, auxChan chan byte, coinRequest, cl
 			abaLogger.Info("closing mmr round", "mmrRound", r)
 			return
 		}
+	}
+}
+
+func (m *mmrHandler) close() {
+	for _, round := range m.rounds {
+		round.close()
 	}
 }

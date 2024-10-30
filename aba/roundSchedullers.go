@@ -7,16 +7,16 @@ import (
 )
 
 type orderedScheduler struct {
-	rounds []*round
+	rounds []*mmrRound
 }
 
 func newOrderedScheduler() *orderedScheduler {
 	return &orderedScheduler{
-		rounds: make([]*round, 0),
+		rounds: make([]*mmrRound, 0),
 	}
 }
 
-func (os *orderedScheduler) addRound(r *round) {
+func (os *orderedScheduler) addRound(r *mmrRound) {
 	os.rounds = append(os.rounds, r)
 }
 

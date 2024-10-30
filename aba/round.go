@@ -9,14 +9,14 @@ import (
 
 var roundLogger = utils.GetLogger(slog.LevelDebug)
 
-type round struct {
+type mmrRound struct {
 	handler   *roundHandler
 	commands  chan func()
 	closeChan chan struct{}
 }
 
-func newRound(n, f uint, bValChan, auxChan chan byte, coinRequest chan struct{}) *round {
-	r := &round{
+func newMMRRound(n, f uint, bValChan, auxChan chan byte, coinRequest chan struct{}) *mmrRound {
+	r := &mmrRound{
 		handler:   newRoundHandler(n, f, bValChan, auxChan, coinRequest),
 		commands:  make(chan func()),
 		closeChan: make(chan struct{}),
@@ -25,19 +25,19 @@ func newRound(n, f uint, bValChan, auxChan chan byte, coinRequest chan struct{})
 	return r
 }
 
-func (r *round) proposeEstimate(est byte) error {
+func (r *mmrRound) propose(est byte) error {
 	roundLogger.Info("scheduling proposal estimate", "est", est)
 	if !isInputValid(est) {
 		return fmt.Errorf("invalid input %d", est)
 	}
 	errChan := make(chan error)
 	r.commands <- func() {
-		errChan <- r.handler.proposeEstimate(est)
+		errChan <- r.handler.propose(est)
 	}
 	return <-errChan
 }
 
-func (r *round) submitBVal(bVal byte, sender uuid.UUID) error {
+func (r *mmrRound) submitBVal(bVal byte, sender uuid.UUID) error {
 	roundLogger.Debug("scheduling submit bVal", "bVal", bVal, "sender", sender)
 	if !isInputValid(bVal) {
 		return fmt.Errorf("invalid input %d", bVal)
@@ -49,7 +49,7 @@ func (r *round) submitBVal(bVal byte, sender uuid.UUID) error {
 	return <-errChan
 }
 
-func (r *round) submitAux(aux byte, sender uuid.UUID) error {
+func (r *mmrRound) submitAux(aux byte, sender uuid.UUID) error {
 	roundLogger.Debug("scheduling submit aux", "aux", aux, "sender", sender)
 	if !isInputValid(aux) {
 		return fmt.Errorf("invalid input %d", aux)
@@ -67,7 +67,7 @@ type roundTransitionResult struct {
 	err      error
 }
 
-func (r *round) submitCoin(coin byte) roundTransitionResult {
+func (r *mmrRound) submitCoin(coin byte) roundTransitionResult {
 	if !isInputValid(coin) {
 		return roundTransitionResult{
 			estimate: 2,
@@ -85,20 +85,20 @@ func isInputValid(bVal byte) bool {
 	return bVal == 0 || bVal == 1
 }
 
-func (r *round) invoker() {
+func (r *mmrRound) invoker() {
 	for {
 		select {
 		case command := <-r.commands:
 			command()
 		case <-r.closeChan:
-			roundLogger.Info("closing round instance")
+			roundLogger.Info("closing mmrRound instance")
 			return
 		}
 	}
 }
 
-func (r *round) close() {
-	roundLogger.Info("signaling to close round instance")
+func (r *mmrRound) close() {
+	roundLogger.Info("signaling to close mmrRound instance")
 	r.closeChan <- struct{}{}
 }
 
@@ -134,7 +134,7 @@ func newRoundHandler(n, f uint, bValChan, auxChan chan byte, coinReqChan chan st
 	}
 }
 
-func (h *roundHandler) proposeEstimate(est byte) error {
+func (h *roundHandler) propose(est byte) error {
 	roundLogger.Info("proposing estimate", "est", est)
 	if h.sentBVal[est] {
 		roundLogger.Debug("already sent bVal", "est", est)
