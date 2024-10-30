@@ -79,7 +79,7 @@ func testShouldDecideMultipleAllProposeSame(t *testing.T, n, correct, f, byzanti
 	byzIds := lo.Map(lo.Range(int(byzantine)), func(_ int, _ int) uuid.UUID { return uuid.New() })
 	for _, byzId := range byzIds {
 		for _, wmmr := range wmmrs {
-			dec, err := wmmr.m.submitDecision(byte(1-proposal), byzId)
+			dec, err := wmmr.m.submitDecision(1-proposal, byzId)
 			assert.NoError(t, err)
 			assert.Equal(t, bot, dec)
 			for r := 0; r < 20; r++ {
@@ -94,7 +94,65 @@ func testShouldDecideMultipleAllProposeSame(t *testing.T, n, correct, f, byzanti
 	}
 	finalDecisions := lo.Map(wmmrs, func(wmmr *wrappedMMR, _ int) byte { return <-wmmr.decision })
 	assert.True(t, lo.EveryBy(finalDecisions, func(decision byte) bool { return decision == proposal }))
-	//for _, wmmr := range wmmrs {
-	//	wmmr.m.close()
-	//}
+	for _, wmmr := range wmmrs {
+		wmmr.m.close()
+	}
+}
+
+func TestShouldDecideMultipleNoFailuresDifferentProposals(t *testing.T) {
+	n := uint(10)
+	testShouldDecideSameDifferentProposals(t, n, n, 0, 0)
+}
+
+func TestShouldDecideMultipleMaxFailuresDifferentProposals(t *testing.T) {
+	f := uint(3)
+	n := 3*f + 1
+	testShouldDecideSameDifferentProposals(t, n, n, f, 0)
+}
+
+func TestShouldDecideMultipleMaxCrashDifferentProposals(t *testing.T) {
+	f := uint(3)
+	n := 3*f + 1
+	correct := n - f
+	testShouldDecideSameDifferentProposals(t, n, correct, f, 0)
+}
+
+func TestShouldDecideMultipleMaxByzantineDifferentProposals(t *testing.T) {
+	f := uint(3)
+	n := 3*f + 1
+	correct := n - f
+	byzantine := f
+	testShouldDecideSameDifferentProposals(t, n, correct, f, byzantine)
+}
+
+func testShouldDecideSameDifferentProposals(t *testing.T, n uint, correct uint, f uint, byzantine uint) {
+	s := newOrderedMMRScheduler()
+	proposals := lo.Map(lo.Range(int(correct)), func(i int, _ int) byte { return byte(rand.IntN(2)) })
+	nodes := lo.Map(lo.Range(int(correct)), func(_ int, _ int) uuid.UUID { return uuid.New() })
+	byzIds := lo.Map(lo.Range(int(byzantine)), func(_ int, _ int) uuid.UUID { return uuid.New() })
+	wmmrs := lo.Map(nodes, func(node uuid.UUID, _ int) *wrappedMMR { return s.getChannels(t, n, f, node) })
+	for _, byzId := range byzIds {
+		for _, wmmr := range wmmrs {
+			dec, err := wmmr.m.submitDecision(byte(rand.IntN(2)), byzId)
+			assert.NoError(t, err)
+			assert.Equal(t, bot, dec)
+			for r := 0; r < 20; r++ {
+				val := rand.IntN(2)
+				assert.NoError(t, wmmr.m.submitBVal(byte(val), byzId, uint16(r)))
+				assert.NoError(t, wmmr.m.submitAux(byte(val), byzId, uint16(r)))
+			}
+		}
+	}
+	for _, tuple := range lo.Zip2(wmmrs, proposals) {
+		wmmr, proposal := tuple.Unpack()
+		assert.NoError(t, wmmr.m.propose(proposal))
+	}
+	finalDecisions := lo.Map(wmmrs, func(wmmr *wrappedMMR, _ int) byte { return <-wmmr.decision })
+	dec := finalDecisions[0]
+	assert.True(t, lo.EveryBy(finalDecisions, func(decision byte) bool { return decision == dec }))
+	t.Logf("Correct nodes decided on %d\n", dec)
+
+	for _, wmmr := range wmmrs {
+		wmmr.m.close()
+	}
 }
