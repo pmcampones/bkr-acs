@@ -32,25 +32,28 @@ func newTerminationMiddleware(brb *brb.BRBChannel) *terminationMiddleware {
 		output:    make(chan *terminationMsg),
 		closeChan: make(chan struct{}),
 	}
-	go tg.listenDecisions()
+	go tg.brbDeliver()
 	return tg
 }
 
-func (m *terminationMiddleware) listenDecisions() {
+func (m *terminationMiddleware) brbDeliver() {
 	for {
 		select {
 		case brbMsg := <-m.brb.BrbDeliver:
-			tm, err := m.parseMsg(brbMsg.Content, brbMsg.Sender)
-			if err != nil {
-				termLogger.Warn("unable to parse termination message", "error", err)
-			} else {
-				termLogger.Debug("received termination message", "sender", tm.sender, "instance", tm.instance, "round", tm.round, "decision", tm.decision)
-				go func() { m.output <- tm }()
-			}
+			m.processMsg(brbMsg)
 		case <-m.closeChan:
 			termLogger.Info("closing termination gadget")
 			return
 		}
+	}
+}
+
+func (m *terminationMiddleware) processMsg(brbMsg brb.BRBMsg) {
+	if tm, err := m.parseMsg(brbMsg.Content, brbMsg.Sender); err != nil {
+		termLogger.Warn("unable to parse termination message", "error", err)
+	} else {
+		termLogger.Debug("received termination message", "sender", tm.sender, "instance", tm.instance, "round", tm.round, "decision", tm.decision)
+		go func() { m.output <- tm }()
 	}
 }
 
