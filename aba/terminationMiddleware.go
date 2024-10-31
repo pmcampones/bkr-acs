@@ -16,7 +16,6 @@ var termLogger = utils.GetLogger(slog.LevelDebug)
 type terminationMsg struct {
 	sender   uuid.UUID
 	instance uuid.UUID
-	round    uint16
 	decision byte
 }
 
@@ -52,7 +51,7 @@ func (m *terminationMiddleware) processMsg(brbMsg brb.BRBMsg) {
 	if tm, err := m.parseMsg(brbMsg.Content, brbMsg.Sender); err != nil {
 		termLogger.Warn("unable to parse termination message", "error", err)
 	} else {
-		termLogger.Debug("received termination message", "sender", tm.sender, "instance", tm.instance, "round", tm.round, "decision", tm.decision)
+		termLogger.Debug("received termination message", "sender", tm.sender, "instance", tm.instance, "decision", tm.decision)
 		go func() { m.output <- tm }()
 	}
 }
@@ -66,23 +65,19 @@ func (m *terminationMiddleware) parseMsg(msg []byte, sender uuid.UUID) (*termina
 	} else {
 		tm.instance = id
 	}
-	if err := binary.Read(reader, binary.LittleEndian, &tm.round); err != nil {
-		return nil, fmt.Errorf("unable to read round from termination message: %v", err)
-	} else if err := binary.Read(reader, binary.LittleEndian, &tm.decision); err != nil {
+	if err := binary.Read(reader, binary.LittleEndian, &tm.decision); err != nil {
 		return nil, fmt.Errorf("unable to read decision from termination message: %v", err)
 	}
 	return tm, nil
 }
 
-func (m *terminationMiddleware) broadcastDecision(instance uuid.UUID, round uint16, decision byte) error {
+func (m *terminationMiddleware) broadcastDecision(instance uuid.UUID, decision byte) error {
 	buf := bytes.NewBuffer([]byte{})
 	writer := bufio.NewWriter(buf)
 	if idBytes, err := instance.MarshalBinary(); err != nil {
 		return fmt.Errorf("unable to marshal instance id: %v", err)
 	} else if _, err := writer.Write(idBytes); err != nil {
 		return fmt.Errorf("unable to write instance id to termination message: %v", err)
-	} else if err := binary.Write(writer, binary.LittleEndian, round); err != nil {
-		return fmt.Errorf("unable to write round to termination message: %v", err)
 	} else if err := binary.Write(writer, binary.LittleEndian, decision); err != nil {
 		return fmt.Errorf("unable to write decision to termination message: %v", err)
 	} else if err := writer.Flush(); err != nil {
