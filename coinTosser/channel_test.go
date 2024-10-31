@@ -42,7 +42,7 @@ func testShouldDeliverWithTheshold(t *testing.T, numNodes, threshold uint) {
 		assert.NoError(t, err)
 		return ct
 	})
-	secret := newScalar(42)
+	secret := NewScalar(42)
 	err := DealSecret(ssChans[0], secret, threshold)
 	assert.NoError(t, err)
 	outputChans := lo.Map(ctChannels, func(ct *CTChannel, _ int) chan bool { return make(chan bool) })

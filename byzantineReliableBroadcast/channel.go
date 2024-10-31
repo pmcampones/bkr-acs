@@ -142,9 +142,8 @@ func (c *BRBChannel) bebDeliver(deliverChan <-chan *msg, closeDeliver <-chan str
 func invoker(commands <-chan func() error, closeCommands <-chan struct{}) {
 	for {
 		select {
-		case command := <-commands:
-			err := command()
-			if err != nil {
+		case cmd := <-commands:
+			if err := cmd(); err != nil {
 				channelLogger.Error("error executing command", "error", err)
 			}
 		case <-closeCommands:

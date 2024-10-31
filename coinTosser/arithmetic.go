@@ -8,7 +8,7 @@ func mulScalar(a, b group.Scalar) group.Scalar {
 	return group.Ristretto255.NewScalar().Mul(a, b)
 }
 
-func newScalar(n uint64) group.Scalar {
+func NewScalar(n uint64) group.Scalar {
 	return group.Ristretto255.NewScalar().SetUint64(n)
 }
 

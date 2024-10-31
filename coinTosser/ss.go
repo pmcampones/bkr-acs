@@ -30,10 +30,10 @@ func lagrangeCoefficient(i group.Scalar, indices []group.Scalar) group.Scalar {
 	filteredIndices := lo.Filter(indices, func(j group.Scalar, _ int) bool { return !i.IsEqual(j) })
 	numerators := lo.Reduce(filteredIndices, func(acc group.Scalar, j group.Scalar, _ int) group.Scalar {
 		return mulScalar(neg(j), acc)
-	}, newScalar(uint64(1)))
+	}, NewScalar(uint64(1)))
 	denominators := lo.Reduce(filteredIndices, func(acc group.Scalar, j group.Scalar, _ int) group.Scalar {
 		return mulScalar(acc, sub(i, j))
-	}, newScalar(uint64(1)))
+	}, NewScalar(uint64(1)))
 	return mulScalar(numerators, inv(denominators))
 }
 

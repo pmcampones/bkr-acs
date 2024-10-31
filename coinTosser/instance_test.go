@@ -20,7 +20,7 @@ func TestShouldAllSeeSameCoinNoThreshold(t *testing.T) {
 
 func testShouldTossWithoutThreshold(t *testing.T, nodes uint) {
 	threshold := uint(0)
-	secret := newScalar(42)
+	secret := NewScalar(42)
 	deals := makeLocalDeals(threshold, nodes, secret)
 	outputChans := lo.Map(deals, func(deal *deal, _ int) chan bool { return make(chan bool) })
 	base := group.Ristretto255.HashToElement([]byte("base"), []byte("instance_tests"))
@@ -59,7 +59,7 @@ func TestShouldAllSeeSameCoinWithFullThreshold(t *testing.T) {
 }
 
 func testShouldAllSeeSameCoinWithThreshold(t *testing.T, nodes, threshold uint) {
-	secret := newScalar(42)
+	secret := NewScalar(42)
 	deals := makeLocalDeals(threshold, nodes, secret)
 	outputChans := lo.Map(deals, func(deal *deal, _ int) chan bool { return make(chan bool) })
 	base := group.Ristretto255.HashToElement([]byte("base"), []byte("instance_tests"))
