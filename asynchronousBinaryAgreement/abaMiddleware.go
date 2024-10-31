@@ -1,4 +1,4 @@
-package aba
+package asynchronousBinaryAgreement
 
 import (
 	"bufio"
@@ -48,7 +48,7 @@ func (m *abaMiddleware) bebDeliver() {
 		case bebMsg := <-m.beb.GetBEBChan():
 			m.processMsg(bebMsg)
 		case <-m.closeChan:
-			abaLogger.Info("closing brb abaMiddleware")
+			abaLogger.Info("closing byzantineReliableBroadcast abaMiddleware")
 			return
 		}
 	}

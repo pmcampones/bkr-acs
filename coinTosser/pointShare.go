@@ -3,7 +3,7 @@ package coinTosser
 import (
 	"fmt"
 	"github.com/cloudflare/circl/group"
-	"github.com/cloudflare/circl/secretsharing"
+	ss "github.com/cloudflare/circl/secretsharing"
 )
 
 // pointShare is a secret share hidden in a group operation.
@@ -13,7 +13,7 @@ type pointShare struct {
 	point group.Element
 }
 
-func shareToPoint(share secretsharing.Share, base group.Element) pointShare {
+func shareToPoint(share ss.Share, base group.Element) pointShare {
 	return pointShare{
 		id:    share.ID,
 		point: mulPoint(base, share.Value),

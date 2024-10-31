@@ -1,9 +1,9 @@
-package aba
+package asynchronousBinaryAgreement
 
 import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"pace/brb"
+	brb "pace/byzantineReliableBroadcast"
 	on "pace/overlayNetwork"
 	"testing"
 )

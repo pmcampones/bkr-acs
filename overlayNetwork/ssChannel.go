@@ -6,12 +6,12 @@ import (
 	"crypto/rand"
 	"fmt"
 	"github.com/cloudflare/circl/group"
-	"github.com/cloudflare/circl/secretsharing"
+	ss "github.com/cloudflare/circl/secretsharing"
 	"github.com/samber/lo"
 )
 
 type SSMsg struct {
-	Share      secretsharing.Share
+	Share      ss.Share
 	Commitment []byte
 	Sender     *ecdsa.PublicKey
 	Err        error
@@ -29,20 +29,20 @@ func CreateSSChannel(node *Node, listenCode byte) (*SSChannel, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal default number: %v", err)
 	}
-	ss := &SSChannel{
+	s := &SSChannel{
 		node:        node,
 		listenCode:  listenCode,
 		scalarSize:  len(binary),
 		deliverChan: make(chan *SSMsg),
 	}
-	node.attachMessageObserver(ss)
-	return ss, nil
+	node.attachMessageObserver(s)
+	return s, nil
 }
 
-func (s *SSChannel) SSBroadcast(secret group.Scalar, threshold uint, commitMaker func([]secretsharing.Share) ([]byte, error)) error {
-	ss := secretsharing.New(rand.Reader, threshold, secret)
+func (s *SSChannel) SSBroadcast(secret group.Scalar, threshold uint, commitMaker func([]ss.Share) ([]byte, error)) error {
+	secretSharing := ss.New(rand.Reader, threshold, secret)
 	peers := s.node.getPeers()
-	shares := ss.Share(uint(len(peers) + 1))
+	shares := secretSharing.Share(uint(len(peers) + 1))
 	shareMsgs := make([][]byte, len(shares))
 	commitment, err := commitMaker(shares)
 	if err != nil {
@@ -67,7 +67,7 @@ func (s *SSChannel) SSBroadcast(secret group.Scalar, threshold uint, commitMaker
 	return nil
 }
 
-func (s *SSChannel) wrapMsg(share secretsharing.Share, commitment []byte) ([]byte, error) {
+func (s *SSChannel) wrapMsg(share ss.Share, commitment []byte) ([]byte, error) {
 	idBytes, err := share.ID.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal ID: %w", err)
@@ -98,7 +98,7 @@ func (s *SSChannel) bebDeliver(msg []byte, sender *ecdsa.PublicKey) {
 			s.deliverChan <- &SSMsg{Err: fmt.Errorf("unable to unmarshal value: %w", err)}
 		} else {
 			s.deliverChan <- &SSMsg{
-				Share:      secretsharing.Share{ID: id, Value: val},
+				Share:      ss.Share{ID: id, Value: val},
 				Commitment: msg[2*s.scalarSize:],
 				Sender:     sender,
 			}

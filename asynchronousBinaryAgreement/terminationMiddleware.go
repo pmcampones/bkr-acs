@@ -1,4 +1,4 @@
-package aba
+package asynchronousBinaryAgreement
 
 import (
 	"bufio"
@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"log/slog"
-	"pace/brb"
+	brb "pace/byzantineReliableBroadcast"
 	"pace/utils"
 )
 

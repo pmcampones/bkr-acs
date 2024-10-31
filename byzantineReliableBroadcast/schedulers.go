@@ -1,4 +1,4 @@
-package brb
+package byzantineReliableBroadcast
 
 import (
 	"github.com/google/uuid"

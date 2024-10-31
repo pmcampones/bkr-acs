@@ -3,7 +3,7 @@ package coinTosser
 import (
 	"crypto/rand"
 	"github.com/cloudflare/circl/group"
-	"github.com/cloudflare/circl/secretsharing"
+	ss "github.com/cloudflare/circl/secretsharing"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -87,10 +87,10 @@ func testShouldAllSeeSameCoinWithThreshold(t *testing.T, nodes, threshold uint) 
 func makeLocalDeals(threshold, numNodes uint, secret group.Scalar) []*deal {
 	shares := shareSecret(threshold, numNodes, secret)
 	base := group.Ristretto255.RandomElement(rand.Reader)
-	commits := lo.Map(shares, func(share secretsharing.Share, _ int) pointShare {
+	commits := lo.Map(shares, func(share ss.Share, _ int) pointShare {
 		return shareToPoint(share, base)
 	})
-	return lo.Map(shares, func(share secretsharing.Share, i int) *deal {
+	return lo.Map(shares, func(share ss.Share, i int) *deal {
 		return &deal{
 			share:   share,
 			base:    base,

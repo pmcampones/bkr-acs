@@ -1,10 +1,10 @@
-package brb
+package byzantineReliableBroadcast
 
 import (
 	"fmt"
 	. "github.com/google/uuid"
 	"log/slog"
-	"pace/overlayNetwork"
+	on "pace/overlayNetwork"
 	"pace/utils"
 )
 
@@ -27,7 +27,7 @@ type BRBChannel struct {
 	closeDeliver  chan<- struct{}
 }
 
-func CreateBRBChannel(n, f uint, beb *overlayNetwork.BEBChannel, brbDeliver chan BRBMsg) *BRBChannel {
+func CreateBRBChannel(n, f uint, beb *on.BEBChannel, brbDeliver chan BRBMsg) *BRBChannel {
 	commands := make(chan func() error)
 	deliverChan := make(chan *msg)
 	closeCommands := make(chan struct{})

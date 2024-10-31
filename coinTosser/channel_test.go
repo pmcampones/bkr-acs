@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	"pace/overlayNetwork"
+	on "pace/overlayNetwork"
 	"testing"
 )
 
@@ -29,15 +29,15 @@ func TestChannelShouldDeliverManyNodesFullThreshold(t *testing.T) {
 }
 
 func testShouldDeliverWithTheshold(t *testing.T, numNodes, threshold uint) {
-	nodes := lo.Map(lo.Range(int(numNodes)), func(i int, _ int) *overlayNetwork.Node {
-		return overlayNetwork.GetNode(t, fmt.Sprintf("localhost:%d", 6000+i), "localhost:6000")
+	nodes := lo.Map(lo.Range(int(numNodes)), func(i int, _ int) *on.Node {
+		return on.GetNode(t, fmt.Sprintf("localhost:%d", 6000+i), "localhost:6000")
 	})
-	ssChans := lo.Map(nodes, func(n *overlayNetwork.Node, _ int) *overlayNetwork.SSChannel { return makeSSChannel(t, n) })
-	bebChans := lo.Map(nodes, func(n *overlayNetwork.Node, _ int) *overlayNetwork.BEBChannel {
-		return overlayNetwork.CreateBEBChannel(n, 'c')
+	ssChans := lo.Map(nodes, func(n *on.Node, _ int) *on.SSChannel { return makeSSChannel(t, n) })
+	bebChans := lo.Map(nodes, func(n *on.Node, _ int) *on.BEBChannel {
+		return on.CreateBEBChannel(n, 'c')
 	})
-	overlayNetwork.InitializeNodes(t, nodes)
-	ctChannels := lo.ZipBy2(ssChans, bebChans, func(ss *overlayNetwork.SSChannel, beb *overlayNetwork.BEBChannel) *CTChannel {
+	on.InitializeNodes(t, nodes)
+	ctChannels := lo.ZipBy2(ssChans, bebChans, func(ss *on.SSChannel, beb *on.BEBChannel) *CTChannel {
 		ct, err := NewCoinTosserChannel(ss, beb, threshold)
 		assert.NoError(t, err)
 		return ct
@@ -56,5 +56,5 @@ func testShouldDeliverWithTheshold(t *testing.T, numNodes, threshold uint) {
 	for _, ct := range ctChannels {
 		ct.Close()
 	}
-	assert.True(t, lo.EveryBy(nodes, func(n *overlayNetwork.Node) bool { return n.Disconnect() == nil }))
+	assert.True(t, lo.EveryBy(nodes, func(n *on.Node) bool { return n.Disconnect() == nil }))
 }

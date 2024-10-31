@@ -1,8 +1,8 @@
-package brb
+package byzantineReliableBroadcast
 
 import (
 	"github.com/google/uuid"
-	"pace/overlayNetwork"
+	on "pace/overlayNetwork"
 )
 
 const byzMsg = "I am byzantine and I hate candy :("
@@ -13,7 +13,7 @@ type byzChannel struct {
 	closeChan  chan struct{}
 }
 
-func createByzChannel(beb *overlayNetwork.BEBChannel) *byzChannel {
+func createByzChannel(beb *on.BEBChannel) *byzChannel {
 	deliverChan := make(chan *msg)
 	byz := &byzChannel{
 		middleware: newBRBMiddleware(beb, deliverChan),

@@ -1,4 +1,4 @@
-package brb
+package byzantineReliableBroadcast
 
 import (
 	"bufio"
@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"math/rand"
-	"pace/overlayNetwork"
+	on "pace/overlayNetwork"
 	"pace/utils"
 )
 
@@ -28,12 +28,12 @@ type msg struct {
 }
 
 type brbMiddleware struct {
-	bebChannel  *overlayNetwork.BEBChannel
+	bebChannel  *on.BEBChannel
 	deliverChan chan<- *msg
 	closeChan   chan struct{}
 }
 
-func newBRBMiddleware(bebChannel *overlayNetwork.BEBChannel, deliverChan chan<- *msg) *brbMiddleware {
+func newBRBMiddleware(bebChannel *on.BEBChannel, deliverChan chan<- *msg) *brbMiddleware {
 	m := &brbMiddleware{
 		bebChannel:  bebChannel,
 		deliverChan: deliverChan,
@@ -43,7 +43,7 @@ func newBRBMiddleware(bebChannel *overlayNetwork.BEBChannel, deliverChan chan<- 
 	return m
 }
 
-func (m *brbMiddleware) bebDeliver(bebChan <-chan overlayNetwork.BEBMsg) {
+func (m *brbMiddleware) bebDeliver(bebChan <-chan on.BEBMsg) {
 	for {
 		select {
 		case bebMsg := <-bebChan:
@@ -55,7 +55,7 @@ func (m *brbMiddleware) bebDeliver(bebChan <-chan overlayNetwork.BEBMsg) {
 				go func() { m.deliverChan <- structMsg }()
 			}
 		case <-m.closeChan:
-			channelLogger.Info("closing brb middleware")
+			channelLogger.Info("closing byzantineReliableBroadcast middleware")
 			return
 		}
 	}
@@ -99,11 +99,11 @@ func (m *brbMiddleware) genId(sender *ecdsa.PublicKey) (uuid.UUID, error) {
 	nonce := rand.Uint32()
 	encodedPk, err := utils.SerializePublicKey(sender)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("unable to serialize public key during brb: %v", err)
+		return uuid.Nil, fmt.Errorf("unable to serialize public key during byzantineReliableBroadcast: %v", err)
 	}
 	buf := bytes.NewBuffer(encodedPk)
 	if err := binary.Write(buf, binary.LittleEndian, nonce); err != nil {
-		return uuid.Nil, fmt.Errorf("unable to write nonce to buffer during brb: %v", err)
+		return uuid.Nil, fmt.Errorf("unable to write nonce to buffer during byzantineReliableBroadcast: %v", err)
 	}
 	id := utils.BytesToUUID(buf.Bytes())
 	return id, nil

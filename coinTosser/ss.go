@@ -6,12 +6,12 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"github.com/cloudflare/circl/group"
-	"github.com/cloudflare/circl/secretsharing"
+	ss "github.com/cloudflare/circl/secretsharing"
 	"github.com/samber/lo"
 )
 
-func shareSecret(threshold uint, nodes uint, secret group.Scalar) []secretsharing.Share {
-	secretSharing := secretsharing.New(rand.Reader, threshold, secret)
+func shareSecret(threshold uint, nodes uint, secret group.Scalar) []ss.Share {
+	secretSharing := ss.New(rand.Reader, threshold, secret)
 	return secretSharing.Share(nodes)
 }
 
@@ -73,7 +73,7 @@ func areElementsEquals(a, b group.Element) (bool, error) {
 	return bytes.Equal(aBytes, bBytes), nil
 }
 
-func marshalShare(share secretsharing.Share) ([]byte, error) {
+func marshalShare(share ss.Share) ([]byte, error) {
 	idBytes, err := share.ID.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal share ID: %v", err)
@@ -85,19 +85,19 @@ func marshalShare(share secretsharing.Share) ([]byte, error) {
 	return append(idBytes, valueBytes...), nil
 }
 
-func unmarshalShare(data []byte) (secretsharing.Share, error) {
+func unmarshalShare(data []byte) (ss.Share, error) {
 	id := group.Ristretto255.NewScalar()
 	value := group.Ristretto255.NewScalar()
 	if scalarSize, err := getScalarSize(); err != nil {
-		return secretsharing.Share{}, fmt.Errorf("unable to get scalar size: %v", err)
+		return ss.Share{}, fmt.Errorf("unable to get scalar size: %v", err)
 	} else if len(data) != scalarSize*2 {
-		return secretsharing.Share{}, fmt.Errorf("argument has incorrect size: got %d bytes, expected %d", len(data), scalarSize*2)
+		return ss.Share{}, fmt.Errorf("argument has incorrect size: got %d bytes, expected %d", len(data), scalarSize*2)
 	} else if err := id.UnmarshalBinary(data[:scalarSize]); err != nil {
-		return secretsharing.Share{}, fmt.Errorf("unable to unmarshal share ID: %v", err)
+		return ss.Share{}, fmt.Errorf("unable to unmarshal share ID: %v", err)
 	} else if err := value.UnmarshalBinary(data[scalarSize:]); err != nil {
-		return secretsharing.Share{}, fmt.Errorf("unable to unmarshal share value: %v", err)
+		return ss.Share{}, fmt.Errorf("unable to unmarshal share value: %v", err)
 	}
-	return secretsharing.Share{ID: id, Value: value}, nil
+	return ss.Share{ID: id, Value: value}, nil
 }
 
 func getScalarSize() (int, error) {

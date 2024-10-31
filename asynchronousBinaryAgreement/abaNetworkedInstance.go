@@ -1,4 +1,4 @@
-package aba
+package asynchronousBinaryAgreement
 
 import (
 	"bytes"
@@ -76,7 +76,7 @@ func (a *abaNetworkedInstance) listener(delBVal, delAux chan roundMsg, delDecisi
 				abaChannelLogger.Warn("unable to submit coin", "instanceId", a.id, "round", coinReq, "error", err)
 			}
 		case <-a.listenerClose:
-			abaChannelLogger.Debug("closing listener aba networked instance")
+			abaChannelLogger.Debug("closing listener asynchronousBinaryAgreement networked instance")
 			return
 		}
 	}
@@ -119,7 +119,7 @@ func (a *abaNetworkedInstance) invoker() {
 				abaChannelLogger.Warn("error executing command", "instanceId", a.id, "error", err)
 			}
 		case <-a.invokerClose:
-			abaChannelLogger.Debug("closing aba networked instance")
+			abaChannelLogger.Debug("closing asynchronousBinaryAgreement networked instance")
 			return
 		}
 	}
@@ -170,7 +170,7 @@ func (a *abaNetworkedInstance) submitDecision(decision byte, sender uuid.UUID) {
 func (a *abaNetworkedInstance) close() {
 	if a.instance != nil {
 		a.instance.close()
-		abaChannelLogger.Debug("signaling close aba networked instance")
+		abaChannelLogger.Debug("signaling close asynchronousBinaryAgreement networked instance")
 		a.listenerClose <- struct{}{}
 		a.invokerClose <- struct{}{}
 	}

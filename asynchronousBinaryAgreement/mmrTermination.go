@@ -1,4 +1,4 @@
-package aba
+package asynchronousBinaryAgreement
 
 import (
 	"fmt"

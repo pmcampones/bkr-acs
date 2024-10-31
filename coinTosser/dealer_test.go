@@ -3,18 +3,18 @@ package coinTosser
 import (
 	"fmt"
 	"github.com/cloudflare/circl/group"
-	"github.com/cloudflare/circl/secretsharing"
+	ss "github.com/cloudflare/circl/secretsharing"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	"pace/overlayNetwork"
+	on "pace/overlayNetwork"
 	"testing"
 )
 
 func TestShouldDealToSelf(t *testing.T) {
-	node := overlayNetwork.GetNode(t, "localhost:6000", "localhost:6000")
-	ssChan, err := overlayNetwork.CreateSSChannel(node, 's')
+	node := on.GetNode(t, "localhost:6000", "localhost:6000")
+	ssChan, err := on.CreateSSChannel(node, 's')
 	assert.NoError(t, err)
-	overlayNetwork.InitializeNodes(t, []*overlayNetwork.Node{node})
+	on.InitializeNodes(t, []*on.Node{node})
 	secret := group.Ristretto255.NewScalar().SetUint64(42)
 	err = DealSecret(ssChan, secret, 0)
 	assert.NoError(t, err)
@@ -26,49 +26,49 @@ func TestShouldDealToSelf(t *testing.T) {
 
 func TestShouldDealToMany(t *testing.T) {
 	numNodes := 10
-	nodes := lo.Map(lo.Range(numNodes), func(i int, _ int) *overlayNetwork.Node {
+	nodes := lo.Map(lo.Range(numNodes), func(i int, _ int) *on.Node {
 		address := fmt.Sprintf("localhost:%d", 6000+i)
-		return overlayNetwork.GetNode(t, address, "localhost:6000")
+		return on.GetNode(t, address, "localhost:6000")
 	})
-	ssChans := lo.Map(nodes, func(node *overlayNetwork.Node, _ int) *overlayNetwork.SSChannel { return makeSSChannel(t, node) })
-	overlayNetwork.InitializeNodes(t, nodes)
+	ssChans := lo.Map(nodes, func(node *on.Node, _ int) *on.SSChannel { return makeSSChannel(t, node) })
+	on.InitializeNodes(t, nodes)
 	secret := group.Ristretto255.NewScalar().SetUint64(42)
 	err := DealSecret(ssChans[0], secret, 0)
 	assert.NoError(t, err)
-	deals := lo.Map(ssChans, func(ssChan *overlayNetwork.SSChannel, _ int) *deal { return listenDealTest(t, ssChan) })
+	deals := lo.Map(ssChans, func(ssChan *on.SSChannel, _ int) *deal { return listenDealTest(t, ssChan) })
 	assert.True(t, lo.EveryBy(deals, func(d *deal) bool { return areScalarEqualsTest(t, secret, d.share.Value) }))
 	commitBase := deals[0].base
 	assert.True(t, lo.EveryBy(deals, func(d *deal) bool { return areElementsEqualsTest(t, commitBase, d.base) }))
 	pointShares := deals[0].commits
 	assert.True(t, lo.EveryBy(deals, func(d *deal) bool { return arePointShareEqualsArray(t, pointShares, d.commits) }))
-	assert.True(t, lo.EveryBy(nodes, func(node *overlayNetwork.Node) bool { return node.Disconnect() == nil }))
+	assert.True(t, lo.EveryBy(nodes, func(node *on.Node) bool { return node.Disconnect() == nil }))
 }
 
 func TestShouldDealRecoverableSecret(t *testing.T) {
 	numNodes := 10
-	nodes := lo.Map(lo.Range(numNodes), func(i int, _ int) *overlayNetwork.Node {
+	nodes := lo.Map(lo.Range(numNodes), func(i int, _ int) *on.Node {
 		address := fmt.Sprintf("localhost:%d", 6000+i)
-		return overlayNetwork.GetNode(t, address, "localhost:6000")
+		return on.GetNode(t, address, "localhost:6000")
 	})
-	ssChans := lo.Map(nodes, func(node *overlayNetwork.Node, _ int) *overlayNetwork.SSChannel { return makeSSChannel(t, node) })
-	overlayNetwork.InitializeNodes(t, nodes)
+	ssChans := lo.Map(nodes, func(node *on.Node, _ int) *on.SSChannel { return makeSSChannel(t, node) })
+	on.InitializeNodes(t, nodes)
 	secret := group.Ristretto255.NewScalar().SetUint64(42)
 	err := DealSecret(ssChans[0], secret, uint(numNodes-1))
 	assert.NoError(t, err)
-	deals := lo.Map(ssChans, func(ssChan *overlayNetwork.SSChannel, _ int) *deal { return listenDealTest(t, ssChan) })
-	shares := lo.Map(deals, func(d *deal, _ int) secretsharing.Share { return d.share })
-	recov, err := secretsharing.Recover(uint(numNodes-1), shares)
+	deals := lo.Map(ssChans, func(ssChan *on.SSChannel, _ int) *deal { return listenDealTest(t, ssChan) })
+	shares := lo.Map(deals, func(d *deal, _ int) ss.Share { return d.share })
+	recov, err := ss.Recover(uint(numNodes-1), shares)
 	assert.NoError(t, err)
 	assert.True(t, areScalarEqualsTest(t, secret, recov))
 }
 
-func makeSSChannel(t *testing.T, node *overlayNetwork.Node) *overlayNetwork.SSChannel {
-	ssChan, err := overlayNetwork.CreateSSChannel(node, 's')
+func makeSSChannel(t *testing.T, node *on.Node) *on.SSChannel {
+	ssChan, err := on.CreateSSChannel(node, 's')
 	assert.NoError(t, err)
 	return ssChan
 }
 
-func listenDealTest(t *testing.T, ssChan *overlayNetwork.SSChannel) *deal {
+func listenDealTest(t *testing.T, ssChan *on.SSChannel) *deal {
 	d, err := listenDeal(ssChan.GetSSChan())
 	assert.NoError(t, err)
 	return d

@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"github.com/cloudflare/circl/group"
-	"github.com/cloudflare/circl/secretsharing"
+	ss "github.com/cloudflare/circl/secretsharing"
 	"github.com/cloudflare/circl/zk/dleq"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -19,10 +19,10 @@ func TestRecoverSecret(t *testing.T) {
 	secret := g.NewScalar().SetUint64(1234567890)
 	shares := shareSecret(threshold, nodes, secret)
 	assert.Equal(t, int(nodes), len(shares))
-	recov1, err := secretsharing.Recover(threshold, shares[:threshold+1])
+	recov1, err := ss.Recover(threshold, shares[:threshold+1])
 	assert.NoError(t, err)
 	assert.Equal(t, secret, recov1)
-	recov2, err := secretsharing.Recover(threshold, shares[1:threshold+2])
+	recov2, err := ss.Recover(threshold, shares[1:threshold+2])
 	assert.NoError(t, err)
 	assert.Equal(t, secret, recov2)
 }
@@ -35,7 +35,7 @@ func TestSSWithPoints(t *testing.T) {
 	base := g.HashToElement([]byte("base"), []byte("ss_tests"))
 	shares := shareSecret(threshold, nodes, secret)
 	pointSecret := g.Identity().Mul(base, secret)
-	hiddenShares := lo.Map(shares, func(share secretsharing.Share, _ int) pointShare { return shareToPoint(share, base) })
+	hiddenShares := lo.Map(shares, func(share ss.Share, _ int) pointShare { return shareToPoint(share, base) })
 	recov1 := recoverSecretFromPoints(hiddenShares[:])
 	ptSecBytes, err := pointSecret.MarshalBinary()
 	assert.NoError(t, err)
@@ -108,7 +108,7 @@ func TestHashPointToBool(t *testing.T) {
 
 func TestMarshalAndUnmarshal(t *testing.T) {
 	g := group.Ristretto255
-	ogShare := secretsharing.Share{ID: g.NewScalar().SetUint64(1), Value: g.NewScalar().SetUint64(2)}
+	ogShare := ss.Share{ID: g.NewScalar().SetUint64(1), Value: g.NewScalar().SetUint64(2)}
 	shareBytes, err := marshalShare(ogShare)
 	assert.NoError(t, err)
 	recovShare, err := unmarshalShare(shareBytes)

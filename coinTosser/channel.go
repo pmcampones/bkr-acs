@@ -7,7 +7,7 @@ import (
 	. "github.com/google/uuid"
 	"github.com/samber/mo"
 	"log/slog"
-	"pace/overlayNetwork"
+	on "pace/overlayNetwork"
 	"pace/utils"
 )
 
@@ -30,7 +30,7 @@ type CTChannel struct {
 	closeDeliver   chan struct{}
 }
 
-func NewCoinTosserChannel(ssChan *overlayNetwork.SSChannel, bebChan *overlayNetwork.BEBChannel, t uint) (*CTChannel, error) {
+func NewCoinTosserChannel(ssChan *on.SSChannel, bebChan *on.BEBChannel, t uint) (*CTChannel, error) {
 	deliverChan := make(chan *msg)
 	c := &CTChannel{
 		instances:      make(map[UUID]*coinToss),
@@ -48,7 +48,7 @@ func NewCoinTosserChannel(ssChan *overlayNetwork.SSChannel, bebChan *overlayNetw
 	return c, nil
 }
 
-func (c *CTChannel) initializeChannel(ssChan *overlayNetwork.SSChannel) {
+func (c *CTChannel) initializeChannel(ssChan *on.SSChannel) {
 	d, err := listenDeal(ssChan.GetSSChan())
 	if err != nil {
 		channelLogger.Error("unable to listen deal", "error", err)

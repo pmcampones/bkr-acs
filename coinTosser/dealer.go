@@ -7,19 +7,19 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/cloudflare/circl/group"
-	"github.com/cloudflare/circl/secretsharing"
+	ss "github.com/cloudflare/circl/secretsharing"
 	"github.com/samber/lo"
-	"pace/overlayNetwork"
+	on "pace/overlayNetwork"
 	"unsafe"
 )
 
-func DealSecret(ssChannel *overlayNetwork.SSChannel, secret group.Scalar, threshold uint) error {
+func DealSecret(ssChannel *on.SSChannel, secret group.Scalar, threshold uint) error {
 	return ssChannel.SSBroadcast(secret, threshold, computeCommitment)
 }
 
-func computeCommitment(shares []secretsharing.Share) ([]byte, error) {
+func computeCommitment(shares []ss.Share) ([]byte, error) {
 	base := group.Ristretto255.RandomElement(rand.Reader)
-	commits := lo.Map(shares, func(share secretsharing.Share, _ int) pointShare { return shareToPoint(share, base) })
+	commits := lo.Map(shares, func(share ss.Share, _ int) pointShare { return shareToPoint(share, base) })
 	return marshalCommitment(base, commits)
 }
 
@@ -63,11 +63,11 @@ func writeCommitment(base []byte, commits [][]byte) ([]byte, error) {
 
 type deal struct {
 	base    group.Element
-	share   secretsharing.Share
+	share   ss.Share
 	commits []pointShare
 }
 
-func listenDeal(ssChan <-chan *overlayNetwork.SSMsg) (*deal, error) {
+func listenDeal(ssChan <-chan *on.SSMsg) (*deal, error) {
 	ssMsg := <-ssChan
 	if ssMsg.Err != nil {
 		return nil, fmt.Errorf("received error message: %v", ssMsg.Err)
