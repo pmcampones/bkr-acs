@@ -23,55 +23,35 @@ func TestChannelShouldBroadcastToSelf(t *testing.T) {
 }
 
 func TestChannelShouldBroadcastToAllNoFaults(t *testing.T) {
-	numNodes := 10
-	addresses := lo.Map(lo.Range(numNodes), func(_ int, i int) string { return fmt.Sprintf("localhost:%d", 6000+i) })
-	nodes := lo.Map(addresses, func(address string, _ int) *on.Node { return getNode(t, address) })
-	channels := lo.Map(nodes, func(node *on.Node, _ int) *BRBChannel { return getChannel(uint(numNodes), 0, node) })
-	on.InitializeNodes(t, nodes)
-	msg := []byte("hello")
-	assert.NoError(t, channels[0].BRBroadcast(msg))
-	outputs := lo.Map(channels, func(c *BRBChannel, _ int) BRBMsg { return <-c.BrbDeliver })
-	assert.True(t, lo.EveryBy(outputs, func(recov BRBMsg) bool { return bytes.Equal(msg, recov.Content) }))
-	teardown(t, channels, []*byzChannel{}, nodes)
+	n := uint(10)
+	testShouldBroadcastToAll(t, n, 0, n, 0)
 }
 
 func TestChannelShouldBroadcastToAllMaxFaults(t *testing.T) {
-	f := 3
-	numNodes := 3*f + 1
-	addresses := lo.Map(lo.Range(numNodes), func(_ int, i int) string { return fmt.Sprintf("localhost:%d", 6000+i) })
-	nodes := lo.Map(addresses, func(address string, _ int) *on.Node { return getNode(t, address) })
-	channels := lo.Map(nodes, func(node *on.Node, _ int) *BRBChannel { return getChannel(uint(numNodes), uint(f), node) })
-	on.InitializeNodes(t, nodes)
-	msg := []byte("hello")
-	assert.NoError(t, channels[0].BRBroadcast(msg))
-	outputs := lo.Map(channels, func(c *BRBChannel, _ int) BRBMsg { return <-c.BrbDeliver })
-	assert.True(t, lo.EveryBy(outputs, func(recov BRBMsg) bool { return bytes.Equal(msg, recov.Content) }))
-	teardown(t, channels, []*byzChannel{}, nodes)
+	f := uint(3)
+	n := 3*f + 1
+	testShouldBroadcastToAll(t, n, f, n, 0)
 }
 
 func TestChannelShouldBroadcastToAllMaxCrash(t *testing.T) {
-	f := 3
-	numNodes := 3*f + 1
-	addresses := lo.Map(lo.Range(numNodes), func(_ int, i int) string { return fmt.Sprintf("localhost:%d", 6000+i) })
-	nodes := lo.Map(addresses, func(address string, _ int) *on.Node { return getNode(t, address) })
-	channels := lo.Map(nodes[:numNodes-f], func(node *on.Node, _ int) *BRBChannel { return getChannel(uint(numNodes), uint(f), node) })
-	on.InitializeNodes(t, nodes)
-	msg := []byte("hello")
-	assert.NoError(t, channels[0].BRBroadcast(msg))
-	outputs := lo.Map(channels, func(c *BRBChannel, _ int) BRBMsg { return <-c.BrbDeliver })
-	assert.True(t, lo.EveryBy(outputs, func(recov BRBMsg) bool { return bytes.Equal(msg, recov.Content) }))
-	teardown(t, channels, []*byzChannel{}, nodes)
+	f := uint(3)
+	n := 3*f + 1
+	testShouldBroadcastToAll(t, n, f, n-f, 0)
 }
 
 func TestChannelShouldBroadcastToAllMaxByzantine(t *testing.T) {
-	f := 3
-	numNodes := 3*f + 1
-	addresses := lo.Map(lo.Range(numNodes), func(_ int, i int) string { return fmt.Sprintf("localhost:%d", 6000+i) })
+	f := uint(3)
+	n := 3*f + 1
+	testShouldBroadcastToAll(t, n, f, n-f, f)
+}
+
+func testShouldBroadcastToAll(t *testing.T, n, f, correct, byzantine uint) {
+	addresses := lo.Map(lo.Range(int(n)), func(_ int, i int) string { return fmt.Sprintf("localhost:%d", 6000+i) })
 	nodes := lo.Map(addresses, func(address string, _ int) *on.Node { return getNode(t, address) })
-	channels := lo.Map(nodes[:numNodes-f], func(node *on.Node, _ int) *BRBChannel {
-		return getChannel(uint(numNodes), uint(f), node)
+	channels := lo.Map(nodes[:correct], func(node *on.Node, _ int) *BRBChannel {
+		return getChannel(n, f, node)
 	})
-	byzChannels := lo.Map(nodes[numNodes-f:], func(node *on.Node, _ int) *byzChannel {
+	byzChannels := lo.Map(nodes[correct:correct+byzantine], func(node *on.Node, _ int) *byzChannel {
 		beb := on.CreateBEBChannel(node, 'b')
 		return createByzChannel(beb)
 	})
