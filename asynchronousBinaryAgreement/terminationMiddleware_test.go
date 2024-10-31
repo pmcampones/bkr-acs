@@ -13,7 +13,7 @@ func TestMarshalAndUnmarshalTerminationMessage(t *testing.T) {
 	decision := byte(1)
 	node := on.GetNode(t, "localhost:6000", "localhost:6000")
 	bebChannel := on.CreateBEBChannel(node, 't')
-	brbChannel := brb.CreateBRBChannel(1, 0, bebChannel, make(chan brb.BRBMsg))
+	brbChannel := brb.CreateBRBChannel(1, 0, bebChannel)
 	on.InitializeNodes(t, []*on.Node{node})
 	m := newTerminationMiddleware(brbChannel)
 	assert.NoError(t, m.broadcastDecision(abaInstance, decision))

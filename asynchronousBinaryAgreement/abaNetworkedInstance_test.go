@@ -51,7 +51,7 @@ func TestNetworkedInstanceShouldDecideOwnProposal(t *testing.T) {
 	abaBebChan := on.CreateBEBChannel(node, 'c')
 	abamidware := newABAMiddleware(abaBebChan)
 	termBebChan := on.CreateBEBChannel(node, 'd')
-	termBrbChan := brb.CreateBRBChannel(1, 0, termBebChan, make(chan brb.BRBMsg))
+	termBrbChan := brb.CreateBRBChannel(1, 0, termBebChan)
 	termidware := newTerminationMiddleware(termBrbChan)
 	on.InitializeNodes(t, []*on.Node{node})
 	assert.NoError(t, ct.DealSecret(ssChan, ct.NewScalar(42), 0))
