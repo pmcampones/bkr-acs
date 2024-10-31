@@ -119,6 +119,6 @@ func (m *abaMiddleware) broadcastMsg(instance uuid.UUID, kind middlewareCode, ro
 }
 
 func (m *abaMiddleware) close() {
-	termLogger.Info("closing termination gadget")
+	abaLogger.Info("sending close signal to abaMiddleware")
 	m.closeChan <- struct{}{}
 }
