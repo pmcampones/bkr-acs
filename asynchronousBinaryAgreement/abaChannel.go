@@ -18,15 +18,16 @@ type abaWrapper struct {
 }
 
 type AbaChannel struct {
-	n          uint
-	f          uint
-	instances  map[uuid.UUID]*abaWrapper
-	finished   map[uuid.UUID]bool
-	ctChannel  *ct.CTChannel
-	termidware *terminationMiddleware
-	middleware *abaMiddleware
-	commands   chan func() error
-	closeChan  chan struct{}
+	n             uint
+	f             uint
+	instances     map[uuid.UUID]*abaWrapper
+	finished      map[uuid.UUID]bool
+	ctChannel     *ct.CTChannel
+	termidware    *terminationMiddleware
+	middleware    *abaMiddleware
+	commands      chan func() error
+	listenerClose chan struct{}
+	invokerClose  chan struct{}
 }
 
 func NewAbaChannel(n, f uint, dealSS *on.SSChannel, ctBeb, mBeb *on.BEBChannel, tBrb *brb.BRBChannel, t uint) (*AbaChannel, error) {
@@ -35,18 +36,31 @@ func NewAbaChannel(n, f uint, dealSS *on.SSChannel, ctBeb, mBeb *on.BEBChannel, 
 		return nil, fmt.Errorf("unable to create coin tosser channel: %w", err)
 	}
 	c := &AbaChannel{
-		n:          n,
-		f:          f,
-		instances:  make(map[uuid.UUID]*abaWrapper),
-		finished:   make(map[uuid.UUID]bool),
-		ctChannel:  ctChannel,
-		termidware: newTerminationMiddleware(tBrb),
-		middleware: newABAMiddleware(mBeb),
-		commands:   make(chan func() error),
-		closeChan:  make(chan struct{}),
+		n:             n,
+		f:             f,
+		instances:     make(map[uuid.UUID]*abaWrapper),
+		finished:      make(map[uuid.UUID]bool),
+		ctChannel:     ctChannel,
+		termidware:    newTerminationMiddleware(tBrb),
+		middleware:    newABAMiddleware(mBeb),
+		commands:      make(chan func() error),
+		listenerClose: make(chan struct{}, 1),
+		invokerClose:  make(chan struct{}, 1),
 	}
 	go c.invoker()
+	go c.listener()
 	return c, nil
+}
+
+func (c *AbaChannel) propose(instanceId uuid.UUID, val byte) {
+	c.commands <- func() error {
+		if wrapper, err := c.getInstance(instanceId); err != nil {
+			return fmt.Errorf("unable to get aba instance: %w", err)
+		} else if err = wrapper.instance.propose(val); err != nil {
+			return fmt.Errorf("unable to propose value in instance %s: %w ", instanceId, err)
+		}
+		return nil
+	}
 }
 
 func (c *AbaChannel) listener() {
@@ -60,6 +74,9 @@ func (c *AbaChannel) listener() {
 			c.commands <- func() error {
 				return c.processMiddlewareMsg(abamsg)
 			}
+		case <-c.listenerClose:
+			abaChannelLogger.Info("closing listener")
+			return
 		}
 	}
 }
@@ -137,27 +154,15 @@ func (c *AbaChannel) invoker() {
 			if err := cmd(); err != nil {
 				abaChannelLogger.Warn("error executing command", "error", err)
 			}
-		case <-c.closeChan:
+		case <-c.invokerClose:
 			abaChannelLogger.Info("closing asynchronousBinaryAgreement channel")
 			return
 		}
 	}
 }
 
-func (c *AbaChannel) propose(instanceId uuid.UUID, val byte, output chan byte) {
-	c.commands <- func() error {
-		abaChannelLogger.Debug("submitting initial proposal", "instanceId", instanceId, "val", val)
-		if c.finished[instanceId] {
-			return fmt.Errorf("instance already finished")
-		} else if c.instances[instanceId] != nil {
-			return fmt.Errorf("instance already exists")
-		}
-
-		return nil
-	}
-}
-
 func (c *AbaChannel) close() {
 	abaChannelLogger.Info("signaling close of asynchronousBinaryAgreement channel")
-	c.closeChan <- struct{}{}
+	c.listenerClose <- struct{}{}
+	c.invokerClose <- struct{}{}
 }
