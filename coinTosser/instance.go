@@ -137,6 +137,7 @@ func (sp *shareProcessor) processShare(share pointShare, senderId UUID) error {
 		if len(sp.shares) == int(sp.t+1) {
 			secretPoint := recoverSecretFromPoints(sp.shares)
 			coin, err := hashPointToBool(secretPoint)
+			ctLogger.Info("computed random coin", "coin", coin)
 			if err != nil {
 				errChan <- fmt.Errorf("unable to hash point to bool: %v", err)
 			}

@@ -1,8 +1,11 @@
 package asynchronousBinaryAgreement
 
 import (
+	"fmt"
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"math/rand/v2"
 	brb "pace/byzantineReliableBroadcast"
 	ct "pace/coinTosser"
 	on "pace/overlayNetwork"
@@ -42,22 +45,56 @@ func (n *networkedInstanceCommandIssuer) issueAbaMsgCommand(abamsg *abaMsg) {
 }
 
 func TestNetworkedInstanceShouldDecideOwnProposal(t *testing.T) {
-	node := on.GetNode(t, "localhost:6000", "localhost:6000")
-	ssChan, err := on.CreateSSChannel(node, 'a')
-	assert.NoError(t, err)
+	testNetworkedInstancesShouldDecide(t, 1, 0)
+}
+
+func TestAllHonestNetworkedInstancesShouldDecide(t *testing.T) {
+	testNetworkedInstancesShouldDecide(t, 10, 0)
+}
+
+func TestNetworkedInstancesShouldDecideWithFaults(t *testing.T) {
+	f := uint(3)
+	n := 3*f + 1
+	testNetworkedInstancesShouldDecide(t, n, f)
+}
+
+func testNetworkedInstancesShouldDecide(t *testing.T, n, f uint) {
+	nodes := lo.Map(lo.Range(int(n)), func(i int, _ int) *on.Node {
+		address := fmt.Sprintf("localhost:%d", 6000+i)
+		return on.GetNode(t, address, "localhost:6000")
+	})
+	ssChans := lo.Map(nodes, func(node *on.Node, _ int) *on.SSChannel {
+		ss, err := on.CreateSSChannel(node, 'a')
+		assert.NoError(t, err)
+		return ss
+	})
+	on.InitializeNodes(t, nodes)
+	id := uuid.New()
+	abaInstances := lo.Map(nodes, func(node *on.Node, i int) *abaNetworkedInstance {
+		abaInstance := makeAbaNetworkedInstance(t, id, node, ssChans[i], n, f)
+		newNetworkedInstanceCommandIssuer(abaInstance)
+		return abaInstance
+	})
+	assert.NoError(t, ct.DealSecret(ssChans[0], ct.NewScalar(42), f))
+	proposals := lo.Map(lo.Range(int(n)), func(_ int, i int) byte { return byte(rand.IntN(2)) })
+	for _, tuple := range lo.Zip2(abaInstances, proposals) {
+		abaInstance, proposal := tuple.Unpack()
+		assert.NoError(t, abaInstance.propose(proposal))
+	}
+	results := lo.Map(abaInstances, func(abaInstance *abaNetworkedInstance, _ int) byte { return <-abaInstance.output })
+	assert.True(t, lo.EveryBy(results, func(res byte) bool { return res == results[0] }))
+	assert.True(t, lo.EveryBy(nodes, func(node *on.Node) bool { return node.Disconnect() == nil }))
+}
+
+func makeAbaNetworkedInstance(t *testing.T, id uuid.UUID, node *on.Node, ssChan *on.SSChannel, n uint, f uint) *abaNetworkedInstance {
 	ctBebChan := on.CreateBEBChannel(node, 'b')
-	ctChan, err := ct.NewCoinTosserChannel(ssChan, ctBebChan, 0)
+	ctChan, err := ct.NewCoinTosserChannel(ssChan, ctBebChan, f)
 	assert.NoError(t, err)
 	abaBebChan := on.CreateBEBChannel(node, 'c')
 	abamidware := newABAMiddleware(abaBebChan)
 	termBebChan := on.CreateBEBChannel(node, 'd')
-	termBrbChan := brb.CreateBRBChannel(1, 0, termBebChan)
+	termBrbChan := brb.CreateBRBChannel(n, f, termBebChan)
 	termidware := newTerminationMiddleware(termBrbChan)
-	on.InitializeNodes(t, []*on.Node{node})
-	assert.NoError(t, ct.DealSecret(ssChan, ct.NewScalar(42), 0))
-	abaInstance := newAbaNetworkedInstance(uuid.New(), 1, 0, abamidware, termidware, ctChan)
-	newNetworkedInstanceCommandIssuer(abaInstance)
-	assert.NoError(t, abaInstance.propose(1))
-	res := <-abaInstance.output
-	assert.Equal(t, byte(1), res)
+	abaInstance := newAbaNetworkedInstance(id, n, f, abamidware, termidware, ctChan)
+	return abaInstance
 }
