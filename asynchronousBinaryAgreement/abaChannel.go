@@ -52,19 +52,27 @@ func NewAbaChannel(n, f uint, dealSS *on.SSChannel, ctBeb, mBeb *on.BEBChannel, 
 	return c, nil
 }
 
-func (c *AbaChannel) propose(instanceId uuid.UUID, val byte) chan byte {
+func (c *AbaChannel) NewAbaInstance(instanceId uuid.UUID) chan byte {
 	res := make(chan chan byte, 1)
+	c.commands <- func() error {
+		if _, err := c.getInstance(instanceId); err != nil {
+			return fmt.Errorf("unable to get aba instance: %w", err)
+		}
+		res <- c.instances[instanceId].output
+		return nil
+	}
+	return <-res
+}
+
+func (c *AbaChannel) Propose(instanceId uuid.UUID, val byte) {
 	c.commands <- func() error {
 		if wrapper, err := c.getInstance(instanceId); err != nil {
 			return fmt.Errorf("unable to get aba instance: %w", err)
 		} else if err = wrapper.instance.propose(val); err != nil {
 			return fmt.Errorf("unable to propose value in instance %s: %w ", instanceId, err)
-		} else {
-			res <- wrapper.output
-			return nil
 		}
+		return nil
 	}
-	return <-res
 }
 
 func (c *AbaChannel) listener() {
