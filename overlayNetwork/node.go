@@ -46,7 +46,7 @@ func NewNode(address, contact string, sk *ecdsa.PrivateKey, cert *tls.Certificat
 		memChan:      make(chan struct{}),
 		config:       config,
 		sk:           sk,
-		closeChan:    make(chan struct{}),
+		closeChan:    make(chan struct{}, 1),
 	}
 	node.listener = node.setupTLSListener(address)
 	go node.listenConnections(isContact)
