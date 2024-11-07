@@ -18,7 +18,7 @@ func createByzChannel(beb *on.BEBChannel) *byzChannel {
 	byz := &byzChannel{
 		middleware: newBRBMiddleware(beb, deliverChan),
 		received:   make(map[uuid.UUID]bool),
-		closeChan:  make(chan struct{}),
+		closeChan:  make(chan struct{}, 1),
 	}
 	go byz.bebDeliver(deliverChan)
 	return byz

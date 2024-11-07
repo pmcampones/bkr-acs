@@ -37,7 +37,7 @@ func newBRBMiddleware(bebChannel *on.BEBChannel, deliverChan chan<- *msg) *brbMi
 	m := &brbMiddleware{
 		bebChannel:  bebChannel,
 		deliverChan: deliverChan,
-		closeChan:   make(chan struct{}),
+		closeChan:   make(chan struct{}, 1),
 	}
 	go m.bebDeliver(bebChannel.GetBEBChan())
 	return m

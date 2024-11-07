@@ -18,7 +18,7 @@ type brbInstance struct {
 func newBrbInstance(n, f uint, echo, ready chan []byte, output chan BRBMsg) *brbInstance {
 	handler := newBrbHandler(n, f, echo, ready, output)
 	commands := make(chan func())
-	closeChan := make(chan struct{})
+	closeChan := make(chan struct{}, 1)
 	executor := &brbInstance{
 		handler:   handler,
 		commands:  commands,

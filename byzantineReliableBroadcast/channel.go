@@ -30,8 +30,8 @@ type BRBChannel struct {
 func CreateBRBChannel(n, f uint, beb *on.BEBChannel) *BRBChannel {
 	commands := make(chan func() error)
 	deliverChan := make(chan *msg)
-	closeCommands := make(chan struct{})
-	closeDeliver := make(chan struct{})
+	closeCommands := make(chan struct{}, 1)
+	closeDeliver := make(chan struct{}, 1)
 	channel := &BRBChannel{
 		instances:     make(map[UUID]*brbInstance),
 		finished:      make(map[UUID]bool),
