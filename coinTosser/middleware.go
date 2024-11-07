@@ -25,7 +25,7 @@ func newCTMiddleware(bebChannel *overlayNetwork.BEBChannel, deliverChan chan<- *
 	m := &ctMiddleware{
 		bebChannel:  bebChannel,
 		deliverChan: deliverChan,
-		closeChan:   make(chan struct{}),
+		closeChan:   make(chan struct{}, 1),
 	}
 	go m.bebDeliver(bebChannel.GetBEBChan())
 	return m

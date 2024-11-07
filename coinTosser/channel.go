@@ -40,8 +40,8 @@ func NewCoinTosserChannel(ssChan *on.SSChannel, bebChan *on.BEBChannel, t uint) 
 		t:              t,
 		middleware:     newCTMiddleware(bebChan, deliverChan),
 		commands:       make(chan func() error),
-		closeCommands:  make(chan struct{}),
-		closeDeliver:   make(chan struct{}),
+		closeCommands:  make(chan struct{}, 1),
+		closeDeliver:   make(chan struct{}, 1),
 	}
 	go c.initializeChannel(ssChan)
 	go c.bebDeliver(deliverChan)
