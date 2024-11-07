@@ -165,7 +165,7 @@ func (c *AbaChannel) invoker() {
 	}
 }
 
-func (c *AbaChannel) close() {
+func (c *AbaChannel) Close() {
 	abaChannelLogger.Info("signaling close of asynchronousBinaryAgreement channel")
 	c.listenerClose <- struct{}{}
 	c.invokerClose <- struct{}{}
