@@ -32,7 +32,7 @@ func testShouldDeliverWithTheshold(t *testing.T, numNodes, threshold uint) {
 	nodes := lo.Map(lo.Range(int(numNodes)), func(i int, _ int) *on.Node {
 		return on.GetNode(t, fmt.Sprintf("localhost:%d", 6000+i), "localhost:6000")
 	})
-	ssChans := lo.Map(nodes, func(n *on.Node, _ int) *on.SSChannel { return makeSSChannel(t, n) })
+	ssChans := lo.Map(nodes, func(n *on.Node, _ int) *on.SSChannel { return on.CreateSSChannel(n, 's') })
 	bebChans := lo.Map(nodes, func(n *on.Node, _ int) *on.BEBChannel {
 		return on.CreateBEBChannel(n, 'c')
 	})

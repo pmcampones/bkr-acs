@@ -8,6 +8,7 @@ import (
 	"github.com/cloudflare/circl/group"
 	ss "github.com/cloudflare/circl/secretsharing"
 	"github.com/samber/lo"
+	"pace/utils"
 )
 
 func shareSecret(threshold uint, nodes uint, secret group.Scalar) []ss.Share {
@@ -88,7 +89,7 @@ func marshalShare(share ss.Share) ([]byte, error) {
 func unmarshalShare(data []byte) (ss.Share, error) {
 	id := group.Ristretto255.NewScalar()
 	value := group.Ristretto255.NewScalar()
-	if scalarSize, err := getScalarSize(); err != nil {
+	if scalarSize, err := utils.GetScalarSize(); err != nil {
 		return ss.Share{}, fmt.Errorf("unable to get scalar size: %v", err)
 	} else if len(data) != scalarSize*2 {
 		return ss.Share{}, fmt.Errorf("argument has incorrect size: got %d bytes, expected %d", len(data), scalarSize*2)
@@ -100,30 +101,12 @@ func unmarshalShare(data []byte) (ss.Share, error) {
 	return ss.Share{ID: id, Value: value}, nil
 }
 
-func getScalarSize() (int, error) {
-	scalar := group.Ristretto255.NewScalar()
-	scalarBytes, err := scalar.MarshalBinary()
-	if err != nil {
-		return 0, fmt.Errorf("unable to marshal scalar: %v", err)
-	}
-	return len(scalarBytes), nil
-}
-
-func getElementSize() (int, error) {
-	element := group.Ristretto255.NewElement()
-	elementBytes, err := element.MarshalBinary()
-	if err != nil {
-		return 0, fmt.Errorf("unable to marshal element: %v", err)
-	}
-	return len(elementBytes), nil
-}
-
 func getPointShareSize() (int, error) {
-	scalarSize, err := getScalarSize()
+	scalarSize, err := utils.GetScalarSize()
 	if err != nil {
 		return 0, fmt.Errorf("unable to get scalar size: %v", err)
 	}
-	elementSize, err := getElementSize()
+	elementSize, err := utils.GetElementSize()
 	if err != nil {
 		return 0, fmt.Errorf("unable to get element size: %v", err)
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/cloudflare/circl/group"
 	ss "github.com/cloudflare/circl/secretsharing"
 	"github.com/samber/lo"
+	"pace/utils"
 )
 
 type SSMsg struct {
@@ -20,23 +21,17 @@ type SSMsg struct {
 type SSChannel struct {
 	node        *Node
 	listenCode  byte
-	scalarSize  int
 	deliverChan chan *SSMsg
 }
 
-func CreateSSChannel(node *Node, listenCode byte) (*SSChannel, error) {
-	binary, err := group.Ristretto255.NewScalar().MarshalBinary()
-	if err != nil {
-		return nil, fmt.Errorf("unable to marshal default number: %v", err)
-	}
+func CreateSSChannel(node *Node, listenCode byte) *SSChannel {
 	s := &SSChannel{
 		node:        node,
 		listenCode:  listenCode,
-		scalarSize:  len(binary),
 		deliverChan: make(chan *SSMsg),
 	}
 	node.attachMessageObserver(s)
-	return s, nil
+	return s
 }
 
 func (s *SSChannel) SSBroadcast(secret group.Scalar, threshold uint, commitMaker func([]ss.Share) ([]byte, error)) error {
@@ -90,16 +85,18 @@ func (s *SSChannel) bebDeliver(msg []byte, sender *ecdsa.PublicKey) {
 		msg = msg[1:]
 		id := group.Ristretto255.NewScalar()
 		val := group.Ristretto255.NewScalar()
-		if len(msg) < 2*s.scalarSize {
+		if scalarSize, err := utils.GetScalarSize(); err != nil {
+			s.deliverChan <- &SSMsg{Err: fmt.Errorf("unable to get scalar size: %w", err)}
+		} else if len(msg) < 2*scalarSize {
 			s.deliverChan <- &SSMsg{Err: fmt.Errorf("message too short")}
-		} else if err := id.UnmarshalBinary(msg[:s.scalarSize]); err != nil {
+		} else if err := id.UnmarshalBinary(msg[:scalarSize]); err != nil {
 			s.deliverChan <- &SSMsg{Err: fmt.Errorf("unable to unmarshal ID: %w", err)}
-		} else if err := val.UnmarshalBinary(msg[s.scalarSize : 2*s.scalarSize]); err != nil {
+		} else if err := val.UnmarshalBinary(msg[scalarSize : 2*scalarSize]); err != nil {
 			s.deliverChan <- &SSMsg{Err: fmt.Errorf("unable to unmarshal value: %w", err)}
 		} else {
 			s.deliverChan <- &SSMsg{
 				Share:      ss.Share{ID: id, Value: val},
-				Commitment: msg[2*s.scalarSize:],
+				Commitment: msg[2*scalarSize:],
 				Sender:     sender,
 			}
 		}

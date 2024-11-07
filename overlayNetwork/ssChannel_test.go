@@ -27,7 +27,7 @@ func testShouldSSNoThreshold(t *testing.T, numNodes int) {
 		return getNode(t, fmt.Sprintf("localhost:%d", 6000+i))
 	})
 	InitializeNodes(t, nodes)
-	s := lo.Map(nodes, func(node *Node, _ int) *SSChannel { return makeSSChannel(t, node) })
+	s := lo.Map(nodes, func(node *Node, _ int) *SSChannel { return CreateSSChannel(node, 's') })
 	secret := group.Ristretto255.NewScalar().SetUint64(42)
 	commitment := []byte("commitment")
 	err := s[0].SSBroadcast(secret, 0, dummyCommitMaker(commitment))
@@ -53,7 +53,7 @@ func testShouldSSWithThreshold(t *testing.T, numNodes, threshold int) {
 		return getNode(t, fmt.Sprintf("localhost:%d", 6000+i))
 	})
 	InitializeNodes(t, nodes)
-	s := lo.Map(nodes, func(node *Node, _ int) *SSChannel { return makeSSChannel(t, node) })
+	s := lo.Map(nodes, func(node *Node, _ int) *SSChannel { return CreateSSChannel(node, 's') })
 	secret := group.Ristretto255.NewScalar().SetUint64(42)
 	commitment := []byte("commitment")
 	err := s[0].SSBroadcast(secret, uint(threshold), dummyCommitMaker(commitment))
@@ -65,12 +65,6 @@ func testShouldSSWithThreshold(t *testing.T, numNodes, threshold int) {
 	assert.NoError(t, err)
 	assert.True(t, areScalarEquals(t, secret, recov))
 	assert.True(t, lo.EveryBy(nodes, func(node *Node) bool { return node.Disconnect() == nil }))
-}
-
-func makeSSChannel(t *testing.T, node *Node) *SSChannel {
-	s, err := CreateSSChannel(node, 's')
-	assert.NoError(t, err)
-	return s
 }
 
 func areScalarEquals(t *testing.T, a, b group.Scalar) bool {

@@ -11,6 +11,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"github.com/cloudflare/circl/group"
 	. "github.com/google/uuid"
 	"github.com/lmittmann/tint"
 	"log"
@@ -153,4 +154,22 @@ func GetCode(propName string) byte {
 func HashToBool(seed []byte) bool {
 	hash := sha256.Sum256(seed)
 	return hash[0]%2 == 0
+}
+
+func GetScalarSize() (int, error) {
+	scalar := group.Ristretto255.NewScalar()
+	scalarBytes, err := scalar.MarshalBinary()
+	if err != nil {
+		return 0, fmt.Errorf("unable to marshal scalar: %v", err)
+	}
+	return len(scalarBytes), nil
+}
+
+func GetElementSize() (int, error) {
+	element := group.Ristretto255.NewElement()
+	elementBytes, err := element.MarshalBinary()
+	if err != nil {
+		return 0, fmt.Errorf("unable to marshal element: %v", err)
+	}
+	return len(elementBytes), nil
 }

@@ -12,11 +12,10 @@ import (
 
 func TestShouldDealToSelf(t *testing.T) {
 	node := on.GetNode(t, "localhost:6000", "localhost:6000")
-	ssChan, err := on.CreateSSChannel(node, 's')
-	assert.NoError(t, err)
+	ssChan := on.CreateSSChannel(node, 's')
 	on.InitializeNodes(t, []*on.Node{node})
 	secret := group.Ristretto255.NewScalar().SetUint64(42)
-	err = DealSecret(ssChan, secret, 0)
+	err := DealSecret(ssChan, secret, 0)
 	assert.NoError(t, err)
 	d, err := listenDeal(ssChan.GetSSChan())
 	assert.NoError(t, err)
@@ -30,7 +29,7 @@ func TestShouldDealToMany(t *testing.T) {
 		address := fmt.Sprintf("localhost:%d", 6000+i)
 		return on.GetNode(t, address, "localhost:6000")
 	})
-	ssChans := lo.Map(nodes, func(node *on.Node, _ int) *on.SSChannel { return makeSSChannel(t, node) })
+	ssChans := lo.Map(nodes, func(node *on.Node, _ int) *on.SSChannel { return on.CreateSSChannel(node, 's') })
 	on.InitializeNodes(t, nodes)
 	secret := group.Ristretto255.NewScalar().SetUint64(42)
 	err := DealSecret(ssChans[0], secret, 0)
@@ -50,7 +49,7 @@ func TestShouldDealRecoverableSecret(t *testing.T) {
 		address := fmt.Sprintf("localhost:%d", 6000+i)
 		return on.GetNode(t, address, "localhost:6000")
 	})
-	ssChans := lo.Map(nodes, func(node *on.Node, _ int) *on.SSChannel { return makeSSChannel(t, node) })
+	ssChans := lo.Map(nodes, func(node *on.Node, _ int) *on.SSChannel { return on.CreateSSChannel(node, 's') })
 	on.InitializeNodes(t, nodes)
 	secret := group.Ristretto255.NewScalar().SetUint64(42)
 	err := DealSecret(ssChans[0], secret, uint(numNodes-1))
@@ -60,12 +59,6 @@ func TestShouldDealRecoverableSecret(t *testing.T) {
 	recov, err := ss.Recover(uint(numNodes-1), shares)
 	assert.NoError(t, err)
 	assert.True(t, areScalarEqualsTest(t, secret, recov))
-}
-
-func makeSSChannel(t *testing.T, node *on.Node) *on.SSChannel {
-	ssChan, err := on.CreateSSChannel(node, 's')
-	assert.NoError(t, err)
-	return ssChan
 }
 
 func listenDealTest(t *testing.T, ssChan *on.SSChannel) *deal {

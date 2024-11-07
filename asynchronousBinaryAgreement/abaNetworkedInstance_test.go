@@ -64,9 +64,7 @@ func testNetworkedInstancesShouldDecide(t *testing.T, n, f uint) {
 		return on.GetNode(t, address, "localhost:6000")
 	})
 	ssChans := lo.Map(nodes, func(node *on.Node, _ int) *on.SSChannel {
-		ss, err := on.CreateSSChannel(node, 'a')
-		assert.NoError(t, err)
-		return ss
+		return on.CreateSSChannel(node, 'a')
 	})
 	on.InitializeNodes(t, nodes)
 	id := uuid.New()

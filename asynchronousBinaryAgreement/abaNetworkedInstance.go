@@ -93,6 +93,7 @@ func (a *abaNetworkedInstance) getCoin(round uint16) (byte, error) {
 		return bot, fmt.Errorf("unable to make coin seed: %w", err)
 	}
 	coinReceiver := make(chan bool)
+	abaChannelLogger.Debug("requesting coin", "instanceId", a.id, "round", round)
 	a.ctChan.TossCoin(coinReqSeed, coinReceiver)
 	coin := <-coinReceiver
 	if coin {

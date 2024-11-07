@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/cloudflare/circl/group"
 	ss "github.com/cloudflare/circl/secretsharing"
+	"pace/utils"
 )
 
 // pointShare is a secret share hidden in a group operation.
@@ -40,11 +41,11 @@ func (ps *pointShare) marshalBinary() ([]byte, error) {
 }
 
 func (ps *pointShare) unmarshalBinary(data []byte) error {
-	idSize, err := getScalarSize()
+	idSize, err := utils.GetScalarSize()
 	if err != nil {
 		return fmt.Errorf("unable to get scalar size: %v", err)
 	}
-	pointSize, err := getElementSize()
+	pointSize, err := utils.GetElementSize()
 	if err != nil {
 		return fmt.Errorf("unable to get element size: %v", err)
 	} else if len(data) != idSize+pointSize {
