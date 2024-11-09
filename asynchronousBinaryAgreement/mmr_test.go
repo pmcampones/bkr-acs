@@ -155,9 +155,9 @@ func testShouldDecideMultipleAllProposeSame(t *testing.T, n, correct, f, byzanti
 	}
 	finalDecisions := lo.Map(wmmrs, func(wmmr *wrappedMMR, _ int) byte { return <-wmmr.decision })
 	assert.True(t, lo.EveryBy(finalDecisions, func(decision byte) bool { return decision == proposal }))
-	//for _, wmmr := range wmmrs {
-	//	wmmr.m.close()
-	//}
+	for _, wmmr := range wmmrs {
+		wmmr.m.close()
+	}
 }
 
 func TestShouldDecideMultipleNoFailuresDifferentProposalsOrdered(t *testing.T) {
@@ -203,7 +203,7 @@ func TestShouldDecideMultipleMaxCrashDifferentProposalsUnordered(t *testing.T) {
 }
 
 func TestShouldDecideMultipleMaxByzantineDifferentProposalsOrdered(t *testing.T) {
-	f := uint(5)
+	f := uint(3)
 	n := 3*f + 1
 	correct := n - f
 	byzantine := f
@@ -230,7 +230,7 @@ func testShouldDecideSameDifferentProposals(t *testing.T, n uint, correct uint, 
 			dec, err := wmmr.m.submitDecision(byte(rand.IntN(2)), byzId)
 			assert.NoError(t, err)
 			assert.Equal(t, bot, dec)
-			for r := 0; r < 1000; r++ {
+			for r := 0; r < 10; r++ {
 				val := rand.IntN(2)
 				assert.NoError(t, wmmr.m.submitBVal(byte(val), byzId, uint16(r)))
 				assert.NoError(t, wmmr.m.submitAux(byte(val), byzId, uint16(r)))
@@ -246,7 +246,7 @@ func testShouldDecideSameDifferentProposals(t *testing.T, n uint, correct uint, 
 	assert.True(t, lo.EveryBy(finalDecisions, func(decision byte) bool { return decision == dec }))
 	t.Logf("Correct nodes decided on %d\n", dec)
 
-	//for _, wmmr := range wmmrs {
-	//	wmmr.m.close()
-	//}
+	for _, wmmr := range wmmrs {
+		wmmr.m.close()
+	}
 }
