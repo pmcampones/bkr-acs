@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 	"log/slog"
 	"pace/utils"
+	"sync/atomic"
 )
 
 var abaLogger = utils.GetLogger(slog.LevelDebug)
@@ -21,6 +22,7 @@ type mmr struct {
 	termGadget *mmrTermination
 	commands   chan func()
 	closeChan  chan struct{}
+	isClosed   atomic.Bool
 }
 
 func newMMR(n, f uint, deliverBVal, deliverAux chan roundMsg, deliverDecision chan byte, coinReq chan uint16) *mmr {
@@ -29,6 +31,7 @@ func newMMR(n, f uint, deliverBVal, deliverAux chan roundMsg, deliverDecision ch
 		termGadget: newMmrTermination(f),
 		commands:   make(chan func()),
 		closeChan:  make(chan struct{}),
+		isClosed:   atomic.Bool{},
 	}
 	go m.invoker()
 	return m
@@ -47,6 +50,10 @@ func (m *mmr) invoker() {
 }
 
 func (m *mmr) propose(est byte) error {
+	if m.isClosed.Load() {
+		abaLogger.Info("received proposal on closed mmr")
+		return nil
+	}
 	abaLogger.Info("scheduling initial proposal estimate", "est", est)
 	errChan := make(chan error)
 	m.commands <- func() {
@@ -56,6 +63,10 @@ func (m *mmr) propose(est byte) error {
 }
 
 func (m *mmr) submitBVal(bVal byte, sender uuid.UUID, r uint16) error {
+	if m.isClosed.Load() {
+		abaLogger.Info("received bVal on closed mmr")
+		return nil
+	}
 	abaLogger.Debug("scheduling submit bVal", "bVal", bVal, "mmrRound", r, "sender", sender)
 	errChan := make(chan error)
 	m.commands <- func() {
@@ -65,6 +76,10 @@ func (m *mmr) submitBVal(bVal byte, sender uuid.UUID, r uint16) error {
 }
 
 func (m *mmr) submitAux(aux byte, sender uuid.UUID, r uint16) error {
+	if m.isClosed.Load() {
+		abaLogger.Info("received aux on closed mmr")
+		return nil
+	}
 	abaLogger.Debug("scheduling submit aux", "aux", aux, "mmrRound", r)
 	errChan := make(chan error)
 	m.commands <- func() {
@@ -74,6 +89,10 @@ func (m *mmr) submitAux(aux byte, sender uuid.UUID, r uint16) error {
 }
 
 func (m *mmr) submitCoin(coin byte, r uint16) error {
+	if m.isClosed.Load() {
+		abaLogger.Info("received coin on closed mmr")
+		return nil
+	}
 	abaLogger.Debug("scheduling submit coin", "coin", coin, "mmrRound", r)
 	errChan := make(chan error)
 	m.commands <- func() {
@@ -92,6 +111,7 @@ func (m *mmr) submitDecision(decision byte, sender uuid.UUID) (byte, error) {
 }
 
 func (m *mmr) close() {
+	m.isClosed.Store(true)
 	m.termGadget.close()
 	closedHandler := make(chan struct{})
 	m.commands <- func() {
@@ -197,7 +217,7 @@ func (m *mmrHandler) newRound(r uint16) (*cancelableRound, error) {
 	bValChan := make(chan byte)
 	auxChan := make(chan byte)
 	coinRequest := make(chan struct{}, 1)
-	closeChan := make(chan struct{})
+	closeChan := make(chan struct{}, 1)
 	mmrRound := newMMRRound(m.n, m.f, bValChan, auxChan, coinRequest)
 	go m.listenRequests(bValChan, auxChan, coinRequest, closeChan, r)
 	return &cancelableRound{
