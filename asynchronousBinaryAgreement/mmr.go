@@ -119,6 +119,7 @@ type mmrHandler struct {
 	deliverBVal     chan roundMsg
 	deliverAux      chan roundMsg
 	deliverDecision chan byte
+	hasDecided      bool
 	coinReq         chan uint16
 	rounds          map[uint16]*cancelableRound
 	termGadget      *mmrTermination
@@ -131,6 +132,7 @@ func newMMRHandler(n, f uint, deliverBVal, deliverAux chan roundMsg, deliverDeci
 		deliverBVal:     deliverBVal,
 		deliverAux:      deliverAux,
 		deliverDecision: deliverDecision,
+		hasDecided:      false,
 		coinReq:         coinReq,
 		rounds:          make(map[uint16]*cancelableRound),
 	}
@@ -169,10 +171,9 @@ func (m *mmrHandler) submitCoin(coin byte, r uint16) error {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
 	} else if res := round.round.submitCoin(coin); res.err != nil {
 		return fmt.Errorf("unable to submit coin to round %d: %v", r, res.err)
-	} else if res.decided {
-		go func() {
-			m.deliverDecision <- res.estimate
-		}()
+	} else if res.decided && !m.hasDecided {
+		m.hasDecided = true
+		m.deliverDecision <- res.estimate
 	} else if err := m.propose(res.estimate, r+1); err != nil {
 		return fmt.Errorf("unable to propose to round %d: %v", r+1, err)
 	}

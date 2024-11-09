@@ -47,7 +47,7 @@ func (o *mmrOrderedScheduler) addInstance(m *mmr) *wrappedMMR {
 func (o *mmrOrderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappedMMR {
 	bValChan := make(chan roundMsg)
 	auxChan := make(chan roundMsg)
-	decisionChan := make(chan byte)
+	decisionChan := make(chan byte, 1)
 	coinChan := make(chan uint16)
 	m := newMMR(n, f, bValChan, auxChan, decisionChan, coinChan)
 	wmmr := o.addInstance(m)

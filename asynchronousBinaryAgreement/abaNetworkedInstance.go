@@ -46,7 +46,7 @@ func (a *abaNetworkedInstance) propose(est byte) error {
 	}
 	delBVal := make(chan roundMsg)
 	delAux := make(chan roundMsg)
-	delDecision := make(chan byte)
+	delDecision := make(chan byte, 1)
 	delCoinReq := make(chan uint16)
 	a.instance = newMMR(a.n, a.f, delBVal, delAux, delDecision, delCoinReq)
 	go a.listener(delBVal, delAux, delDecision, delCoinReq)
