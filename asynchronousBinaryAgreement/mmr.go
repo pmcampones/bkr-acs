@@ -196,7 +196,7 @@ func (m *mmrHandler) getRound(rNum uint16) (*cancelableRound, error) {
 func (m *mmrHandler) newRound(r uint16) (*cancelableRound, error) {
 	bValChan := make(chan byte)
 	auxChan := make(chan byte)
-	coinRequest := make(chan struct{})
+	coinRequest := make(chan struct{}, 1)
 	closeChan := make(chan struct{})
 	mmrRound := newMMRRound(m.n, m.f, bValChan, auxChan, coinRequest)
 	go m.listenRequests(bValChan, auxChan, coinRequest, closeChan, r)

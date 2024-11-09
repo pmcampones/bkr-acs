@@ -70,7 +70,7 @@ type roundTransitionResult struct {
 func (r *mmrRound) submitCoin(coin byte) roundTransitionResult {
 	if !isInputValid(coin) {
 		return roundTransitionResult{
-			estimate: 2,
+			estimate: bot,
 			decided:  false,
 			err:      fmt.Errorf("invalid input %d", coin),
 		}
@@ -105,12 +105,9 @@ func (r *mmrRound) close() {
 type roundHandler struct {
 	n                uint
 	f                uint
-	binVals          []bool
-	auxVals          []bool
 	sentBVal         []bool
 	receivedBVal     []map[uuid.UUID]bool
-	receivedAux      map[uuid.UUID]bool
-	values           []byte
+	receivedAux      []map[uuid.UUID]bool
 	bValChan         chan byte
 	auxChan          chan byte
 	coinReqChan      chan struct{}
@@ -121,12 +118,9 @@ func newRoundHandler(n, f uint, bValChan, auxChan chan byte, coinReqChan chan st
 	return &roundHandler{
 		n:                n,
 		f:                f,
-		binVals:          []bool{false, false},
-		auxVals:          []bool{false, false},
 		sentBVal:         []bool{false, false},
 		receivedBVal:     []map[uuid.UUID]bool{make(map[uuid.UUID]bool), make(map[uuid.UUID]bool)},
-		receivedAux:      make(map[uuid.UUID]bool),
-		values:           make([]byte, 0, 2),
+		receivedAux:      []map[uuid.UUID]bool{make(map[uuid.UUID]bool), make(map[uuid.UUID]bool)},
 		bValChan:         bValChan,
 		auxChan:          auxChan,
 		coinReqChan:      coinReqChan,
@@ -150,15 +144,14 @@ func (h *roundHandler) submitBVal(bVal byte, sender uuid.UUID) error {
 	}
 	roundLogger.Debug("submitting bVal", "bVal", bVal, "sender", sender)
 	h.receivedBVal[bVal][sender] = true
-	if numBval := len(h.receivedBVal[bVal]); numBval == int(h.f+1) && !h.sentBVal[bVal] {
+	numBval := len(h.receivedBVal[bVal])
+	if numBval == int(h.f+1) && !h.sentBVal[bVal] {
 		h.broadcastBVal(bVal)
-	} else if numBval == int(h.n-h.f) {
-		h.binVals[bVal] = true
-		roundLogger.Info("updating binVals", "bVal", bVal, "binVals", h.binVals)
-		if h.binVals[0] != h.binVals[1] {
+	}
+	if numBval == int(h.n-h.f) {
+		if len(h.receivedBVal[1-bVal]) < int(h.n-h.f) {
 			h.broadcastAux(bVal)
-		}
-		if h.canRequestCoin() {
+		} else if !h.hasRequestedCoin {
 			h.requestCoin()
 		}
 	}
@@ -177,58 +170,38 @@ func (h *roundHandler) broadcastAux(bVal byte) {
 }
 
 func (h *roundHandler) submitAux(aux byte, sender uuid.UUID) error {
-	if h.receivedAux[sender] {
+	if h.receivedAux[0][sender] || h.receivedAux[1][sender] {
 		return fmt.Errorf("duplicate aux from %s", sender)
 	}
 	roundLogger.Debug("submitting aux", "aux", aux, "sender", sender)
-	h.receivedAux[sender] = true
-	h.auxVals[aux] = true
-	if h.canRequestCoin() {
+	h.receivedAux[aux][sender] = true
+	if !h.hasRequestedCoin && len(h.receivedAux[aux]) >= int(h.n-h.f) {
 		h.requestCoin()
 	}
 	return nil
 }
 
-func (h *roundHandler) canRequestCoin() bool {
-	values := h.computeValues()
-	return !h.hasRequestedCoin && len(h.receivedAux) >= int(h.n-h.f) && len(values) > 0
-}
-
-func (h *roundHandler) computeValues() []byte {
-	values := make([]byte, 0, 2)
-	for i := 0; i < 2; i++ {
-		if h.binVals[i] && h.auxVals[i] {
-			values = append(values, byte(i))
-		}
-	}
-	return values
-}
-
 func (h *roundHandler) requestCoin() {
 	h.hasRequestedCoin = true
-	h.values = h.computeValues()
-	roundLogger.Info("requesting coin", "values", h.values)
-	go func() { h.coinReqChan <- struct{}{} }()
+	h.coinReqChan <- struct{}{}
 }
 
 func (h *roundHandler) submitCoin(coin byte) roundTransitionResult {
 	if !h.hasRequestedCoin {
-		return roundTransitionResult{
-			estimate: 2,
-			decided:  false,
-			err:      fmt.Errorf("coin not requested"),
+		return roundTransitionResult{err: fmt.Errorf("coin not requested")}
+	}
+	roundLogger.Info("submitting coin", "coin", coin)
+	for _, candidate := range []byte{0, 1} {
+		if len(h.receivedAux[candidate]) >= int(h.n-h.f) {
+			return roundTransitionResult{
+				estimate: candidate,
+				decided:  coin == candidate,
+				err:      nil,
+			}
 		}
 	}
-	nextEstimate := coin
-	hasDecided := false
-	roundLogger.Info("submitting coin", "coin", coin, "values", h.values)
-	if len(h.values) == 1 {
-		nextEstimate = h.values[0]
-		hasDecided = nextEstimate == coin
+	if len(h.receivedBVal[0]) < int(h.n-h.f) || len(h.receivedBVal[1]) < int(h.n-h.f) {
+		return roundTransitionResult{err: fmt.Errorf("conditions to go to next round have not been met (getting here is really bad)")}
 	}
-	return roundTransitionResult{
-		estimate: nextEstimate,
-		decided:  hasDecided,
-		err:      nil,
-	}
+	return roundTransitionResult{estimate: coin}
 }

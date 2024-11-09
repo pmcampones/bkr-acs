@@ -203,7 +203,7 @@ func TestShouldDecideMultipleMaxCrashDifferentProposalsUnordered(t *testing.T) {
 }
 
 func TestShouldDecideMultipleMaxByzantineDifferentProposalsOrdered(t *testing.T) {
-	f := uint(3)
+	f := uint(5)
 	n := 3*f + 1
 	correct := n - f
 	byzantine := f
@@ -230,7 +230,7 @@ func testShouldDecideSameDifferentProposals(t *testing.T, n uint, correct uint, 
 			dec, err := wmmr.m.submitDecision(byte(rand.IntN(2)), byzId)
 			assert.NoError(t, err)
 			assert.Equal(t, bot, dec)
-			for r := 0; r < 20; r++ {
+			for r := 0; r < 1000; r++ {
 				val := rand.IntN(2)
 				assert.NoError(t, wmmr.m.submitBVal(byte(val), byzId, uint16(r)))
 				assert.NoError(t, wmmr.m.submitAux(byte(val), byzId, uint16(r)))
