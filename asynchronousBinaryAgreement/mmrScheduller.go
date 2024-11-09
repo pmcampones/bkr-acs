@@ -4,10 +4,14 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"log/slog"
+	"math/rand"
 	"pace/utils"
 	"testing"
 	"time"
 )
+
+var mmrSchedulerLogger = utils.GetLogger(slog.LevelDebug)
 
 type wrappedMMR struct {
 	m        *mmr
@@ -16,51 +20,50 @@ type wrappedMMR struct {
 
 type mmrScheduler interface {
 	addInstance(m *mmr) *wrappedMMR
-	getChannels(t *testing.T, n, f uint, sender uuid.UUID) *wrappedMMR
+	getChannels(n, f uint, sender uuid.UUID) *wrappedMMR
 }
 
 type mmrOrderedScheduler struct {
-	maxIntervalMillis int
-	instances         []*wrappedMMR
+	t         *testing.T
+	instances []*wrappedMMR
 }
 
-func newMMROrderedScheduler(maxIntervalMillis int) *mmrOrderedScheduler {
+func newMMROrderedScheduler(t *testing.T) *mmrOrderedScheduler {
 	return &mmrOrderedScheduler{
-		maxIntervalMillis: maxIntervalMillis,
-		instances:         make([]*wrappedMMR, 0),
+		t:         t,
+		instances: make([]*wrappedMMR, 0),
 	}
 }
 
-func (os *mmrOrderedScheduler) addInstance(m *mmr) *wrappedMMR {
+func (o *mmrOrderedScheduler) addInstance(m *mmr) *wrappedMMR {
 	wmmr := &wrappedMMR{
 		m:        m,
 		decision: make(chan byte),
 	}
-	os.instances = append(os.instances, wmmr)
+	o.instances = append(o.instances, wmmr)
 	return wmmr
 }
 
-func (os *mmrOrderedScheduler) getChannels(t *testing.T, n, f uint, sender uuid.UUID) *wrappedMMR {
+func (o *mmrOrderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappedMMR {
 	bValChan := make(chan roundMsg)
 	auxChan := make(chan roundMsg)
 	decisionChan := make(chan byte)
 	coinChan := make(chan uint16)
 	m := newMMR(n, f, bValChan, auxChan, decisionChan, coinChan)
-	wmmr := os.addInstance(m)
-	go os.listenBVals(t, bValChan, sender)
-	go os.listenAux(t, auxChan, sender)
-	go os.listenDecisions(t, decisionChan, sender)
-	go os.listenCoinRequests(t, coinChan, m)
+	wmmr := o.addInstance(m)
+	go o.listenBVals(o.t, bValChan, sender)
+	go o.listenAux(o.t, auxChan, sender)
+	go o.listenDecisions(o.t, decisionChan, sender)
+	go o.listenCoinRequests(o.t, coinChan, m)
 	return wmmr
 }
 
-func (os *mmrOrderedScheduler) listenBVals(t *testing.T, bValChan chan roundMsg, sender uuid.UUID) {
+func (o *mmrOrderedScheduler) listenBVals(t *testing.T, bValChan chan roundMsg, sender uuid.UUID) {
 	func() {
 		for {
 			bVal := <-bValChan
-			for _, wmmr := range os.instances {
+			for _, wmmr := range o.instances {
 				go func() {
-					os.sleep()
 					assert.NoError(t, wmmr.m.submitBVal(bVal.val, sender, bVal.r))
 				}()
 			}
@@ -68,13 +71,12 @@ func (os *mmrOrderedScheduler) listenBVals(t *testing.T, bValChan chan roundMsg,
 	}()
 }
 
-func (os *mmrOrderedScheduler) listenAux(t *testing.T, auxChan chan roundMsg, sender uuid.UUID) {
+func (o *mmrOrderedScheduler) listenAux(t *testing.T, auxChan chan roundMsg, sender uuid.UUID) {
 	func() {
 		for {
 			aux := <-auxChan
-			for _, wmmr := range os.instances {
+			for _, wmmr := range o.instances {
 				go func() {
-					os.sleep()
 					assert.NoError(t, wmmr.m.submitAux(aux.val, sender, aux.r))
 				}()
 			}
@@ -82,12 +84,11 @@ func (os *mmrOrderedScheduler) listenAux(t *testing.T, auxChan chan roundMsg, se
 	}()
 }
 
-func (os *mmrOrderedScheduler) listenDecisions(t *testing.T, decisionChan chan byte, sender uuid.UUID) {
+func (o *mmrOrderedScheduler) listenDecisions(t *testing.T, decisionChan chan byte, sender uuid.UUID) {
 	func() {
 		decision := <-decisionChan
-		for _, wmmr := range os.instances {
+		for _, wmmr := range o.instances {
 			go func() {
-				os.sleep()
 				dec, err := wmmr.m.submitDecision(decision, sender)
 				assert.NoError(t, err)
 				if dec != bot {
@@ -100,7 +101,7 @@ func (os *mmrOrderedScheduler) listenDecisions(t *testing.T, decisionChan chan b
 	}()
 }
 
-func (os *mmrOrderedScheduler) listenCoinRequests(t *testing.T, coinChan chan uint16, m *mmr) {
+func (o *mmrOrderedScheduler) listenCoinRequests(t *testing.T, coinChan chan uint16, m *mmr) {
 	func() {
 		for {
 			round := <-coinChan
@@ -110,15 +111,147 @@ func (os *mmrOrderedScheduler) listenCoinRequests(t *testing.T, coinChan chan ui
 				coin = 1
 			}
 			go func() {
-				os.sleep()
 				assert.NoError(t, m.submitCoin(coin, round))
 			}()
 		}
 	}()
 }
 
-func (os *mmrOrderedScheduler) sleep() {
-	if os.maxIntervalMillis > 0 {
-		time.Sleep(time.Duration(os.maxIntervalMillis) * time.Millisecond)
+type mmrUnorderedScheduler struct {
+	t            *testing.T
+	instances    []*wrappedMMR
+	scheduleChan chan func() error
+	ops          []func() error
+	ticker       *time.Ticker
+}
+
+func newMMRUnorderedScheduler(t *testing.T) *mmrUnorderedScheduler {
+	r := rand.New(rand.NewSource(0))
+	ticker := time.NewTicker(3 * time.Millisecond)
+	s := &mmrUnorderedScheduler{
+		t:            t,
+		instances:    make([]*wrappedMMR, 0),
+		scheduleChan: make(chan func() error),
+		ops:          make([]func() error, 0),
+		ticker:       ticker,
 	}
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				s.execOp(t)
+			case op := <-s.scheduleChan:
+				s.reorderOps(op, r)
+			}
+		}
+	}()
+	return s
+}
+
+func (u *mmrUnorderedScheduler) reorderOps(op func() error, r *rand.Rand) {
+	u.ops = append(u.ops, op)
+	mmrSchedulerLogger.Debug("reordering ops", "num ops", len(u.ops))
+	r.Shuffle(len(u.ops), func(i, j int) { u.ops[i], u.ops[j] = u.ops[j], u.ops[i] })
+}
+
+func (u *mmrUnorderedScheduler) execOp(t *testing.T) {
+	if len(u.ops) > 0 {
+		op := u.ops[0]
+		u.ops = u.ops[1:]
+		go assert.NoError(t, op())
+	}
+}
+
+func (u *mmrUnorderedScheduler) addInstance(m *mmr) *wrappedMMR {
+	wmmr := &wrappedMMR{
+		m:        m,
+		decision: make(chan byte, 1),
+	}
+	u.instances = append(u.instances, wmmr)
+	return wmmr
+}
+
+func (u *mmrUnorderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappedMMR {
+	bValChan := make(chan roundMsg)
+	auxChan := make(chan roundMsg)
+	decisionChan := make(chan byte, 1)
+	coinChan := make(chan uint16)
+	m := newMMR(n, f, bValChan, auxChan, decisionChan, coinChan)
+	wmmr := u.addInstance(m)
+	go u.listenBVals(bValChan, sender)
+	go u.listenAux(auxChan, sender)
+	go u.listenDecisions(u.t, decisionChan, sender)
+	go u.listenCoinRequests(coinChan, m)
+	return wmmr
+}
+
+func (u *mmrUnorderedScheduler) listenBVals(bValChan chan roundMsg, sender uuid.UUID) {
+	func() {
+		for {
+			bVal := <-bValChan
+			for _, wmmr := range u.instances {
+				go func() {
+					u.scheduleChan <- func() error {
+						return wmmr.m.submitBVal(bVal.val, sender, bVal.r)
+					}
+				}()
+			}
+		}
+	}()
+}
+
+func (u *mmrUnorderedScheduler) listenAux(auxChan chan roundMsg, sender uuid.UUID) {
+	func() {
+		for {
+			aux := <-auxChan
+			for _, wmmr := range u.instances {
+				go func() {
+					u.scheduleChan <- func() error {
+						return wmmr.m.submitAux(aux.val, sender, aux.r)
+					}
+				}()
+			}
+		}
+	}()
+}
+
+func (u *mmrUnorderedScheduler) listenDecisions(t *testing.T, decisionChan chan byte, sender uuid.UUID) {
+	func() {
+		decision := <-decisionChan
+		mmrSchedulerLogger.Info("received instance decision", "decision", decision, "sender", sender)
+		for _, wmmr := range u.instances {
+			go func() {
+				u.scheduleChan <- func() error {
+					mmrSchedulerLogger.Debug("submitting decision", "decision", decision, "sender", sender)
+					if dec, err := wmmr.m.submitDecision(decision, sender); err != nil {
+						return err
+					} else if dec != bot {
+						wmmr.decision <- dec
+						mmrSchedulerLogger.Info("delivered final decision")
+					}
+					return nil
+				}
+			}()
+		}
+		dec2 := <-decisionChan
+		t.Errorf("received a decision from the same instance twice: %d", dec2)
+	}()
+}
+
+func (u *mmrUnorderedScheduler) listenCoinRequests(coinChan chan uint16, m *mmr) {
+	func() {
+		for {
+			round := <-coinChan
+			coinBool := utils.HashToBool([]byte(fmt.Sprintf("%d", round)))
+			coin := byte(0)
+			if coinBool {
+				coin = 1
+			}
+			go func() {
+				u.scheduleChan <- func() error {
+					return m.submitCoin(coin, round)
+				}
+			}()
+		}
+	}()
 }

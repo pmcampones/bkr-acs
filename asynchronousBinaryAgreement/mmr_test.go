@@ -17,9 +17,9 @@ func TestShouldDecideSelfProposedValue1(t *testing.T) {
 }
 
 func testShouldDecideSelfProposedValue(t *testing.T, proposal byte) {
-	s := newMMROrderedScheduler(0)
+	s := newMMROrderedScheduler(t)
 	myself := uuid.New()
-	wmmr := s.getChannels(t, 1, 0, myself)
+	wmmr := s.getChannels(1, 0, myself)
 	assert.NoError(t, wmmr.m.propose(proposal))
 	finalDecision := <-wmmr.decision
 	assert.Equal(t, proposal, finalDecision)
@@ -28,115 +28,115 @@ func testShouldDecideSelfProposedValue(t *testing.T, proposal byte) {
 
 func TestShouldDecideMultipleNoFailuresAllPropose0Ordered(t *testing.T) {
 	n := uint(10)
-	s := newMMROrderedScheduler(0)
+	s := newMMROrderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n, 0, 0, 0, s)
 }
 
 func TestShouldDecideMultipleNoFailuresAllPropose0Unordered(t *testing.T) {
 	n := uint(10)
-	s := newMMROrderedScheduler(100)
+	s := newMMRUnorderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n, 0, 0, 0, s)
 }
 
 func TestShouldDecideMultipleNoFailuresAllPropose1Ordered(t *testing.T) {
 	n := uint(10)
-	s := newMMROrderedScheduler(0)
+	s := newMMROrderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n, 0, 0, 1, s)
 }
 
 func TestShouldDecideMultipleNoFailuresAllPropose1Unordered(t *testing.T) {
 	n := uint(10)
-	s := newMMROrderedScheduler(100)
+	s := newMMRUnorderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n, 0, 0, 1, s)
 }
 
 func TestShouldDecideMultipleMaxFailuresAllPropose0Ordered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
-	s := newMMROrderedScheduler(0)
+	s := newMMROrderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n, f, 0, 0, s)
 }
 
 func TestShouldDecideMultipleMaxFailuresAllPropose0Unordered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
-	s := newMMROrderedScheduler(100)
+	s := newMMRUnorderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n, f, 0, 0, s)
 }
 
 func TestShouldDecideMultipleMaxFailuresAllPropose1Ordered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
-	s := newMMROrderedScheduler(0)
+	s := newMMROrderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n, f, 0, 1, s)
 }
 
 func TestShouldDecideMultipleMaxFailuresAllPropose1Unordered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
-	s := newMMROrderedScheduler(100)
+	s := newMMRUnorderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n, f, 0, 1, s)
 }
 
 func TestShouldDecideMultipleMaxCrashAllPropose0Ordered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
-	s := newMMROrderedScheduler(0)
+	s := newMMROrderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n-f, f, 0, 0, s)
 }
 
 func TestShouldDecideMultipleMaxCrashAllPropose0Unordered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
-	s := newMMROrderedScheduler(100)
+	s := newMMRUnorderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n-f, f, 0, 0, s)
 }
 
 func TestShouldDecideMultipleMaxCrashAllPropose1Ordered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
-	s := newMMROrderedScheduler(0)
+	s := newMMROrderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n-f, f, 0, 1, s)
 }
 
 func TestShouldDecideMultipleMaxCrashAllPropose1Unordered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
-	s := newMMROrderedScheduler(100)
+	s := newMMRUnorderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n-f, f, 0, 1, s)
 }
 
 func TestShouldDecideMultipleMaxByzantinePropose0Ordered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
-	s := newMMROrderedScheduler(0)
+	s := newMMROrderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n-f, f, f, 0, s)
 }
 
 func TestShouldDecideMultipleMaxByzantinePropose0Unordered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
-	s := newMMROrderedScheduler(100)
+	s := newMMRUnorderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n-f, f, f, 0, s)
 }
 
 func TestShouldDecideMultipleMaxByzantinePropose1Ordered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
-	s := newMMROrderedScheduler(0)
+	s := newMMROrderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n-f, f, f, 1, s)
 }
 
 func TestShouldDecideMultipleMaxByzantinePropose1Unordered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
-	s := newMMROrderedScheduler(100)
+	s := newMMRUnorderedScheduler(t)
 	testShouldDecideMultipleAllProposeSame(t, n, n-f, f, f, 1, s)
 }
 
 func testShouldDecideMultipleAllProposeSame(t *testing.T, n, correct, f, byzantine uint, proposal byte, s mmrScheduler) {
 	nodes := lo.Map(lo.Range(int(correct)), func(_ int, _ int) uuid.UUID { return uuid.New() })
-	wmmrs := lo.Map(nodes, func(node uuid.UUID, _ int) *wrappedMMR { return s.getChannels(t, n, f, node) })
+	wmmrs := lo.Map(nodes, func(node uuid.UUID, _ int) *wrappedMMR { return s.getChannels(n, f, node) })
 	byzIds := lo.Map(lo.Range(int(byzantine)), func(_ int, _ int) uuid.UUID { return uuid.New() })
 	for _, byzId := range byzIds {
 		for _, wmmr := range wmmrs {
@@ -162,27 +162,27 @@ func testShouldDecideMultipleAllProposeSame(t *testing.T, n, correct, f, byzanti
 
 func TestShouldDecideMultipleNoFailuresDifferentProposalsOrdered(t *testing.T) {
 	n := uint(10)
-	s := newMMROrderedScheduler(0)
+	s := newMMROrderedScheduler(t)
 	testShouldDecideSameDifferentProposals(t, n, n, 0, 0, s)
 }
 
 func TestShouldDecideMultipleNoFailuresDifferentProposalsUnordered(t *testing.T) {
 	n := uint(10)
-	s := newMMROrderedScheduler(100)
+	s := newMMRUnorderedScheduler(t)
 	testShouldDecideSameDifferentProposals(t, n, n, 0, 0, s)
 }
 
 func TestShouldDecideMultipleMaxFailuresDifferentProposalsOrdered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
-	s := newMMROrderedScheduler(0)
+	s := newMMROrderedScheduler(t)
 	testShouldDecideSameDifferentProposals(t, n, n, f, 0, s)
 }
 
 func TestShouldDecideMultipleMaxFailuresDifferentProposalsUnordered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
-	s := newMMROrderedScheduler(100)
+	s := newMMRUnorderedScheduler(t)
 	testShouldDecideSameDifferentProposals(t, n, n, f, 0, s)
 }
 
@@ -190,7 +190,7 @@ func TestShouldDecideMultipleMaxCrashDifferentProposalsOrdered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
 	correct := n - f
-	s := newMMROrderedScheduler(0)
+	s := newMMROrderedScheduler(t)
 	testShouldDecideSameDifferentProposals(t, n, correct, f, 0, s)
 }
 
@@ -198,7 +198,7 @@ func TestShouldDecideMultipleMaxCrashDifferentProposalsUnordered(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
 	correct := n - f
-	s := newMMROrderedScheduler(100)
+	s := newMMRUnorderedScheduler(t)
 	testShouldDecideSameDifferentProposals(t, n, correct, f, 0, s)
 }
 
@@ -207,7 +207,7 @@ func TestShouldDecideMultipleMaxByzantineDifferentProposalsOrdered(t *testing.T)
 	n := 3*f + 1
 	correct := n - f
 	byzantine := f
-	s := newMMROrderedScheduler(0)
+	s := newMMROrderedScheduler(t)
 	testShouldDecideSameDifferentProposals(t, n, correct, f, byzantine, s)
 }
 
@@ -216,7 +216,7 @@ func TestShouldDecideMultipleMaxByzantineDifferentProposalsUnordered(t *testing.
 	n := 3*f + 1
 	correct := n - f
 	byzantine := f
-	s := newMMROrderedScheduler(100)
+	s := newMMRUnorderedScheduler(t)
 	testShouldDecideSameDifferentProposals(t, n, correct, f, byzantine, s)
 }
 
@@ -224,7 +224,7 @@ func testShouldDecideSameDifferentProposals(t *testing.T, n uint, correct uint, 
 	proposals := lo.Map(lo.Range(int(correct)), func(i int, _ int) byte { return byte(rand.IntN(2)) })
 	nodes := lo.Map(lo.Range(int(correct)), func(_ int, _ int) uuid.UUID { return uuid.New() })
 	byzIds := lo.Map(lo.Range(int(byzantine)), func(_ int, _ int) uuid.UUID { return uuid.New() })
-	wmmrs := lo.Map(nodes, func(node uuid.UUID, _ int) *wrappedMMR { return s.getChannels(t, n, f, node) })
+	wmmrs := lo.Map(nodes, func(node uuid.UUID, _ int) *wrappedMMR { return s.getChannels(n, f, node) })
 	for _, byzId := range byzIds {
 		for _, wmmr := range wmmrs {
 			dec, err := wmmr.m.submitDecision(byte(rand.IntN(2)), byzId)

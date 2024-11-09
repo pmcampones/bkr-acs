@@ -7,7 +7,7 @@ import (
 	"pace/utils"
 )
 
-var abaLogger = utils.GetLogger(slog.LevelWarn)
+var abaLogger = utils.GetLogger(slog.LevelDebug)
 
 const firstRound = 0
 

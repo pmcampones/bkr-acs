@@ -45,7 +45,7 @@ func (t *mmrTermination) invoker() {
 }
 
 func (t *mmrTermination) submitDecision(decision byte, sender uuid.UUID) (byte, error) {
-	output := make(chan termOutput)
+	output := make(chan termOutput, 1)
 	t.commands <- func() {
 		res := termOutput{
 			decision: bot,
@@ -59,7 +59,7 @@ func (t *mmrTermination) submitDecision(decision byte, sender uuid.UUID) (byte, 
 		} else {
 			t.received[sender] = true
 			t.results[decision]++
-			if t.results[decision] > t.f {
+			if t.results[decision] == t.f+1 {
 				res.decision = decision
 			}
 		}
