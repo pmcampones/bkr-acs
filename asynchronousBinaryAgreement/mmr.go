@@ -30,7 +30,7 @@ func newMMR(n, f uint, deliverBVal, deliverAux chan roundMsg, deliverDecision ch
 		handler:    newMMRHandler(n, f, deliverBVal, deliverAux, deliverDecision, coinReq),
 		termGadget: newMmrTermination(f),
 		commands:   make(chan func()),
-		closeChan:  make(chan struct{}),
+		closeChan:  make(chan struct{}, 1),
 		isClosed:   atomic.Bool{},
 	}
 	go m.invoker()
@@ -44,6 +44,8 @@ func (m *mmr) invoker() {
 			cmd()
 		case <-m.closeChan:
 			abaLogger.Info("closing mmr")
+			m.termGadget.close()
+			m.handler.close()
 			return
 		}
 	}
@@ -102,23 +104,25 @@ func (m *mmr) submitCoin(coin byte, r uint16) error {
 }
 
 func (m *mmr) submitDecision(decision byte, sender uuid.UUID) (byte, error) {
-	abaLogger.Debug("submitting decision", "decision", decision, "sender", sender)
-	if result, err := m.termGadget.submitDecision(decision, sender); err != nil {
-		return bot, fmt.Errorf("unable to submit decision: %v", err)
-	} else {
-		return result, nil
+	if m.isClosed.Load() {
+		abaLogger.Info("received decision on closed mmr")
+		return bot, nil
 	}
+	abaLogger.Debug("submitting decision", "decision", decision, "sender", sender)
+	res := make(chan termOutput, 1)
+	m.commands <- func() {
+		result, err := m.termGadget.submitDecision(decision, sender)
+		res <- termOutput{decision: result, err: err}
+	}
+	output := <-res
+	if output.err != nil {
+		return bot, fmt.Errorf("unable to submit decision: %v", output.err)
+	}
+	return output.decision, nil
 }
 
 func (m *mmr) close() {
 	m.isClosed.Store(true)
-	m.termGadget.close()
-	closedHandler := make(chan struct{})
-	m.commands <- func() {
-		m.handler.close()
-		closedHandler <- struct{}{}
-	}
-	<-closedHandler
 	abaLogger.Info("signaling close mmr")
 	m.closeChan <- struct{}{}
 }

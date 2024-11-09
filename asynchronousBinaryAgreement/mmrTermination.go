@@ -3,7 +3,6 @@ package asynchronousBinaryAgreement
 import (
 	"fmt"
 	"github.com/google/uuid"
-	"sync/atomic"
 )
 
 const bot byte = 2
@@ -19,7 +18,6 @@ type mmrTermination struct {
 	f         uint
 	commands  chan func()
 	closeChan chan struct{}
-	isClosed  atomic.Bool
 }
 
 func newMmrTermination(f uint) *mmrTermination {
@@ -29,7 +27,6 @@ func newMmrTermination(f uint) *mmrTermination {
 		f:         f,
 		commands:  make(chan func()),
 		closeChan: make(chan struct{}, 1),
-		isClosed:  atomic.Bool{},
 	}
 	go t.invoker()
 	return t
@@ -49,10 +46,6 @@ func (t *mmrTermination) invoker() {
 
 func (t *mmrTermination) submitDecision(decision byte, sender uuid.UUID) (byte, error) {
 	output := make(chan termOutput, 1)
-	if t.isClosed.Load() {
-		termLogger.Info("received decision on closed termination gadget")
-		return bot, nil
-	}
 	t.commands <- func() {
 		res := termOutput{
 			decision: bot,
@@ -78,6 +71,5 @@ func (t *mmrTermination) submitDecision(decision byte, sender uuid.UUID) (byte, 
 
 func (t *mmrTermination) close() {
 	abaLogger.Info("signaling close mmrTermination")
-	t.isClosed.Store(true)
 	t.closeChan <- struct{}{}
 }
