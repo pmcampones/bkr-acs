@@ -14,19 +14,24 @@ type wrappedMMR struct {
 	decision chan byte
 }
 
-type mmrScheduler struct {
+type mmrScheduler interface {
+	addInstance(m *mmr) *wrappedMMR
+	getChannels(t *testing.T, n, f uint, sender uuid.UUID) *wrappedMMR
+}
+
+type mmrOrderedScheduler struct {
 	maxIntervalMillis int
 	instances         []*wrappedMMR
 }
 
-func newMMRScheduler(maxIntervalMillis int) *mmrScheduler {
-	return &mmrScheduler{
+func newMMROrderedScheduler(maxIntervalMillis int) *mmrOrderedScheduler {
+	return &mmrOrderedScheduler{
 		maxIntervalMillis: maxIntervalMillis,
 		instances:         make([]*wrappedMMR, 0),
 	}
 }
 
-func (os *mmrScheduler) addInstance(m *mmr) *wrappedMMR {
+func (os *mmrOrderedScheduler) addInstance(m *mmr) *wrappedMMR {
 	wmmr := &wrappedMMR{
 		m:        m,
 		decision: make(chan byte),
@@ -35,7 +40,7 @@ func (os *mmrScheduler) addInstance(m *mmr) *wrappedMMR {
 	return wmmr
 }
 
-func (os *mmrScheduler) getChannels(t *testing.T, n, f uint, sender uuid.UUID) *wrappedMMR {
+func (os *mmrOrderedScheduler) getChannels(t *testing.T, n, f uint, sender uuid.UUID) *wrappedMMR {
 	bValChan := make(chan roundMsg)
 	auxChan := make(chan roundMsg)
 	decisionChan := make(chan byte)
@@ -49,7 +54,7 @@ func (os *mmrScheduler) getChannels(t *testing.T, n, f uint, sender uuid.UUID) *
 	return wmmr
 }
 
-func (os *mmrScheduler) listenBVals(t *testing.T, bValChan chan roundMsg, sender uuid.UUID) {
+func (os *mmrOrderedScheduler) listenBVals(t *testing.T, bValChan chan roundMsg, sender uuid.UUID) {
 	func() {
 		for {
 			bVal := <-bValChan
@@ -63,7 +68,7 @@ func (os *mmrScheduler) listenBVals(t *testing.T, bValChan chan roundMsg, sender
 	}()
 }
 
-func (os *mmrScheduler) listenAux(t *testing.T, auxChan chan roundMsg, sender uuid.UUID) {
+func (os *mmrOrderedScheduler) listenAux(t *testing.T, auxChan chan roundMsg, sender uuid.UUID) {
 	func() {
 		for {
 			aux := <-auxChan
@@ -77,7 +82,7 @@ func (os *mmrScheduler) listenAux(t *testing.T, auxChan chan roundMsg, sender uu
 	}()
 }
 
-func (os *mmrScheduler) listenDecisions(t *testing.T, decisionChan chan byte, sender uuid.UUID) {
+func (os *mmrOrderedScheduler) listenDecisions(t *testing.T, decisionChan chan byte, sender uuid.UUID) {
 	func() {
 		decision := <-decisionChan
 		for _, wmmr := range os.instances {
@@ -95,7 +100,7 @@ func (os *mmrScheduler) listenDecisions(t *testing.T, decisionChan chan byte, se
 	}()
 }
 
-func (os *mmrScheduler) listenCoinRequests(t *testing.T, coinChan chan uint16, m *mmr) {
+func (os *mmrOrderedScheduler) listenCoinRequests(t *testing.T, coinChan chan uint16, m *mmr) {
 	func() {
 		for {
 			round := <-coinChan
@@ -112,7 +117,7 @@ func (os *mmrScheduler) listenCoinRequests(t *testing.T, coinChan chan uint16, m
 	}()
 }
 
-func (os *mmrScheduler) sleep() {
+func (os *mmrOrderedScheduler) sleep() {
 	if os.maxIntervalMillis > 0 {
 		time.Sleep(time.Duration(os.maxIntervalMillis) * time.Millisecond)
 	}
