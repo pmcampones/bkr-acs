@@ -30,7 +30,6 @@ func (b *brbPhase1Handler) handleSend(msg []byte, sender uuid.UUID) error {
 			return fmt.Errorf("unable to marshal sender uuid: %v", err)
 		}
 		b.sendEcho(append(senderBytes, msg...))
-		//b.sendEcho(msg)
 	}
 	return nil
 }
