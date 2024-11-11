@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
+	"log/slog"
 	aba "pace/asynchronousBinaryAgreement"
 	"pace/utils"
 	"slices"
 )
+
+var bkrLogger = utils.GetLogger(slog.LevelDebug)
 
 const (
 	accept = 1
@@ -49,6 +52,7 @@ func newBKR(id uuid.UUID, f uint, participants []uuid.UUID, abaChan *aba.AbaChan
 		go bkr.handleAbaResponse(returnChan, uint(i))
 	}
 	go bkr.invoker()
+	bkrLogger.Info("initializing BKR", "id", id, "f", f, "participants", participants, "abaIds", abaIds)
 	return bkr, nil
 }
 
@@ -83,6 +87,7 @@ func (bkr *BKR) deliverInput(input []byte, participant uuid.UUID) error {
 		return fmt.Errorf("input already delivered")
 	}
 	bkr.commands <- func() error {
+		bkrLogger.Debug("received bkr input", "input", input, "participant", participant)
 		bkr.inputs[idx] = input
 		if bkr.isFinished() {
 			bkr.deliverOutput()
@@ -102,6 +107,7 @@ func (bkr *BKR) handleAbaResponse(returnChan chan byte, idx uint) {
 	bkr.commands <- func() error {
 		bkr.results = append(bkr.results, lo.Tuple2[uint, byte]{A: idx, B: res})
 		if res == 1 && bkr.countPositive() == uint(len(bkr.participants))-bkr.f {
+			bkrLogger.Info("received threshold positive responses")
 			err := bkr.rejectUnrespondingAbaInstances()
 			if err != nil {
 				return fmt.Errorf("unable to reject unresponding aba instances: %w", err)
@@ -126,6 +132,7 @@ func (bkr *BKR) deliverOutput() {
 	acceptedIndices := bkr.getAcceptedIndices()
 	slices.Sort(acceptedIndices)
 	acceptedInputs := lo.Map(acceptedIndices, func(i uint, _ int) []byte { return bkr.inputs[i] })
+	bkrLogger.Info("delivering output", "indices", acceptedIndices, "output", acceptedInputs)
 	bkr.output <- acceptedInputs
 }
 
@@ -137,6 +144,7 @@ func (bkr *BKR) getAcceptedIndices() []uint {
 
 func (bkr *BKR) rejectUnrespondingAbaInstances() error {
 	unresponsiveIds, err := bkr.computeUnresponsiveIds()
+	bkrLogger.Info("rejecting unresponsive ids", "ids", unresponsiveIds)
 	if err != nil {
 		return fmt.Errorf("unable to compute unresponsive ids: %w", err)
 	}
@@ -154,7 +162,10 @@ func (bkr *BKR) rejectUnrespondingAbaInstances() error {
 func (bkr *BKR) tryToProposeToAba(abaId uuid.UUID, val byte) {
 	if !bkr.iProposed[abaId] {
 		bkr.iProposed[abaId] = true
+		bkrLogger.Debug("proposing to aba", "abaId", abaId, "val", val)
 		bkr.abaChannel.Propose(abaId, val)
+	} else {
+		bkrLogger.Debug("already proposed to aba", "abaId", abaId)
 	}
 }
 
