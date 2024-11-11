@@ -10,99 +10,6 @@ import (
 var roundLogger = utils.GetLogger(slog.LevelWarn)
 
 type mmrRound struct {
-	handler   *roundHandler
-	commands  chan func()
-	closeChan chan struct{}
-}
-
-func newMMRRound(n, f uint, bValChan, auxChan chan byte, coinRequest chan struct{}) *mmrRound {
-	r := &mmrRound{
-		handler:   newRoundHandler(n, f, bValChan, auxChan, coinRequest),
-		commands:  make(chan func()),
-		closeChan: make(chan struct{}),
-	}
-	go r.invoker()
-	return r
-}
-
-func (r *mmrRound) propose(est byte) error {
-	roundLogger.Info("scheduling proposal estimate", "est", est)
-	if !isInputValid(est) {
-		return fmt.Errorf("invalid input %d", est)
-	}
-	errChan := make(chan error)
-	r.commands <- func() {
-		errChan <- r.handler.propose(est)
-	}
-	return <-errChan
-}
-
-func (r *mmrRound) submitBVal(bVal byte, sender uuid.UUID) error {
-	roundLogger.Debug("scheduling submit bVal", "bVal", bVal, "sender", sender)
-	if !isInputValid(bVal) {
-		return fmt.Errorf("invalid input %d", bVal)
-	}
-	errChan := make(chan error)
-	r.commands <- func() {
-		errChan <- r.handler.submitBVal(bVal, sender)
-	}
-	return <-errChan
-}
-
-func (r *mmrRound) submitAux(aux byte, sender uuid.UUID) error {
-	roundLogger.Debug("scheduling submit aux", "aux", aux, "sender", sender)
-	if !isInputValid(aux) {
-		return fmt.Errorf("invalid input %d", aux)
-	}
-	errChan := make(chan error)
-	r.commands <- func() {
-		errChan <- r.handler.submitAux(aux, sender)
-	}
-	return <-errChan
-}
-
-type roundTransitionResult struct {
-	estimate byte
-	decided  bool
-	err      error
-}
-
-func (r *mmrRound) submitCoin(coin byte) roundTransitionResult {
-	if !isInputValid(coin) {
-		return roundTransitionResult{
-			estimate: bot,
-			decided:  false,
-			err:      fmt.Errorf("invalid input %d", coin),
-		}
-	}
-	roundLogger.Info("scheduling submit coin", "coin", coin)
-	transitionChan := make(chan roundTransitionResult)
-	r.commands <- func() { transitionChan <- r.handler.submitCoin(coin) }
-	return <-transitionChan
-}
-
-func isInputValid(bVal byte) bool {
-	return bVal == 0 || bVal == 1
-}
-
-func (r *mmrRound) invoker() {
-	for {
-		select {
-		case command := <-r.commands:
-			command()
-		case <-r.closeChan:
-			roundLogger.Info("closing mmrRound instance")
-			return
-		}
-	}
-}
-
-func (r *mmrRound) close() {
-	roundLogger.Info("signaling to close mmrRound instance")
-	r.closeChan <- struct{}{}
-}
-
-type roundHandler struct {
 	n                uint
 	f                uint
 	sentBVal         []bool
@@ -114,8 +21,8 @@ type roundHandler struct {
 	hasRequestedCoin bool
 }
 
-func newRoundHandler(n, f uint, bValChan, auxChan chan byte, coinReqChan chan struct{}) *roundHandler {
-	return &roundHandler{
+func newMMRRound(n, f uint, bValChan, auxChan chan byte, coinReqChan chan struct{}) *mmrRound {
+	return &mmrRound{
 		n:                n,
 		f:                f,
 		sentBVal:         []bool{false, false},
@@ -128,9 +35,15 @@ func newRoundHandler(n, f uint, bValChan, auxChan chan byte, coinReqChan chan st
 	}
 }
 
-func (h *roundHandler) propose(est byte) error {
+func isInputValid(bVal byte) bool {
+	return bVal == 0 || bVal == 1
+}
+
+func (h *mmrRound) propose(est byte) error {
 	roundLogger.Info("proposing estimate", "est", est)
-	if h.sentBVal[est] {
+	if !isInputValid(est) {
+		return fmt.Errorf("invalid input %d", est)
+	} else if h.sentBVal[est] {
 		roundLogger.Debug("already sent bVal", "est", est)
 	} else {
 		h.broadcastBVal(est)
@@ -138,8 +51,10 @@ func (h *roundHandler) propose(est byte) error {
 	return nil
 }
 
-func (h *roundHandler) submitBVal(bVal byte, sender uuid.UUID) error {
-	if h.receivedBVal[bVal][sender] {
+func (h *mmrRound) submitBVal(bVal byte, sender uuid.UUID) error {
+	if !isInputValid(bVal) {
+		return fmt.Errorf("invalid input %d", bVal)
+	} else if h.receivedBVal[bVal][sender] {
 		return fmt.Errorf("duplicate bVal from %s", sender)
 	}
 	roundLogger.Debug("submitting bVal", "bVal", bVal, "sender", sender)
@@ -158,19 +73,21 @@ func (h *roundHandler) submitBVal(bVal byte, sender uuid.UUID) error {
 	return nil
 }
 
-func (h *roundHandler) broadcastBVal(bVal byte) {
+func (h *mmrRound) broadcastBVal(bVal byte) {
 	roundLogger.Info("broadcasting bVal", "bVal", bVal)
 	h.sentBVal[bVal] = true
 	go func() { h.bValChan <- bVal }()
 }
 
-func (h *roundHandler) broadcastAux(bVal byte) {
+func (h *mmrRound) broadcastAux(bVal byte) {
 	roundLogger.Info("submitting aux", "aux", bVal)
 	go func() { h.auxChan <- bVal }()
 }
 
-func (h *roundHandler) submitAux(aux byte, sender uuid.UUID) error {
-	if h.receivedAux[0][sender] || h.receivedAux[1][sender] {
+func (h *mmrRound) submitAux(aux byte, sender uuid.UUID) error {
+	if !isInputValid(aux) {
+		return fmt.Errorf("invalid input %d", aux)
+	} else if h.receivedAux[0][sender] || h.receivedAux[1][sender] {
 		return fmt.Errorf("duplicate aux from %s", sender)
 	}
 	roundLogger.Debug("submitting aux", "aux", aux, "sender", sender)
@@ -181,13 +98,21 @@ func (h *roundHandler) submitAux(aux byte, sender uuid.UUID) error {
 	return nil
 }
 
-func (h *roundHandler) requestCoin() {
+func (h *mmrRound) requestCoin() {
 	h.hasRequestedCoin = true
 	h.coinReqChan <- struct{}{}
 }
 
-func (h *roundHandler) submitCoin(coin byte) roundTransitionResult {
-	if !h.hasRequestedCoin {
+type roundTransitionResult struct {
+	estimate byte
+	decided  bool
+	err      error
+}
+
+func (h *mmrRound) submitCoin(coin byte) roundTransitionResult {
+	if !isInputValid(coin) {
+		return roundTransitionResult{err: fmt.Errorf("invalid input %d", coin)}
+	} else if !h.hasRequestedCoin {
 		return roundTransitionResult{err: fmt.Errorf("coin not requested")}
 	}
 	roundLogger.Info("submitting coin", "coin", coin)

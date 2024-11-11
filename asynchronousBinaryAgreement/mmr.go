@@ -133,7 +133,6 @@ type cancelableRound struct {
 }
 
 func (r *cancelableRound) close() {
-	r.round.close()
 	r.closeChan <- struct{}{}
 }
 
