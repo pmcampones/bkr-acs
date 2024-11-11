@@ -26,19 +26,23 @@ type mmrScheduler interface {
 type mmrOrderedScheduler struct {
 	t         *testing.T
 	instances []*wrappedMMR
+	commands  chan func()
 }
 
 func newMMROrderedScheduler(t *testing.T) *mmrOrderedScheduler {
-	return &mmrOrderedScheduler{
+	o := &mmrOrderedScheduler{
 		t:         t,
 		instances: make([]*wrappedMMR, 0),
+		commands:  make(chan func()),
 	}
+	go o.invoker()
+	return o
 }
 
 func (o *mmrOrderedScheduler) addInstance(m *mmr) *wrappedMMR {
 	wmmr := &wrappedMMR{
 		m:        m,
-		decision: make(chan byte),
+		decision: make(chan byte, 1),
 	}
 	o.instances = append(o.instances, wmmr)
 	return wmmr
@@ -59,62 +63,74 @@ func (o *mmrOrderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappedM
 }
 
 func (o *mmrOrderedScheduler) listenBVals(t *testing.T, bValChan chan roundMsg, sender uuid.UUID) {
-	func() {
-		for {
-			bVal := <-bValChan
-			for _, wmmr := range o.instances {
-				go func() {
+	for {
+		bVal := <-bValChan
+		for _, wmmr := range o.instances {
+			go func() {
+				o.commands <- func() {
 					assert.NoError(t, wmmr.m.submitBVal(bVal.val, sender, bVal.r))
-				}()
-			}
+				}
+			}()
 		}
-	}()
+	}
 }
 
 func (o *mmrOrderedScheduler) listenAux(t *testing.T, auxChan chan roundMsg, sender uuid.UUID) {
-	func() {
-		for {
-			aux := <-auxChan
-			for _, wmmr := range o.instances {
-				go func() {
+	for {
+		aux := <-auxChan
+		for _, wmmr := range o.instances {
+			go func() {
+				o.commands <- func() {
 					assert.NoError(t, wmmr.m.submitAux(aux.val, sender, aux.r))
-				}()
-			}
+				}
+			}()
 		}
-	}()
+	}
 }
 
 func (o *mmrOrderedScheduler) listenDecisions(t *testing.T, decisionChan chan byte, sender uuid.UUID) {
-	func() {
-		decision := <-decisionChan
-		for _, wmmr := range o.instances {
-			go func() {
+	decision := <-decisionChan
+	mmrSchedulerLogger.Info("received instance decision", "decision", decision, "sender", sender)
+	for _, wmmr := range o.instances {
+		go func() {
+			o.commands <- func() {
+				mmrSchedulerLogger.Debug("submitting decision", "decision", decision, "sender", sender)
 				dec, err := wmmr.m.submitDecision(decision, sender)
 				assert.NoError(t, err)
 				if dec != bot {
 					wmmr.decision <- dec
+					mmrSchedulerLogger.Info("delivered final decision")
 				}
-			}()
-		}
-		dec2 := <-decisionChan
-		t.Errorf("received a decision from the same instance twice: %d", dec2)
-	}()
+			}
+		}()
+	}
+	dec2 := <-decisionChan
+	t.Errorf("received a decision from the same instance twice: %d", dec2)
 }
 
 func (o *mmrOrderedScheduler) listenCoinRequests(t *testing.T, coinChan chan uint16, m *mmr) {
-	func() {
-		for {
-			round := <-coinChan
-			coinBool := utils.HashToBool([]byte(fmt.Sprintf("%d", round)))
-			coin := byte(0)
-			if coinBool {
-				coin = 1
-			}
-			go func() {
-				assert.NoError(t, m.submitCoin(coin, round))
-			}()
+	for {
+		round := <-coinChan
+		coinBool := utils.HashToBool([]byte(fmt.Sprintf("%d", round)))
+		coin := byte(0)
+		if coinBool {
+			coin = 1
 		}
-	}()
+		go func() {
+			o.commands <- func() {
+				assert.NoError(t, m.submitCoin(coin, round))
+			}
+		}()
+	}
+}
+
+func (o *mmrOrderedScheduler) invoker() {
+	for {
+		select {
+		case cmd := <-o.commands:
+			cmd()
+		}
+	}
 }
 
 type mmrUnorderedScheduler struct {
@@ -186,72 +202,64 @@ func (u *mmrUnorderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappe
 }
 
 func (u *mmrUnorderedScheduler) listenBVals(bValChan chan roundMsg, sender uuid.UUID) {
-	func() {
-		for {
-			bVal := <-bValChan
-			for _, wmmr := range u.instances {
-				go func() {
-					u.scheduleChan <- func() error {
-						return wmmr.m.submitBVal(bVal.val, sender, bVal.r)
-					}
-				}()
-			}
-		}
-	}()
-}
-
-func (u *mmrUnorderedScheduler) listenAux(auxChan chan roundMsg, sender uuid.UUID) {
-	func() {
-		for {
-			aux := <-auxChan
-			for _, wmmr := range u.instances {
-				go func() {
-					u.scheduleChan <- func() error {
-						return wmmr.m.submitAux(aux.val, sender, aux.r)
-					}
-				}()
-			}
-		}
-	}()
-}
-
-func (u *mmrUnorderedScheduler) listenDecisions(t *testing.T, decisionChan chan byte, sender uuid.UUID) {
-	func() {
-		decision := <-decisionChan
-		mmrSchedulerLogger.Info("received instance decision", "decision", decision, "sender", sender)
+	for {
+		bVal := <-bValChan
 		for _, wmmr := range u.instances {
 			go func() {
 				u.scheduleChan <- func() error {
-					mmrSchedulerLogger.Debug("submitting decision", "decision", decision, "sender", sender)
-					if dec, err := wmmr.m.submitDecision(decision, sender); err != nil {
-						return err
-					} else if dec != bot {
-						wmmr.decision <- dec
-						mmrSchedulerLogger.Info("delivered final decision")
-					}
-					return nil
+					return wmmr.m.submitBVal(bVal.val, sender, bVal.r)
 				}
 			}()
 		}
-		dec2 := <-decisionChan
-		t.Errorf("received a decision from the same instance twice: %d", dec2)
-	}()
+	}
+}
+
+func (u *mmrUnorderedScheduler) listenAux(auxChan chan roundMsg, sender uuid.UUID) {
+	for {
+		aux := <-auxChan
+		for _, wmmr := range u.instances {
+			go func() {
+				u.scheduleChan <- func() error {
+					return wmmr.m.submitAux(aux.val, sender, aux.r)
+				}
+			}()
+		}
+	}
+}
+
+func (u *mmrUnorderedScheduler) listenDecisions(t *testing.T, decisionChan chan byte, sender uuid.UUID) {
+	decision := <-decisionChan
+	mmrSchedulerLogger.Info("received instance decision", "decision", decision, "sender", sender)
+	for _, wmmr := range u.instances {
+		go func() {
+			u.scheduleChan <- func() error {
+				mmrSchedulerLogger.Debug("submitting decision", "decision", decision, "sender", sender)
+				if dec, err := wmmr.m.submitDecision(decision, sender); err != nil {
+					return err
+				} else if dec != bot {
+					wmmr.decision <- dec
+					mmrSchedulerLogger.Info("delivered final decision")
+				}
+				return nil
+			}
+		}()
+	}
+	dec2 := <-decisionChan
+	t.Errorf("received a decision from the same instance twice: %d", dec2)
 }
 
 func (u *mmrUnorderedScheduler) listenCoinRequests(coinChan chan uint16, m *mmr) {
-	func() {
-		for {
-			round := <-coinChan
-			coinBool := utils.HashToBool([]byte(fmt.Sprintf("%d", round)))
-			coin := byte(0)
-			if coinBool {
-				coin = 1
-			}
-			go func() {
-				u.scheduleChan <- func() error {
-					return m.submitCoin(coin, round)
-				}
-			}()
+	for {
+		round := <-coinChan
+		coinBool := utils.HashToBool([]byte(fmt.Sprintf("%d", round)))
+		coin := byte(0)
+		if coinBool {
+			coin = 1
 		}
-	}()
+		go func() {
+			u.scheduleChan <- func() error {
+				return m.submitCoin(coin, round)
+			}
+		}()
+	}
 }
