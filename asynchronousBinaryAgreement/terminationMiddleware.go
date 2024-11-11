@@ -11,7 +11,7 @@ import (
 	"pace/utils"
 )
 
-var termLogger = utils.GetLogger(slog.LevelDebug)
+var termLogger = utils.GetLogger(slog.LevelWarn)
 
 type terminationMsg struct {
 	sender   uuid.UUID

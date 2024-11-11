@@ -11,7 +11,7 @@ import (
 	"pace/utils"
 )
 
-var channelLogger = utils.GetLogger(slog.LevelDebug)
+var channelLogger = utils.GetLogger(slog.LevelWarn)
 
 type CoinObserver interface {
 	DeliverCoin(id UUID, toss bool)

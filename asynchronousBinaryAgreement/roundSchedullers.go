@@ -22,16 +22,10 @@ func newOrderedScheduler() *orderedRoundScheduler {
 	return os
 }
 
-func (os *orderedRoundScheduler) addRound(r *mmrRound) {
+func (os *orderedRoundScheduler) addRound(t *testing.T, sender uuid.UUID, r *mmrRound) {
 	os.rounds = append(os.rounds, r)
-}
-
-func (os *orderedRoundScheduler) getChannels(t *testing.T, sender uuid.UUID) (chan byte, chan byte) {
-	bValChan := make(chan byte)
-	auxChan := make(chan byte)
-	go os.processBVals(t, sender, bValChan)
-	go os.processAux(t, sender, auxChan)
-	return bValChan, auxChan
+	go os.processBVals(t, sender, r.bValChan)
+	go os.processAux(t, sender, r.auxChan)
 }
 
 func (os *orderedRoundScheduler) processAux(t *testing.T, sender uuid.UUID, auxChan chan byte) {

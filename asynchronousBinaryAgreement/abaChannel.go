@@ -10,7 +10,7 @@ import (
 	"pace/utils"
 )
 
-var abaChannelLogger = utils.GetLogger(slog.LevelDebug)
+var abaChannelLogger = utils.GetLogger(slog.LevelWarn)
 
 type abaWrapper struct {
 	instance *abaNetworkedInstance

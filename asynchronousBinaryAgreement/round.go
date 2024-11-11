@@ -21,16 +21,16 @@ type mmrRound struct {
 	hasRequestedCoin bool
 }
 
-func newMMRRound(n, f uint, bValChan, auxChan chan byte, coinReqChan chan struct{}) *mmrRound {
+func newMMRRound(n, f uint) *mmrRound {
 	return &mmrRound{
 		n:                n,
 		f:                f,
 		sentBVal:         []bool{false, false},
 		receivedBVal:     []map[uuid.UUID]bool{make(map[uuid.UUID]bool), make(map[uuid.UUID]bool)},
 		receivedAux:      []map[uuid.UUID]bool{make(map[uuid.UUID]bool), make(map[uuid.UUID]bool)},
-		bValChan:         bValChan,
-		auxChan:          auxChan,
-		coinReqChan:      coinReqChan,
+		bValChan:         make(chan byte, 2),
+		auxChan:          make(chan byte, 1),
+		coinReqChan:      make(chan struct{}, 1),
 		hasRequestedCoin: false,
 	}
 }
@@ -76,12 +76,12 @@ func (h *mmrRound) submitBVal(bVal byte, sender uuid.UUID) error {
 func (h *mmrRound) broadcastBVal(bVal byte) {
 	roundLogger.Info("broadcasting bVal", "bVal", bVal)
 	h.sentBVal[bVal] = true
-	go func() { h.bValChan <- bVal }()
+	h.bValChan <- bVal
 }
 
 func (h *mmrRound) broadcastAux(bVal byte) {
 	roundLogger.Info("submitting aux", "aux", bVal)
-	go func() { h.auxChan <- bVal }()
+	h.auxChan <- bVal
 }
 
 func (h *mmrRound) submitAux(aux byte, sender uuid.UUID) error {

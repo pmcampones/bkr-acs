@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 )
 
-var abaLogger = utils.GetLogger(slog.LevelDebug)
+var abaLogger = utils.GetLogger(slog.LevelWarn)
 
 const firstRound = 0
 
@@ -217,38 +217,35 @@ func (m *mmrHandler) getRound(rNum uint16) (*cancelableRound, error) {
 }
 
 func (m *mmrHandler) newRound(r uint16) (*cancelableRound, error) {
-	bValChan := make(chan byte)
-	auxChan := make(chan byte)
-	coinRequest := make(chan struct{}, 1)
+	round := newMMRRound(m.n, m.f)
 	closeChan := make(chan struct{}, 1)
-	mmrRound := newMMRRound(m.n, m.f, bValChan, auxChan, coinRequest)
-	go m.listenRequests(bValChan, auxChan, coinRequest, closeChan, r)
+	go m.listenRequests(round, closeChan, r)
 	return &cancelableRound{
-		round:     mmrRound,
+		round:     round,
 		closeChan: closeChan,
 	}, nil
 }
 
-func (m *mmrHandler) listenRequests(bValChan, auxChan chan byte, coinRequest, close chan struct{}, r uint16) {
+func (m *mmrHandler) listenRequests(round *mmrRound, close chan struct{}, rnum uint16) {
 	for {
 		select {
-		case bVal := <-bValChan:
-			abaLogger.Debug("received bVal", "bVal", bVal, "mmrRound", r)
+		case bVal := <-round.bValChan:
+			abaLogger.Debug("received bVal", "bVal", bVal, "mmrRound", rnum)
 			go func() {
-				m.deliverBVal <- roundMsg{val: bVal, r: r}
+				m.deliverBVal <- roundMsg{val: bVal, r: rnum}
 			}()
-		case aux := <-auxChan:
-			abaLogger.Debug("received aux", "aux", aux, "mmrRound", r)
+		case aux := <-round.auxChan:
+			abaLogger.Debug("received aux", "aux", aux, "mmrRound", rnum)
 			go func() {
-				m.deliverAux <- roundMsg{val: aux, r: r}
+				m.deliverAux <- roundMsg{val: aux, r: rnum}
 			}()
-		case <-coinRequest:
-			abaLogger.Debug("received coin request", "mmrRound", r)
+		case <-round.coinReqChan:
+			abaLogger.Debug("received coin request", "mmrRound", rnum)
 			go func() {
-				m.coinReq <- r
+				m.coinReq <- rnum
 			}()
 		case <-close:
-			abaLogger.Info("closing mmr round", "mmrRound", r)
+			abaLogger.Info("closing mmr round", "mmrRound", rnum)
 			return
 		}
 	}

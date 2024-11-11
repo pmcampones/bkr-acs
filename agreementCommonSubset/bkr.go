@@ -10,7 +10,7 @@ import (
 	"slices"
 )
 
-var bkrLogger = utils.GetLogger(slog.LevelDebug)
+var bkrLogger = utils.GetLogger(slog.LevelWarn)
 
 const (
 	accept = 1
