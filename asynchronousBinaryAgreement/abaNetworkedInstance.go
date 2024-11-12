@@ -18,9 +18,7 @@ type abaNetworkedInstance struct {
 	abamidware    *abaMiddleware
 	termidware    *terminationMiddleware
 	ctChan        *ct.CTChannel
-	commands      chan func() error
 	listenerClose chan struct{}
-	invokerClose  chan struct{}
 }
 
 func newAbaNetworkedInstance(id uuid.UUID, n, f uint, abamidware *abaMiddleware, termidware *terminationMiddleware, ctChan *ct.CTChannel) *abaNetworkedInstance {
@@ -28,31 +26,20 @@ func newAbaNetworkedInstance(id uuid.UUID, n, f uint, abamidware *abaMiddleware,
 		id:            id,
 		n:             n,
 		f:             f,
+		instance:      newConcurrentMMR(n, f),
 		output:        make(chan byte),
 		abamidware:    abamidware,
 		termidware:    termidware,
 		ctChan:        ctChan,
-		commands:      make(chan func() error),
 		listenerClose: make(chan struct{}),
-		invokerClose:  make(chan struct{}),
 	}
+	go a.listener()
 	return a
 }
 
 func (a *abaNetworkedInstance) propose(est byte) error {
 	abaChannelLogger.Debug("proposing initial estimate", "instanceId", a.id, "est", est)
-	if a.instance != nil {
-		return fmt.Errorf("instance already initialized")
-	}
-	a.instance = newConcurrentMMR(a.n, a.f)
-	go a.listener()
-	go a.invoker()
-	errChan := make(chan error, 1)
-	a.commands <- func() error {
-		errChan <- a.instance.propose(est)
-		return nil
-	}
-	if err := <-errChan; err != nil {
+	if err := a.instance.propose(est); err != nil {
 		return fmt.Errorf("unable to propose initial estimate: %w", err)
 	}
 	return nil
@@ -118,64 +105,33 @@ func (a *abaNetworkedInstance) makeCoinSeed(round uint16) ([]byte, error) {
 	return writer.Bytes(), nil
 }
 
-func (a *abaNetworkedInstance) invoker() {
-	abaChannelLogger.Debug("starting invoker aba networked instance")
-	for {
-		select {
-		case cmd := <-a.commands:
-			if err := cmd(); err != nil {
-				abaChannelLogger.Warn("error executing command", "instanceId", a.id, "error", err)
-			}
-		case <-a.invokerClose:
-			abaChannelLogger.Debug("closing asynchronousBinaryAgreement networked instance")
-			return
-		}
+func (a *abaNetworkedInstance) submitBVal(bVal byte, sender uuid.UUID, r uint16) error {
+	abaChannelLogger.Debug("submitting bVal", "instanceId", a.id, "round", r, "bval", bVal)
+	if err := a.instance.submitBVal(bVal, sender, r); err != nil {
+		return fmt.Errorf("unable to submit bVal: %w", err)
 	}
+	return nil
 }
 
-func (a *abaNetworkedInstance) submitBVal(bVal byte, sender uuid.UUID, r uint16) {
-	abaChannelLogger.Debug("issuing bVal submission", "instanceId", a.id, "round", r, "bval", bVal)
-	a.commands <- func() error {
-		abaChannelLogger.Debug("submitting bVal", "instanceId", a.id, "round", r, "bval", bVal)
-		if a.instance == nil {
-			return fmt.Errorf("instance not initialized")
-		} else if err := a.instance.submitBVal(bVal, sender, r); err != nil {
-			return fmt.Errorf("unable to submit bVal: %w", err)
-		}
-		return nil
+func (a *abaNetworkedInstance) submitAux(aux byte, sender uuid.UUID, r uint16) error {
+	abaChannelLogger.Debug("submitting aux", "instanceId", a.id, "round", r, "aux", aux)
+	if err := a.instance.submitAux(aux, sender, r); err != nil {
+		return fmt.Errorf("unable to submit aux: %w", err)
 	}
+	return nil
 }
 
-func (a *abaNetworkedInstance) submitAux(aux byte, sender uuid.UUID, r uint16) {
-	abaChannelLogger.Debug("issuing aux submission", "instanceId", a.id, "round", r, "aux", aux)
-	a.commands <- func() error {
-		abaChannelLogger.Debug("submitting aux", "instanceId", a.id, "round", r, "aux", aux)
-		if a.instance == nil {
-			return fmt.Errorf("instance not initialized")
-		} else if err := a.instance.submitAux(aux, sender, r); err != nil {
-			return fmt.Errorf("unable to submit aux: %w", err)
-		}
-		return nil
+func (a *abaNetworkedInstance) submitDecision(decision byte, sender uuid.UUID) error {
+	abaChannelLogger.Debug("submitting decision", "instanceId", a.id, "decision", decision, "sender", sender)
+	finalDec, err := a.instance.submitDecision(decision, sender)
+	if err != nil {
+		return fmt.Errorf("unable to submit decision: %w", err)
 	}
-}
-
-func (a *abaNetworkedInstance) submitDecision(decision byte, sender uuid.UUID) {
-	abaChannelLogger.Debug("issuing decision submission", "instanceId", a.id, "decision", decision, "sender", sender)
-	a.commands <- func() error {
-		abaChannelLogger.Debug("submitting decision", "instanceId", a.id, "decision", decision, "sender", sender)
-		if a.instance == nil {
-			return fmt.Errorf("instance not initialized")
-		}
-		finalDec, err := a.instance.submitDecision(decision, sender)
-		if err != nil {
-			return fmt.Errorf("unable to submit decision: %w", err)
-		}
-		if finalDec != bot {
-			abaChannelLogger.Debug("final decision", "instanceId", a.id, "decision", finalDec)
-			a.output <- finalDec
-		}
-		return nil
+	if finalDec != bot {
+		abaChannelLogger.Debug("final decision", "instanceId", a.id, "decision", finalDec)
+		a.output <- finalDec
 	}
+	return nil
 }
 
 func (a *abaNetworkedInstance) close() {
@@ -183,6 +139,5 @@ func (a *abaNetworkedInstance) close() {
 		a.instance.close()
 		abaChannelLogger.Debug("signaling close asynchronousBinaryAgreement networked instance")
 		a.listenerClose <- struct{}{}
-		a.invokerClose <- struct{}{}
 	}
 }
