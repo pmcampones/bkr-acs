@@ -96,11 +96,16 @@ func (c *AbaChannel) listener() {
 }
 
 func (c *AbaChannel) processTermMsg(term *terminationMsg) error {
-	wrapper, err := c.getInstance(term.instance)
+	instance, err := c.getInstance(term.instance)
 	if err != nil {
 		return fmt.Errorf("unable to get aba inner: %w", err)
 	}
-	go wrapper.inner.submitDecision(term.decision, term.sender)
+	go func() {
+		err := instance.inner.submitDecision(term.decision, term.sender)
+		if err != nil {
+			abaChannelLogger.Warn("unable to submit decision", "instanceId", term.instance, "decision", term.decision, "error", err)
+		}
+	}()
 	return nil
 }
 
@@ -111,9 +116,19 @@ func (c *AbaChannel) processMiddlewareMsg(msg *abaMsg) error {
 	}
 	switch msg.kind {
 	case bval:
-		go wrapper.inner.submitBVal(msg.val, msg.sender, msg.round)
+		go func() {
+			err := wrapper.inner.submitBVal(msg.val, msg.sender, msg.round)
+			if err != nil {
+				abaChannelLogger.Warn("unable to submit bVal", "instanceId", msg.instance, "round", msg.round, "error", err)
+			}
+		}()
 	case aux:
-		go wrapper.inner.submitAux(msg.val, msg.sender, msg.round)
+		go func() {
+			err := wrapper.inner.submitAux(msg.val, msg.sender, msg.round)
+			if err != nil {
+				abaChannelLogger.Warn("unable to submit aux", "instanceId", msg.instance, "round", msg.round, "error", err)
+			}
+		}()
 	}
 	return nil
 }
@@ -124,12 +139,12 @@ func (c *AbaChannel) getInstance(id uuid.UUID) (*AbaInstance, error) {
 	}
 	instance := c.instances[id]
 	if instance == nil {
-		instance = c.newWrappedInstance(id)
+		instance = c.newAbaInstance(id)
 	}
 	return instance, nil
 }
 
-func (c *AbaChannel) newWrappedInstance(id uuid.UUID) *AbaInstance {
+func (c *AbaChannel) newAbaInstance(id uuid.UUID) *AbaInstance {
 	abaNetworked := newAbaNetworkedInstance(id, c.n, c.f, c.middleware, c.termidware, c.ctChannel)
 	wrapper := &AbaInstance{
 		inner:  abaNetworked,
