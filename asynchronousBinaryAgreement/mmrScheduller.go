@@ -14,12 +14,12 @@ import (
 var mmrSchedulerLogger = utils.GetLogger(slog.LevelDebug)
 
 type wrappedMMR struct {
-	m        *mmr
+	m        *concurrentMMR
 	decision chan byte
 }
 
 type mmrScheduler interface {
-	addInstance(m *mmr) *wrappedMMR
+	addInstance(m *concurrentMMR) *wrappedMMR
 	getChannels(n, f uint, sender uuid.UUID) *wrappedMMR
 }
 
@@ -35,7 +35,7 @@ func newMMROrderedScheduler(t *testing.T) *mmrOrderedScheduler {
 	}
 }
 
-func (o *mmrOrderedScheduler) addInstance(m *mmr) *wrappedMMR {
+func (o *mmrOrderedScheduler) addInstance(m *concurrentMMR) *wrappedMMR {
 	wmmr := &wrappedMMR{
 		m:        m,
 		decision: make(chan byte),
@@ -49,7 +49,7 @@ func (o *mmrOrderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappedM
 	auxChan := make(chan roundMsg)
 	decisionChan := make(chan byte, 1)
 	coinChan := make(chan uint16)
-	m := newMMR(n, f, bValChan, auxChan, decisionChan, coinChan)
+	m := newConcurrentMMR(n, f, bValChan, auxChan, decisionChan, coinChan)
 	wmmr := o.addInstance(m)
 	go o.listenBVals(o.t, bValChan, sender)
 	go o.listenAux(o.t, auxChan, sender)
@@ -101,7 +101,7 @@ func (o *mmrOrderedScheduler) listenDecisions(t *testing.T, decisionChan chan by
 	}()
 }
 
-func (o *mmrOrderedScheduler) listenCoinRequests(t *testing.T, coinChan chan uint16, m *mmr) {
+func (o *mmrOrderedScheduler) listenCoinRequests(t *testing.T, coinChan chan uint16, m *concurrentMMR) {
 	func() {
 		for {
 			round := <-coinChan
@@ -162,7 +162,7 @@ func (u *mmrUnorderedScheduler) execOp(t *testing.T) {
 	}
 }
 
-func (u *mmrUnorderedScheduler) addInstance(m *mmr) *wrappedMMR {
+func (u *mmrUnorderedScheduler) addInstance(m *concurrentMMR) *wrappedMMR {
 	wmmr := &wrappedMMR{
 		m:        m,
 		decision: make(chan byte, 1),
@@ -176,7 +176,7 @@ func (u *mmrUnorderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappe
 	auxChan := make(chan roundMsg)
 	decisionChan := make(chan byte, 1)
 	coinChan := make(chan uint16)
-	m := newMMR(n, f, bValChan, auxChan, decisionChan, coinChan)
+	m := newConcurrentMMR(n, f, bValChan, auxChan, decisionChan, coinChan)
 	wmmr := u.addInstance(m)
 	go u.listenBVals(bValChan, sender)
 	go u.listenAux(auxChan, sender)
@@ -238,7 +238,7 @@ func (u *mmrUnorderedScheduler) listenDecisions(t *testing.T, decisionChan chan 
 	}()
 }
 
-func (u *mmrUnorderedScheduler) listenCoinRequests(coinChan chan uint16, m *mmr) {
+func (u *mmrUnorderedScheduler) listenCoinRequests(coinChan chan uint16, m *concurrentMMR) {
 	func() {
 		for {
 			round := <-coinChan

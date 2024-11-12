@@ -13,7 +13,7 @@ type abaNetworkedInstance struct {
 	id            uuid.UUID
 	n             uint
 	f             uint
-	instance      *mmr
+	instance      *concurrentMMR
 	output        chan byte
 	abamidware    *abaMiddleware
 	termidware    *terminationMiddleware
@@ -48,7 +48,7 @@ func (a *abaNetworkedInstance) propose(est byte) error {
 	delAux := make(chan roundMsg)
 	delDecision := make(chan byte, 1)
 	delCoinReq := make(chan uint16)
-	a.instance = newMMR(a.n, a.f, delBVal, delAux, delDecision, delCoinReq)
+	a.instance = newConcurrentMMR(a.n, a.f, delBVal, delAux, delDecision, delCoinReq)
 	go a.listener(delBVal, delAux, delDecision, delCoinReq)
 	go a.invoker()
 	if err := a.instance.propose(est); err != nil {
