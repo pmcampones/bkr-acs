@@ -12,15 +12,26 @@ import (
 
 var abaChannelLogger = utils.GetLogger(slog.LevelWarn)
 
-type abaWrapper struct {
-	instance *abaNetworkedInstance
-	output   chan byte
+type AbaInstance struct {
+	inner  *abaNetworkedInstance
+	output chan byte
+}
+
+func (a *AbaInstance) Propose(est byte) error {
+	if err := a.inner.propose(est); err != nil {
+		return fmt.Errorf("unable to propose initial estimate: %w", err)
+	}
+	return nil
+}
+
+func (a *AbaInstance) GetOutput() byte {
+	return <-a.output
 }
 
 type AbaChannel struct {
 	n             uint
 	f             uint
-	instances     map[uuid.UUID]*abaWrapper
+	instances     map[uuid.UUID]*AbaInstance
 	finished      map[uuid.UUID]bool
 	ctChannel     *ct.CTChannel
 	termidware    *terminationMiddleware
@@ -38,7 +49,7 @@ func NewAbaChannel(n, f uint, dealSS *on.SSChannel, ctBeb, mBeb *on.BEBChannel, 
 	c := &AbaChannel{
 		n:             n,
 		f:             f,
-		instances:     make(map[uuid.UUID]*abaWrapper),
+		instances:     make(map[uuid.UUID]*AbaInstance),
 		finished:      make(map[uuid.UUID]bool),
 		ctChannel:     ctChannel,
 		termidware:    newTerminationMiddleware(tBrb),
@@ -52,27 +63,18 @@ func NewAbaChannel(n, f uint, dealSS *on.SSChannel, ctBeb, mBeb *on.BEBChannel, 
 	return c, nil
 }
 
-func (c *AbaChannel) NewAbaInstance(instanceId uuid.UUID) chan byte {
-	res := make(chan chan byte, 1)
+func (c *AbaChannel) NewAbaInstance(instanceId uuid.UUID) *AbaInstance {
+	res := make(chan *AbaInstance, 1)
 	c.commands <- func() error {
-		if _, err := c.getInstance(instanceId); err != nil {
-			return fmt.Errorf("unable to get aba instance: %w", err)
+		if instance, err := c.getInstance(instanceId); err != nil {
+			res <- nil
+			return fmt.Errorf("unable to get aba inner: %w", err)
+		} else {
+			res <- instance
 		}
-		res <- c.instances[instanceId].output
 		return nil
 	}
 	return <-res
-}
-
-func (c *AbaChannel) Propose(instanceId uuid.UUID, val byte) {
-	c.commands <- func() error {
-		if wrapper, err := c.getInstance(instanceId); err != nil {
-			return fmt.Errorf("unable to get aba instance: %w", err)
-		} else if err = wrapper.instance.propose(val); err != nil {
-			return fmt.Errorf("unable to propose value in instance %s: %w ", instanceId, err)
-		}
-		return nil
-	}
 }
 
 func (c *AbaChannel) listener() {
@@ -96,29 +98,29 @@ func (c *AbaChannel) listener() {
 func (c *AbaChannel) processTermMsg(term *terminationMsg) error {
 	wrapper, err := c.getInstance(term.instance)
 	if err != nil {
-		return fmt.Errorf("unable to get aba instance: %w", err)
+		return fmt.Errorf("unable to get aba inner: %w", err)
 	}
-	go wrapper.instance.submitDecision(term.decision, term.sender)
+	go wrapper.inner.submitDecision(term.decision, term.sender)
 	return nil
 }
 
 func (c *AbaChannel) processMiddlewareMsg(msg *abaMsg) error {
 	wrapper, err := c.getInstance(msg.instance)
 	if err != nil {
-		return fmt.Errorf("unable to get aba instance: %w", err)
+		return fmt.Errorf("unable to get aba inner: %w", err)
 	}
 	switch msg.kind {
 	case bval:
-		go wrapper.instance.submitBVal(msg.val, msg.sender, msg.round)
+		go wrapper.inner.submitBVal(msg.val, msg.sender, msg.round)
 	case aux:
-		go wrapper.instance.submitAux(msg.val, msg.sender, msg.round)
+		go wrapper.inner.submitAux(msg.val, msg.sender, msg.round)
 	}
 	return nil
 }
 
-func (c *AbaChannel) getInstance(id uuid.UUID) (*abaWrapper, error) {
+func (c *AbaChannel) getInstance(id uuid.UUID) (*AbaInstance, error) {
 	if c.finished[id] {
-		return nil, fmt.Errorf("requested instance is already finished")
+		return nil, fmt.Errorf("requested inner is already finished")
 	}
 	instance := c.instances[id]
 	if instance == nil {
@@ -127,19 +129,19 @@ func (c *AbaChannel) getInstance(id uuid.UUID) (*abaWrapper, error) {
 	return instance, nil
 }
 
-func (c *AbaChannel) newWrappedInstance(id uuid.UUID) *abaWrapper {
+func (c *AbaChannel) newWrappedInstance(id uuid.UUID) *AbaInstance {
 	abaNetworked := newAbaNetworkedInstance(id, c.n, c.f, c.middleware, c.termidware, c.ctChannel)
-	wrapper := &abaWrapper{
-		instance: abaNetworked,
-		output:   make(chan byte, 1),
+	wrapper := &AbaInstance{
+		inner:  abaNetworked,
+		output: make(chan byte, 1),
 	}
 	c.instances[id] = wrapper
 	go c.handleAsyncResultDelivery(id, wrapper)
 	return wrapper
 }
 
-func (c *AbaChannel) handleAsyncResultDelivery(id uuid.UUID, wrapper *abaWrapper) {
-	finalDecision := <-wrapper.instance.output
+func (c *AbaChannel) handleAsyncResultDelivery(id uuid.UUID, wrapper *AbaInstance) {
+	finalDecision := <-wrapper.inner.output
 	wrapper.output <- finalDecision
 	c.commands <- func() error {
 		return c.closeWrappedInstance(id)
@@ -148,13 +150,13 @@ func (c *AbaChannel) handleAsyncResultDelivery(id uuid.UUID, wrapper *abaWrapper
 
 func (c *AbaChannel) closeWrappedInstance(id uuid.UUID) error {
 	if c.finished[id] {
-		return fmt.Errorf("instance already closed")
+		return fmt.Errorf("inner already closed")
 	} else if instance := c.instances[id]; instance == nil {
-		return fmt.Errorf("instance does not exist")
+		return fmt.Errorf("inner does not exist")
 	} else {
 		c.finished[id] = true
 		c.instances[id] = nil
-		instance.instance.close()
+		instance.inner.close()
 	}
 	return nil
 }

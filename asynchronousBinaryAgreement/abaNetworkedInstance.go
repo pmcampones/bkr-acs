@@ -11,8 +11,6 @@ import (
 
 type abaNetworkedInstance struct {
 	id            uuid.UUID
-	n             uint
-	f             uint
 	instance      *concurrentMMR
 	output        chan byte
 	abamidware    *abaMiddleware
@@ -24,8 +22,6 @@ type abaNetworkedInstance struct {
 func newAbaNetworkedInstance(id uuid.UUID, n, f uint, abamidware *abaMiddleware, termidware *terminationMiddleware, ctChan *ct.CTChannel) *abaNetworkedInstance {
 	a := &abaNetworkedInstance{
 		id:            id,
-		n:             n,
-		f:             f,
 		instance:      newConcurrentMMR(n, f),
 		output:        make(chan byte),
 		abamidware:    abamidware,
@@ -46,7 +42,7 @@ func (a *abaNetworkedInstance) propose(est byte) error {
 }
 
 func (a *abaNetworkedInstance) listener() {
-	abaChannelLogger.Debug("starting listener aba networked instance")
+	abaChannelLogger.Debug("starting listener aba networked inner")
 	for {
 		select {
 		case bVal := <-a.instance.getBValChan():
@@ -69,7 +65,7 @@ func (a *abaNetworkedInstance) listener() {
 				abaChannelLogger.Warn("unable to submit coin", "instanceId", a.id, "round", coinReq, "error", err)
 			}
 		case <-a.listenerClose:
-			abaChannelLogger.Debug("closing listener asynchronousBinaryAgreement networked instance")
+			abaChannelLogger.Debug("closing listener asynchronousBinaryAgreement networked inner")
 			return
 		}
 	}
@@ -94,11 +90,11 @@ func (a *abaNetworkedInstance) getCoin(round uint16) (byte, error) {
 func (a *abaNetworkedInstance) makeCoinSeed(round uint16) ([]byte, error) {
 	idBytes, err := a.id.MarshalBinary()
 	if err != nil {
-		return nil, fmt.Errorf("unable to marshal instance id: %w", err)
+		return nil, fmt.Errorf("unable to marshal inner id: %w", err)
 	}
 	writer := bytes.NewBuffer(make([]byte, 0, int(unsafe.Sizeof(round))+len(idBytes)))
 	if n, err := writer.Write(idBytes); err != nil || n != len(idBytes) {
-		return nil, fmt.Errorf("unable to write instance id to coin seed: %w", err)
+		return nil, fmt.Errorf("unable to write inner id to coin seed: %w", err)
 	} else if err := binary.Write(writer, binary.LittleEndian, round); err != nil {
 		return nil, fmt.Errorf("unable to write round to coin seed: %w", err)
 	}
@@ -137,7 +133,7 @@ func (a *abaNetworkedInstance) submitDecision(decision byte, sender uuid.UUID) e
 func (a *abaNetworkedInstance) close() {
 	if a.instance != nil {
 		a.instance.close()
-		abaChannelLogger.Debug("signaling close asynchronousBinaryAgreement networked instance")
+		abaChannelLogger.Debug("signaling close asynchronousBinaryAgreement networked inner")
 		a.listenerClose <- struct{}{}
 	}
 }

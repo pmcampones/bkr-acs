@@ -51,7 +51,7 @@ func (m *terminationMiddleware) processMsg(brbMsg brb.BRBMsg) {
 	if tm, err := m.parseMsg(brbMsg.Content, brbMsg.Sender); err != nil {
 		termLogger.Warn("unable to parse termination message", "error", err)
 	} else {
-		termLogger.Debug("received termination message", "sender", tm.sender, "instance", tm.instance, "decision", tm.decision)
+		termLogger.Debug("received termination message", "sender", tm.sender, "inner", tm.instance, "decision", tm.decision)
 		go func() { m.output <- tm }()
 	}
 }
@@ -61,7 +61,7 @@ func (m *terminationMiddleware) parseMsg(msg []byte, sender uuid.UUID) (*termina
 	tm.sender = sender
 	reader := bytes.NewReader(msg)
 	if id, err := utils.ExtractIdFromMessage(reader); err != nil {
-		return nil, fmt.Errorf("unable to extract instance id from termination message: %v", err)
+		return nil, fmt.Errorf("unable to extract inner id from termination message: %v", err)
 	} else {
 		tm.instance = id
 	}
@@ -75,9 +75,9 @@ func (m *terminationMiddleware) broadcastDecision(instance uuid.UUID, decision b
 	buf := bytes.NewBuffer([]byte{})
 	writer := bufio.NewWriter(buf)
 	if idBytes, err := instance.MarshalBinary(); err != nil {
-		return fmt.Errorf("unable to marshal instance id: %v", err)
+		return fmt.Errorf("unable to marshal inner id: %v", err)
 	} else if _, err := writer.Write(idBytes); err != nil {
-		return fmt.Errorf("unable to write instance id to termination message: %v", err)
+		return fmt.Errorf("unable to write inner id to termination message: %v", err)
 	} else if err := binary.Write(writer, binary.LittleEndian, decision); err != nil {
 		return fmt.Errorf("unable to write decision to termination message: %v", err)
 	} else if err := writer.Flush(); err != nil {

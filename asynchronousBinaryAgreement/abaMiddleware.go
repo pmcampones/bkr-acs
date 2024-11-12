@@ -58,7 +58,7 @@ func (m *abaMiddleware) processMsg(bebMsg on.BEBMsg) {
 	if amsg, err := m.parseMsg(bebMsg.Content, bebMsg.Sender); err != nil {
 		abaChannelLogger.Warn("unable to processMsg message during beb delivery", "error", err)
 	} else {
-		abaChannelLogger.Debug("received message from beb", "sender", amsg.sender, "type", amsg.kind, "instance", amsg.instance, "val", amsg.val)
+		abaChannelLogger.Debug("received message from beb", "sender", amsg.sender, "type", amsg.kind, "inner", amsg.instance, "val", amsg.val)
 		go func() { m.output <- amsg }()
 	}
 }
@@ -72,7 +72,7 @@ func (m *abaMiddleware) parseMsg(msg []byte, sender *ecdsa.PublicKey) (*abaMsg, 
 	tm.sender = senderId
 	reader := bytes.NewReader(msg)
 	if id, err := utils.ExtractIdFromMessage(reader); err != nil {
-		return nil, fmt.Errorf("unable to extract instance id from message: %v", err)
+		return nil, fmt.Errorf("unable to extract inner id from message: %v", err)
 	} else {
 		tm.instance = id
 	}
@@ -101,9 +101,9 @@ func (m *abaMiddleware) broadcastMsg(instance uuid.UUID, kind middlewareCode, ro
 	buf := bytes.NewBuffer([]byte{})
 	writer := bufio.NewWriter(buf)
 	if instanceBytes, err := instance.MarshalBinary(); err != nil {
-		return fmt.Errorf("unable to marshal instance id: %v", err)
+		return fmt.Errorf("unable to marshal inner id: %v", err)
 	} else if n, err := writer.Write(instanceBytes); err != nil || n != len(instanceBytes) {
-		return fmt.Errorf("unable to write instance id to buffer: %v", err)
+		return fmt.Errorf("unable to write inner id to buffer: %v", err)
 	} else if err := writer.WriteByte(byte(kind)); err != nil {
 		return fmt.Errorf("unable to write kind to buffer: %v", err)
 	} else if err := binary.Write(writer, binary.LittleEndian, round); err != nil {

@@ -44,11 +44,11 @@ func testAbaChannelShouldDecideMultiple(t *testing.T, n, f uint) {
 		return abachan
 	})
 	id := uuid.New()
-	resChans := lo.Map(abachans, func(abachan *AbaChannel, _ int) chan byte { return abachan.NewAbaInstance(id) })
-	for _, abachan := range abachans {
-		abachan.Propose(id, byte(rand.IntN(2)))
+	abaInstances := lo.Map(abachans, func(abachan *AbaChannel, _ int) *AbaInstance { return abachan.NewAbaInstance(id) })
+	for _, instance := range abaInstances {
+		assert.NoError(t, instance.Propose(byte(rand.IntN(2))))
 	}
-	decisions := lo.Map(resChans, func(resChan chan byte, _ int) byte { return <-resChan })
+	decisions := lo.Map(abaInstances, func(instance *AbaInstance, _ int) byte { return instance.GetOutput() })
 	firstDecision := decisions[0]
 	assert.True(t, lo.EveryBy(decisions, func(decision byte) bool { return decision == firstDecision }))
 	for _, abachan := range abachans {

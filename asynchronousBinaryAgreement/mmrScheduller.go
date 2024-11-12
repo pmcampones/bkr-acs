@@ -93,7 +93,7 @@ func (o *mmrOrderedScheduler) listenDecisions(t *testing.T, decisionChan chan by
 			}()
 		}
 		dec2 := <-decisionChan
-		t.Errorf("received a decision from the same instance twice: %d", dec2)
+		t.Errorf("received a decision from the same inner twice: %d", dec2)
 	}()
 }
 
@@ -210,7 +210,7 @@ func (u *mmrUnorderedScheduler) listenAux(auxChan chan roundMsg, sender uuid.UUI
 func (u *mmrUnorderedScheduler) listenDecisions(t *testing.T, decisionChan chan byte, sender uuid.UUID) {
 	func() {
 		decision := <-decisionChan
-		mmrSchedulerLogger.Info("received instance decision", "decision", decision, "sender", sender)
+		mmrSchedulerLogger.Info("received inner decision", "decision", decision, "sender", sender)
 		for _, wmmr := range u.instances {
 			go func() {
 				u.scheduleChan <- func() error {
@@ -226,7 +226,7 @@ func (u *mmrUnorderedScheduler) listenDecisions(t *testing.T, decisionChan chan 
 			}()
 		}
 		dec2 := <-decisionChan
-		t.Errorf("received a decision from the same instance twice: %d", dec2)
+		t.Errorf("received a decision from the same inner twice: %d", dec2)
 	}()
 }
 
