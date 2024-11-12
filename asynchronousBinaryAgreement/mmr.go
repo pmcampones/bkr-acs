@@ -10,6 +10,7 @@ import (
 var abaLogger = utils.GetLogger(slog.LevelWarn)
 
 const firstRound = 0
+const averageNumRounds = 2
 
 type roundMsg struct {
 	val byte
@@ -37,15 +38,15 @@ type mmr struct {
 	termGadget      *mmrTermination
 }
 
-func newMMR(n, f uint, deliverBVal, deliverAux chan roundMsg, deliverDecision chan byte, coinReq chan uint16) *mmr {
+func newMMR(n, f uint) *mmr {
 	return &mmr{
 		n:               n,
 		f:               f,
-		deliverBVal:     deliverBVal,
-		deliverAux:      deliverAux,
-		deliverDecision: deliverDecision,
+		deliverBVal:     make(chan roundMsg, 2*(averageNumRounds+1)),
+		deliverAux:      make(chan roundMsg, averageNumRounds+1),
+		deliverDecision: make(chan byte, 1),
 		hasDecided:      false,
-		coinReq:         coinReq,
+		coinReq:         make(chan uint16, averageNumRounds+1),
 		rounds:          make(map[uint16]*cancelableRound),
 		termGadget:      newMmrTermination(f),
 	}

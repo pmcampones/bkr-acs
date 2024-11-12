@@ -13,9 +13,9 @@ type concurrentMMR struct {
 	isClosed  atomic.Bool
 }
 
-func newConcurrentMMR(n, f uint, deliverBVal, deliverAux chan roundMsg, deliverDecision chan byte, coinReq chan uint16) *concurrentMMR {
+func newConcurrentMMR(n, f uint) *concurrentMMR {
 	m := &concurrentMMR{
-		handler:   newMMR(n, f, deliverBVal, deliverAux, deliverDecision, coinReq),
+		handler:   newMMR(n, f),
 		commands:  make(chan func()),
 		closeChan: make(chan struct{}, 1),
 		isClosed:  atomic.Bool{},

@@ -48,7 +48,7 @@ func (a *abaNetworkedInstance) propose(est byte) error {
 	delAux := make(chan roundMsg)
 	delDecision := make(chan byte, 1)
 	delCoinReq := make(chan uint16)
-	a.instance = newConcurrentMMR(a.n, a.f, delBVal, delAux, delDecision, delCoinReq)
+	a.instance = newConcurrentMMR(a.n, a.f)
 	go a.listener(delBVal, delAux, delDecision, delCoinReq)
 	go a.invoker()
 	if err := a.instance.propose(est); err != nil {

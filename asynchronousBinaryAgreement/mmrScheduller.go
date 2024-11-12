@@ -45,16 +45,12 @@ func (o *mmrOrderedScheduler) addInstance(m *concurrentMMR) *wrappedMMR {
 }
 
 func (o *mmrOrderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappedMMR {
-	bValChan := make(chan roundMsg)
-	auxChan := make(chan roundMsg)
-	decisionChan := make(chan byte, 1)
-	coinChan := make(chan uint16)
-	m := newConcurrentMMR(n, f, bValChan, auxChan, decisionChan, coinChan)
+	m := newConcurrentMMR(n, f)
 	wmmr := o.addInstance(m)
-	go o.listenBVals(o.t, bValChan, sender)
-	go o.listenAux(o.t, auxChan, sender)
-	go o.listenDecisions(o.t, decisionChan, sender)
-	go o.listenCoinRequests(o.t, coinChan, m)
+	go o.listenBVals(o.t, m.handler.deliverBVal, sender)
+	go o.listenAux(o.t, m.handler.deliverAux, sender)
+	go o.listenDecisions(o.t, m.handler.deliverDecision, sender)
+	go o.listenCoinRequests(o.t, m.handler.coinReq, m)
 	return wmmr
 }
 
@@ -127,7 +123,7 @@ type mmrUnorderedScheduler struct {
 
 func newMMRUnorderedScheduler(t *testing.T) *mmrUnorderedScheduler {
 	r := rand.New(rand.NewSource(0))
-	ticker := time.NewTicker(3 * time.Millisecond)
+	ticker := time.NewTicker(1 * time.Millisecond)
 	s := &mmrUnorderedScheduler{
 		t:            t,
 		instances:    make([]*wrappedMMR, 0),
@@ -172,16 +168,12 @@ func (u *mmrUnorderedScheduler) addInstance(m *concurrentMMR) *wrappedMMR {
 }
 
 func (u *mmrUnorderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappedMMR {
-	bValChan := make(chan roundMsg)
-	auxChan := make(chan roundMsg)
-	decisionChan := make(chan byte, 1)
-	coinChan := make(chan uint16)
-	m := newConcurrentMMR(n, f, bValChan, auxChan, decisionChan, coinChan)
+	m := newConcurrentMMR(n, f)
 	wmmr := u.addInstance(m)
-	go u.listenBVals(bValChan, sender)
-	go u.listenAux(auxChan, sender)
-	go u.listenDecisions(u.t, decisionChan, sender)
-	go u.listenCoinRequests(coinChan, m)
+	go u.listenBVals(m.handler.deliverBVal, sender)
+	go u.listenAux(m.handler.deliverAux, sender)
+	go u.listenDecisions(u.t, m.handler.deliverDecision, sender)
+	go u.listenCoinRequests(m.handler.coinReq, m)
 	return wmmr
 }
 
