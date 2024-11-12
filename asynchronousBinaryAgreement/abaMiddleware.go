@@ -48,7 +48,7 @@ func (m *abaMiddleware) bebDeliver() {
 		case bebMsg := <-m.beb.GetBEBChan():
 			m.processMsg(bebMsg)
 		case <-m.closeChan:
-			abaLogger.Info("closing byzantineReliableBroadcast abaMiddleware")
+			abaChannelLogger.Info("closing byzantineReliableBroadcast abaMiddleware")
 			return
 		}
 	}
@@ -56,9 +56,9 @@ func (m *abaMiddleware) bebDeliver() {
 
 func (m *abaMiddleware) processMsg(bebMsg on.BEBMsg) {
 	if amsg, err := m.parseMsg(bebMsg.Content, bebMsg.Sender); err != nil {
-		abaLogger.Warn("unable to processMsg message during beb delivery", "error", err)
+		abaChannelLogger.Warn("unable to processMsg message during beb delivery", "error", err)
 	} else {
-		abaLogger.Debug("received message from beb", "sender", amsg.sender, "type", amsg.kind, "instance", amsg.instance, "val", amsg.val)
+		abaChannelLogger.Debug("received message from beb", "sender", amsg.sender, "type", amsg.kind, "instance", amsg.instance, "val", amsg.val)
 		go func() { m.output <- amsg }()
 	}
 }
@@ -119,6 +119,6 @@ func (m *abaMiddleware) broadcastMsg(instance uuid.UUID, kind middlewareCode, ro
 }
 
 func (m *abaMiddleware) close() {
-	abaLogger.Info("sending close signal to abaMiddleware")
+	abaChannelLogger.Info("sending close signal to abaMiddleware")
 	m.closeChan <- struct{}{}
 }

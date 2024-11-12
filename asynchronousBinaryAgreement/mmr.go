@@ -7,7 +7,7 @@ import (
 	"pace/utils"
 )
 
-var abaLogger = utils.GetLogger(slog.LevelWarn)
+var abaLogger = utils.GetLogger(slog.LevelDebug)
 
 const firstRound = 0
 const averageNumRounds = 2
@@ -63,6 +63,7 @@ func (m *mmr) propose(est byte, r uint16) error {
 }
 
 func (m *mmr) submitBVal(bVal byte, sender uuid.UUID, r uint16) error {
+	abaLogger.Debug("submitting bVal", "bVal", bVal, "sender", sender, "mmrRound", r)
 	if round, err := m.getRound(r); err != nil {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
 	} else if err := round.round.submitBVal(bVal, sender); err != nil {
@@ -72,6 +73,7 @@ func (m *mmr) submitBVal(bVal byte, sender uuid.UUID, r uint16) error {
 }
 
 func (m *mmr) submitAux(aux byte, sender uuid.UUID, r uint16) error {
+	abaLogger.Debug("submitting aux", "aux", aux, "sender", sender, "mmrRound", r)
 	if round, err := m.getRound(r); err != nil {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
 	} else if err := round.round.submitAux(aux, sender); err != nil {
@@ -81,6 +83,7 @@ func (m *mmr) submitAux(aux byte, sender uuid.UUID, r uint16) error {
 }
 
 func (m *mmr) submitCoin(coin byte, r uint16) error {
+	abaLogger.Debug("submitting coin", "coin", coin, "mmrRound", r)
 	if round, err := m.getRound(r); err != nil {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
 	} else if res := round.round.submitCoin(coin); res.err != nil {
@@ -121,17 +124,17 @@ func (m *mmr) listenRequests(round *mmrRound, close chan struct{}, rnum uint16) 
 	for {
 		select {
 		case bVal := <-round.bValChan:
-			abaLogger.Debug("received bVal", "bVal", bVal, "mmrRound", rnum)
+			abaLogger.Debug("broadcasting bVal", "bVal", bVal, "mmrRound", rnum)
 			go func() {
 				m.deliverBVal <- roundMsg{val: bVal, r: rnum}
 			}()
 		case aux := <-round.auxChan:
-			abaLogger.Debug("received aux", "aux", aux, "mmrRound", rnum)
+			abaLogger.Debug("broadcasting aux", "aux", aux, "mmrRound", rnum)
 			go func() {
 				m.deliverAux <- roundMsg{val: aux, r: rnum}
 			}()
 		case <-round.coinReqChan:
-			abaLogger.Debug("received coin request", "mmrRound", rnum)
+			abaLogger.Debug("coin request", "mmrRound", rnum)
 			go func() {
 				m.coinReq <- rnum
 			}()

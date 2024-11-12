@@ -112,3 +112,19 @@ func (m *concurrentMMR) close() {
 	abaLogger.Info("signaling close concurrentMMR")
 	m.closeChan <- struct{}{}
 }
+
+func (m *concurrentMMR) getBValChan() chan roundMsg {
+	return m.handler.deliverBVal
+}
+
+func (m *concurrentMMR) getAuxChan() chan roundMsg {
+	return m.handler.deliverAux
+}
+
+func (m *concurrentMMR) getDecisionChan() chan byte {
+	return m.handler.deliverDecision
+}
+
+func (m *concurrentMMR) getCoinReqChan() chan uint16 {
+	return m.handler.coinReq
+}

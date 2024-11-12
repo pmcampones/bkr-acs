@@ -44,36 +44,37 @@ func (a *abaNetworkedInstance) propose(est byte) error {
 	if a.instance != nil {
 		return fmt.Errorf("instance already initialized")
 	}
-	delBVal := make(chan roundMsg)
-	delAux := make(chan roundMsg)
-	delDecision := make(chan byte, 1)
-	delCoinReq := make(chan uint16)
 	a.instance = newConcurrentMMR(a.n, a.f)
-	go a.listener(delBVal, delAux, delDecision, delCoinReq)
+	go a.listener()
 	go a.invoker()
-	if err := a.instance.propose(est); err != nil {
+	errChan := make(chan error, 1)
+	a.commands <- func() error {
+		errChan <- a.instance.propose(est)
+		return nil
+	}
+	if err := <-errChan; err != nil {
 		return fmt.Errorf("unable to propose initial estimate: %w", err)
 	}
 	return nil
 }
 
-func (a *abaNetworkedInstance) listener(delBVal, delAux chan roundMsg, delDecision chan byte, delCoinReq chan uint16) {
+func (a *abaNetworkedInstance) listener() {
 	abaChannelLogger.Debug("starting listener aba networked instance")
 	for {
 		select {
-		case bVal := <-delBVal:
+		case bVal := <-a.instance.getBValChan():
 			if err := a.abamidware.broadcastBVal(a.id, bVal.r, bVal.val); err != nil {
 				abaChannelLogger.Warn("unable to broadcast bVal", "instanceId", a.id, "round", bVal.r, "error", err)
 			}
-		case aux := <-delAux:
+		case aux := <-a.instance.getAuxChan():
 			if err := a.abamidware.broadcastAux(a.id, aux.r, aux.val); err != nil {
 				abaChannelLogger.Warn("unable to broadcast aux", "instanceId", a.id, "round", aux.r, "error", err)
 			}
-		case decision := <-delDecision:
+		case decision := <-a.instance.getDecisionChan():
 			if err := a.termidware.broadcastDecision(a.id, decision); err != nil {
 				abaChannelLogger.Warn("unable to broadcast decision", "instanceId", a.id, "decision", decision, "error", err)
 			}
-		case coinReq := <-delCoinReq:
+		case coinReq := <-a.instance.getCoinReqChan():
 			coin, err := a.getCoin(coinReq)
 			if err != nil {
 				abaChannelLogger.Warn("unable to get coin", "instanceId", a.id, "round", coinReq, "error", err)
