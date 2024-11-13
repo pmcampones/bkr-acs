@@ -6,28 +6,35 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	ct "pace/coinTosser"
+	"sync"
 	"unsafe"
 )
 
 type abaNetworkedInstance struct {
-	id            uuid.UUID
-	instance      *concurrentMMR
-	output        chan byte
-	abamidware    *abaMiddleware
-	termidware    *terminationMiddleware
-	ctChan        *ct.CTChannel
-	listenerClose chan struct{}
+	id             uuid.UUID
+	instance       *concurrentMMR
+	decisionChan   chan byte
+	terminatedChan chan struct{}
+	hasDelivered   bool
+	deliveryLock   sync.Mutex
+	abamidware     *abaMiddleware
+	termidware     *terminationMiddleware
+	ctChan         *ct.CTChannel
+	listenerClose  chan struct{}
 }
 
 func newAbaNetworkedInstance(id uuid.UUID, n, f uint, abamidware *abaMiddleware, termidware *terminationMiddleware, ctChan *ct.CTChannel) *abaNetworkedInstance {
 	a := &abaNetworkedInstance{
-		id:            id,
-		instance:      newConcurrentMMR(n, f),
-		output:        make(chan byte),
-		abamidware:    abamidware,
-		termidware:    termidware,
-		ctChan:        ctChan,
-		listenerClose: make(chan struct{}),
+		id:             id,
+		instance:       newConcurrentMMR(n, f),
+		decisionChan:   make(chan byte, 1),
+		terminatedChan: make(chan struct{}),
+		hasDelivered:   false,
+		deliveryLock:   sync.Mutex{},
+		abamidware:     abamidware,
+		termidware:     termidware,
+		ctChan:         ctChan,
+		listenerClose:  make(chan struct{}),
 	}
 	go a.listener()
 	return a
@@ -54,8 +61,8 @@ func (a *abaNetworkedInstance) listener() {
 				abaChannelLogger.Warn("unable to broadcast aux", "instanceId", a.id, "round", aux.r, "error", err)
 			}
 		case decision := <-a.instance.getDecisionChan():
-			if err := a.termidware.broadcastDecision(a.id, decision); err != nil {
-				abaChannelLogger.Warn("unable to broadcast decision", "instanceId", a.id, "decision", decision, "error", err)
+			if a.canOutputDecision() {
+				a.outputDecision(decision)
 			}
 		case coinReq := <-a.instance.getCoinReqChan():
 			coin, err := a.getCoin(coinReq)
@@ -124,10 +131,29 @@ func (a *abaNetworkedInstance) submitDecision(decision byte, sender uuid.UUID) e
 		return fmt.Errorf("unable to submit decision: %w", err)
 	}
 	if finalDec != bot {
-		abaChannelLogger.Debug("final decision", "instanceId", a.id, "decision", finalDec)
-		a.output <- finalDec
+		if a.canOutputDecision() {
+			a.outputDecision(finalDec)
+		}
+		a.terminatedChan <- struct{}{}
 	}
 	return nil
+}
+
+func (a *abaNetworkedInstance) canOutputDecision() bool {
+	a.deliveryLock.Lock()
+	defer a.deliveryLock.Unlock()
+	if !a.hasDelivered {
+		a.hasDelivered = true
+		return true
+	}
+	return false
+}
+
+func (a *abaNetworkedInstance) outputDecision(decision byte) {
+	a.decisionChan <- decision
+	if err := a.termidware.broadcastDecision(a.id, decision); err != nil {
+		abaChannelLogger.Warn("unable to broadcast decision", "instanceId", a.id, "decision", decision, "error", err)
+	}
 }
 
 func (a *abaNetworkedInstance) close() {

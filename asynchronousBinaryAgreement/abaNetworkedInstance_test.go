@@ -79,7 +79,7 @@ func testNetworkedInstancesShouldDecide(t *testing.T, n, f uint) {
 		abaInstance, proposal := tuple.Unpack()
 		assert.NoError(t, abaInstance.propose(proposal))
 	}
-	results := lo.Map(abaInstances, func(abaInstance *abaNetworkedInstance, _ int) byte { return <-abaInstance.output })
+	results := lo.Map(abaInstances, func(abaInstance *abaNetworkedInstance, _ int) byte { return <-abaInstance.decisionChan })
 	assert.True(t, lo.EveryBy(results, func(res byte) bool { return res == results[0] }))
 	assert.True(t, lo.EveryBy(nodes, func(node *on.Node) bool { return node.Disconnect() == nil }))
 }

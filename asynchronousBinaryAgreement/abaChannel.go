@@ -10,7 +10,7 @@ import (
 	"pace/utils"
 )
 
-var abaChannelLogger = utils.GetLogger(slog.LevelWarn)
+var abaChannelLogger = utils.GetLogger(slog.LevelDebug)
 
 type AbaInstance struct {
 	inner  *abaNetworkedInstance
@@ -156,8 +156,11 @@ func (c *AbaChannel) newAbaInstance(id uuid.UUID) *AbaInstance {
 }
 
 func (c *AbaChannel) handleAsyncResultDelivery(id uuid.UUID, wrapper *AbaInstance) {
-	finalDecision := <-wrapper.inner.output
+	finalDecision := <-wrapper.inner.decisionChan
+	abaChannelLogger.Info("outputing decision for aba instance", "id", id, "decision", finalDecision)
 	wrapper.output <- finalDecision
+	<-wrapper.inner.terminatedChan
+	abaChannelLogger.Info("closing aba instance", "id", id)
 	c.commands <- func() error {
 		return c.closeWrappedInstance(id)
 	}
