@@ -57,6 +57,12 @@ func (p *proposalAcceptor) rejectProposal() error {
 	return nil
 }
 
+func (p *proposalAcceptor) hasProposed() bool {
+	p.inputLock.Lock()
+	defer p.inputLock.Unlock()
+	return p.input.IsPresent()
+}
+
 func (p *proposalAcceptor) waitResponse() {
 	res := p.aba.GetOutput()
 	if res == accept {

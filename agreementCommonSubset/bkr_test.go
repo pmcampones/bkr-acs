@@ -42,7 +42,7 @@ func testShouldOutputProposals(t *testing.T, n, f uint) {
 	})
 	for _, bkr := range bkrInstances {
 		for i, participant := range participants {
-			input := []byte(fmt.Sprintf("%d", i))
+			input := []byte(fmt.Sprintf("input%d", i))
 			assert.NoError(t, bkr.deliverInput(input, participant))
 		}
 	}

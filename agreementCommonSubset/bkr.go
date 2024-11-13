@@ -10,35 +10,38 @@ import (
 	"slices"
 )
 
-var bkrLogger = utils.GetLogger(slog.LevelWarn)
+var bkrLogger = utils.GetLogger(slog.LevelDebug)
 
 const (
 	accept = 1
 	reject = 0
+	bot    = 2
 )
 
 type BKR struct {
 	id           uuid.UUID
 	f            uint
 	participants []uuid.UUID
-	iProposed    map[uuid.UUID]bool
+	iProposed    []bool
 	inputs       [][]byte
-	results      []lo.Tuple2[uint, byte]
-	abaChannel   *aba.AbaChannel
+	results      []byte
+	abaInstances []*aba.AbaInstance
+	hasDelivered bool
 	output       chan [][]byte
 	commands     chan func() error
 	closeChan    chan struct{}
 }
 
 func newBKR(id uuid.UUID, f uint, participants []uuid.UUID, abaChan *aba.AbaChannel) (*BKR, error) {
+	bkrLogger.Info("initializing BKR", "id", id, "f", f, "participants", participants)
 	bkr := &BKR{
 		id:           id,
 		f:            f,
 		participants: participants,
-		iProposed:    make(map[uuid.UUID]bool),
+		iProposed:    make([]bool, len(participants)),
 		inputs:       make([][]byte, len(participants)),
-		results:      make([]lo.Tuple2[uint, byte], 0),
-		abaChannel:   abaChan,
+		results:      lo.Map(participants, func(_ uuid.UUID, _ int) byte { return bot }),
+		hasDelivered: false,
 		output:       make(chan [][]byte, 1),
 		commands:     make(chan func() error),
 		closeChan:    make(chan struct{}, 1),
@@ -47,12 +50,11 @@ func newBKR(id uuid.UUID, f uint, participants []uuid.UUID, abaChan *aba.AbaChan
 	if err != nil {
 		return nil, fmt.Errorf("unable to compute aba ids: %w", err)
 	}
-	abaReturnChans := lo.Map(abaIds, func(abaId uuid.UUID, _ int) chan byte { return bkr.abaChannel.NewAbaInstance(abaId) })
-	for i, returnChan := range abaReturnChans {
-		go bkr.handleAbaResponse(returnChan, uint(i))
+	bkr.abaInstances = lo.Map(abaIds, func(abaId uuid.UUID, _ int) *aba.AbaInstance { return abaChan.NewAbaInstance(abaId) })
+	for i, instance := range bkr.abaInstances {
+		go bkr.handleAbaResponse(instance, uint(i))
 	}
 	go bkr.invoker()
-	bkrLogger.Info("initializing BKR", "id", id, "f", f, "participants", participants, "abaIds", abaIds)
 	return bkr, nil
 }
 
@@ -65,6 +67,7 @@ func (bkr *BKR) computeAbaIds(participants []uuid.UUID) ([]uuid.UUID, error) {
 			abaIds[i] = id
 		}
 	}
+	bkrLogger.Info("computed aba ids", "ids", abaIds)
 	return abaIds, nil
 }
 
@@ -80,48 +83,47 @@ func (bkr *BKR) computeAbaId(participant uuid.UUID) (uuid.UUID, error) {
 }
 
 func (bkr *BKR) deliverInput(input []byte, participant uuid.UUID) error {
+	bkrLogger.Debug("scheduling input delivery", "input", string(input), "participant", participant)
 	idx, err := bkr.getIdx(participant)
 	if err != nil {
 		return fmt.Errorf("unable to get index of participant: %w", err)
 	} else if bkr.inputs[idx] != nil {
 		return fmt.Errorf("input already delivered")
 	}
-	bkr.commands <- func() error {
-		bkrLogger.Debug("received bkr input", "input", input, "participant", participant)
-		bkr.inputs[idx] = input
-		if bkr.isFinished() {
-			bkr.deliverOutput()
+	go func() {
+		bkr.commands <- func() error {
+			bkrLogger.Debug("received bkr input", "input", string(input), "participant", participant)
+			bkr.inputs[idx] = input
+			if bkr.canDeliver() {
+				bkr.deliverOutput()
+			}
+			return bkr.tryToProposeToAba(idx, accept)
 		}
-		abaId, err := bkr.computeAbaId(participant)
-		if err != nil {
-			return fmt.Errorf("unable to compute aba id: %w", err)
-		}
-		bkr.tryToProposeToAba(abaId, accept)
-		return nil
-	}
+	}()
 	return nil
 }
 
-func (bkr *BKR) handleAbaResponse(returnChan chan byte, idx uint) {
-	res := <-returnChan
+func (bkr *BKR) handleAbaResponse(instance *aba.AbaInstance, idx uint) {
+	res := instance.GetOutput()
+	bkrLogger.Info("received aba response", "idx", idx, "response", res)
 	bkr.commands <- func() error {
-		bkr.results = append(bkr.results, lo.Tuple2[uint, byte]{A: idx, B: res})
-		if res == 1 && bkr.countPositive() == uint(len(bkr.participants))-bkr.f {
+		bkr.results[idx] = res
+		if res == accept && lo.Count(bkr.results, accept) == len(bkr.participants)-int(bkr.f) {
 			bkrLogger.Info("received threshold positive responses")
 			err := bkr.rejectUnrespondingAbaInstances()
 			if err != nil {
 				return fmt.Errorf("unable to reject unresponding aba instances: %w", err)
 			}
 		}
-		if bkr.isFinished() {
+		if bkr.canDeliver() {
 			bkr.deliverOutput()
 		}
 		return nil
 	}
 }
 
-func (bkr *BKR) isFinished() bool {
-	if len(bkr.results) != len(bkr.participants) { // Not all ABA instances finished
+func (bkr *BKR) canDeliver() bool {
+	if bkr.hasDelivered || lo.CountBy(bkr.results, func(res byte) bool { return res != bot }) < len(bkr.participants) {
 		return false
 	}
 	acceptedIndices := bkr.getAcceptedIndices()
@@ -132,90 +134,64 @@ func (bkr *BKR) deliverOutput() {
 	acceptedIndices := bkr.getAcceptedIndices()
 	slices.Sort(acceptedIndices)
 	acceptedInputs := lo.Map(acceptedIndices, func(i uint, _ int) []byte { return bkr.inputs[i] })
-	bkrLogger.Info("delivering output", "indices", acceptedIndices, "output", acceptedInputs)
+	bkrLogger.Info("delivering output", "indices", acceptedIndices, "output", lo.Map(acceptedInputs, func(input []byte, _ int) string { return string(input) }))
 	bkr.output <- acceptedInputs
 }
 
 func (bkr *BKR) getAcceptedIndices() []uint {
-	acceptedTuples := lo.Filter(bkr.results, func(res lo.Tuple2[uint, byte], _ int) bool { return res.B == 1 })
-	acceptedIndices := lo.Map(acceptedTuples, func(res lo.Tuple2[uint, byte], _ int) uint { return res.A })
-	return acceptedIndices
+	return lo.FilterMap(bkr.results, func(res byte, idx int) (uint, bool) { return uint(idx), res == accept })
 }
 
 func (bkr *BKR) rejectUnrespondingAbaInstances() error {
-	unresponsiveIds, err := bkr.computeUnresponsiveIds()
-	bkrLogger.Info("rejecting unresponsive ids", "ids", unresponsiveIds)
-	if err != nil {
-		return fmt.Errorf("unable to compute unresponsive ids: %w", err)
-	}
-	for _, id := range unresponsiveIds {
+	unresponsiveIdx := lo.FilterMap(bkr.results, func(res byte, idx int) (uint, bool) { return uint(idx), res == bot })
+	bkrLogger.Info("rejecting unresponsive indexes", "idx", unresponsiveIdx)
+	for _, idx := range unresponsiveIdx {
 		go func() {
 			bkr.commands <- func() error {
-				bkr.tryToProposeToAba(id, reject)
-				return nil
+				return bkr.tryToProposeToAba(idx, reject)
 			}
 		}()
 	}
 	return nil
 }
 
-func (bkr *BKR) tryToProposeToAba(abaId uuid.UUID, val byte) {
-	if !bkr.iProposed[abaId] {
-		bkr.iProposed[abaId] = true
-		bkrLogger.Debug("proposing to aba", "abaId", abaId, "val", val)
-		bkr.abaChannel.Propose(abaId, val)
+func (bkr *BKR) tryToProposeToAba(idx uint, val byte) error {
+	if !bkr.iProposed[idx] {
+		bkr.iProposed[idx] = true
+		bkrLogger.Debug("proposing to aba", "idx", idx, "val", val)
+		if err := bkr.abaInstances[idx].Propose(val); err != nil {
+			return fmt.Errorf("unable to propose to aba: %w", err)
+		}
 	} else {
-		bkrLogger.Debug("already proposed to aba", "abaId", abaId)
+		bkrLogger.Debug("already proposed to aba", "idx", idx)
 	}
+	return nil
 }
 
-func (bkr *BKR) countInputs() uint {
-	return uint(lo.CountBy(bkr.inputs, func(input []byte) bool { return input != nil }))
-}
-
-func (bkr *BKR) countPositive() uint {
-	vals := lo.Map(bkr.results, func(res lo.Tuple2[uint, byte], _ int) byte { return res.B })
-	return uint(lo.Count(vals, 1))
-}
-
-func (bkr *BKR) computeUnresponsiveIds() ([]uuid.UUID, error) {
-	responseIdx := lo.Map(bkr.results, func(res lo.Tuple2[uint, byte], _ int) uint { return res.A })
-	mapResponseIdx := make(map[uint]bool)
-	for _, idx := range responseIdx {
-		mapResponseIdx[idx] = true
-	}
-	unresponsiveIdx := lo.Filter(lo.Range(len(bkr.participants)), func(i int, _ int) bool { return !mapResponseIdx[uint(i)] })
-	unresponsiveParticipants := lo.Map(unresponsiveIdx, func(i int, _ int) uuid.UUID { return bkr.participants[i] })
-	unresponsiveAba, err := bkr.computeAbaIds(unresponsiveParticipants)
-	if err != nil {
-		return nil, fmt.Errorf("unable to compute aba ids for unresponsive participants: %w", err)
-	}
-	return unresponsiveAba, nil
-}
-
-func (bkr *BKR) getIdx(participant uuid.UUID) (int, error) {
+func (bkr *BKR) getIdx(participant uuid.UUID) (uint, error) {
 	for i, p := range bkr.participants {
 		if p == participant {
-			return i, nil
+			return uint(i), nil
 		}
 	}
-	return -1, fmt.Errorf("participant not found")
+	return 0, fmt.Errorf("participant not found")
 }
 
 func (bkr *BKR) invoker() {
 	for {
 		select {
 		case cmd := <-bkr.commands:
-			err := cmd()
-			if err != nil {
-				fmt.Println(err)
+			if err := cmd(); err != nil {
+				bkrLogger.Warn("unable to execute command", "error", err)
 			}
 		case <-bkr.closeChan:
+			bkrLogger.Info("closing BKR invoker")
 			return
 		}
 	}
 }
 
 func (bkr *BKR) Close() {
+	bkrLogger.Info("sending closing BKR signal")
 	bkr.closeChan <- struct{}{}
 }
