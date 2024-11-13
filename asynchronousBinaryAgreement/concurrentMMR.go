@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"sync/atomic"
+	"time"
 )
 
 type concurrentMMR struct {
@@ -110,7 +111,10 @@ func (m *concurrentMMR) submitDecision(decision byte, sender uuid.UUID) (byte, e
 func (m *concurrentMMR) close() {
 	m.isClosed.Store(true)
 	abaLogger.Info("signaling close concurrentMMR")
-	m.closeChan <- struct{}{}
+	go func() {
+		time.Sleep(10 * time.Second)
+		m.closeChan <- struct{}{}
+	}()
 }
 
 func (m *concurrentMMR) getBValChan() chan roundMsg {

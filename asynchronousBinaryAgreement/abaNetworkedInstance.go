@@ -28,7 +28,7 @@ func newAbaNetworkedInstance(id uuid.UUID, n, f uint, abamidware *abaMiddleware,
 		id:             id,
 		instance:       newConcurrentMMR(n, f),
 		decisionChan:   make(chan byte, 1),
-		terminatedChan: make(chan struct{}),
+		terminatedChan: make(chan struct{}, 1),
 		hasDelivered:   false,
 		deliveryLock:   sync.Mutex{},
 		abamidware:     abamidware,
@@ -132,7 +132,7 @@ func (a *abaNetworkedInstance) submitDecision(decision byte, sender uuid.UUID) e
 	}
 	if finalDec != bot {
 		if a.canOutputDecision() {
-			a.outputDecision(finalDec)
+			a.decisionChan <- decision
 		}
 		a.terminatedChan <- struct{}{}
 	}
