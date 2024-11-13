@@ -14,6 +14,7 @@ type proposalAcceptor struct {
 	input     mo.Option[[]byte]
 	inputLock sync.Mutex
 	inputChan chan []byte
+	proposed  bool
 	output    chan mo.Option[[]byte]
 }
 
@@ -24,8 +25,10 @@ func newProposalAcceptor(abaId uuid.UUID, proposer uuid.UUID, abaChan *aba.AbaCh
 		aba:       abaInstance,
 		input:     mo.None[[]byte](),
 		inputLock: sync.Mutex{},
+		proposed:  false,
 		inputChan: make(chan []byte, 1),
-		output:    make(chan mo.Option[[]byte], 1),
+
+		output: make(chan mo.Option[[]byte], 1),
 	}
 	go p.waitResponse()
 	return p
@@ -39,8 +42,11 @@ func (p *proposalAcceptor) submitInput(input []byte) error {
 	}
 	p.input = mo.Some(input)
 	p.inputChan <- input
-	if err := p.aba.Propose(accept); err != nil {
-		return fmt.Errorf("unable to accpet input: %w", err)
+	if !p.proposed {
+		p.proposed = true
+		if err := p.aba.Propose(accept); err != nil {
+			return fmt.Errorf("unable to accpet input: %w", err)
+		}
 	}
 	return nil
 }
@@ -51,8 +57,11 @@ func (p *proposalAcceptor) rejectProposal() error {
 	if p.input.IsPresent() {
 		return fmt.Errorf("input already submitted")
 	}
-	if err := p.aba.Propose(reject); err != nil {
-		return fmt.Errorf("unable to reject proposal: %w", err)
+	if !p.proposed {
+		p.proposed = true
+		if err := p.aba.Propose(reject); err != nil {
+			return fmt.Errorf("unable to reject proposal: %w", err)
+		}
 	}
 	return nil
 }
@@ -60,7 +69,7 @@ func (p *proposalAcceptor) rejectProposal() error {
 func (p *proposalAcceptor) hasProposed() bool {
 	p.inputLock.Lock()
 	defer p.inputLock.Unlock()
-	return p.input.IsPresent()
+	return p.proposed
 }
 
 func (p *proposalAcceptor) waitResponse() {

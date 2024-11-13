@@ -98,7 +98,7 @@ func (c *AbaChannel) listener() {
 func (c *AbaChannel) processTermMsg(term *terminationMsg) error {
 	instance, err := c.getInstance(term.instance)
 	if err != nil {
-		return fmt.Errorf("unable to get aba inner: %w", err)
+		return fmt.Errorf("unable to process termination message: unable to get aba inner: %w", err)
 	}
 	go func() {
 		err := instance.inner.submitDecision(term.decision, term.sender)
@@ -112,7 +112,7 @@ func (c *AbaChannel) processTermMsg(term *terminationMsg) error {
 func (c *AbaChannel) processMiddlewareMsg(msg *abaMsg) error {
 	wrapper, err := c.getInstance(msg.instance)
 	if err != nil {
-		return fmt.Errorf("unable to get aba inner: %w", err)
+		return fmt.Errorf("unable to process aba control message: unable to get aba inner: %w", err)
 	}
 	switch msg.kind {
 	case bval:

@@ -5,9 +5,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"github.com/samber/mo"
+	"log/slog"
 	aba "pace/asynchronousBinaryAgreement"
 	"pace/utils"
 )
+
+var bkr2Logger = utils.GetLogger(slog.LevelDebug)
 
 type BKR2 struct {
 	id          uuid.UUID
@@ -19,6 +22,7 @@ type BKR2 struct {
 }
 
 func NewBKR2(id uuid.UUID, f uint, proposers []uuid.UUID, abaChan *aba.AbaChannel) *BKR2 {
+	bkr2Logger.Info("initializing BKR2", "id", id, "f", f, "proposers", proposers)
 	b2 := &BKR2{
 		id:          id,
 		f:           f,
@@ -50,16 +54,23 @@ func (b *BKR2) processResponses() {
 	for i := uint(0); i < uint(len(b.acceptors)); i++ {
 		response := <-b.resultsChan
 		proposal, idx := response.Unpack()
+		bkr2Logger.Info("processing response", "proposal", proposal.OrEmpty(), "idx", idx)
 		b.results[idx] = proposal.OrEmpty()
 		if proposal.IsPresent() && len(b.getAccepted()) == len(b.acceptors)-int(b.f) {
-			for _, a := range b.acceptors {
+			bkr2Logger.Info("trying to reject unresponding proposals")
+			for i, a := range b.acceptors {
 				if !a.hasProposed() {
-					_ = a.rejectProposal()
+					bkr2Logger.Debug("rejecting proposal", "idx", i)
+					if err := a.rejectProposal(); err != nil {
+						bkr2Logger.Warn("unable to reject proposal", "idx", i, "error", err)
+					}
 				}
 			}
 		}
 	}
-	b.output <- b.getAccepted()
+	accepted := b.getAccepted()
+	bkr2Logger.Info("outputting accepted proposals", "accepted", accepted)
+	b.output <- accepted
 }
 
 func (b *BKR2) getAccepted() [][]byte {
@@ -67,9 +78,13 @@ func (b *BKR2) getAccepted() [][]byte {
 }
 
 func (b *BKR2) receiveInput(input []byte, proposer uuid.UUID) error {
+	bkr2Logger.Debug("receiving input", "input", string(input), "proposer", proposer)
 	for _, a := range b.acceptors {
 		if a.proposer == proposer {
-			return a.submitInput(input)
+			if !a.hasProposed() {
+				return a.submitInput(input)
+			}
+			return nil
 		}
 	}
 	return fmt.Errorf("unable to find acceptor for proposer %s", proposer)
