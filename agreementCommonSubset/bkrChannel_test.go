@@ -36,6 +36,12 @@ func TestChannelShouldAgreeProposalsNoFaults(t *testing.T) {
 	testChannelShouldAgreeProposals(t, 10, 0, 300)
 }
 
+func TestChannelShouldAgreeProposalMaxFaults(t *testing.T) {
+	f := uint(3)
+	n := 3*f + 1
+	testChannelShouldAgreeProposals(t, n, f, 300)
+}
+
 func testChannelShouldAgreeProposals(t *testing.T, n, f uint, maxDelay uint) {
 	nodes := lo.Map(lo.Range(int(n)), func(_ int, i int) *on.Node {
 		address := fmt.Sprintf("localhost:%d", 6000+i)
