@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"github.com/magiconair/properties"
 	"log/slog"
 	"pace/overlayNetwork"
@@ -16,5 +17,13 @@ func main() {
 	flag.Parse()
 	props := properties.MustLoadFile(*propsPathname, properties.UTF8)
 	contact := props.MustGetString("contact")
-	_, _ = overlayNetwork.NewNode(*address, contact)
+	node, err := overlayNetwork.NewNode(*address, contact)
+	if err != nil {
+		panic(fmt.Errorf("unable to create node: %v", err))
+	}
+	dealCode := props.MustGetString("deal_code")[0]
+	dealSS := overlayNetwork.NewSSChannel(node, dealCode)
+
+	numNodes := props.MustGetUint("num_nodes")
+
 }

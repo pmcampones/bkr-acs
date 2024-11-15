@@ -27,7 +27,7 @@ type BRBChannel struct {
 	closeDeliver  chan<- struct{}
 }
 
-func CreateBRBChannel(n, f uint, beb *on.BEBChannel) *BRBChannel {
+func NewBRBChannel(n, f uint, beb *on.BEBChannel) *BRBChannel {
 	commands := make(chan func() error)
 	deliverChan := make(chan *msg)
 	closeCommands := make(chan struct{}, 1)

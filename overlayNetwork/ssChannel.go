@@ -24,7 +24,7 @@ type SSChannel struct {
 	deliverChan chan *SSMsg
 }
 
-func CreateSSChannel(node *Node, listenCode byte) *SSChannel {
+func NewSSChannel(node *Node, listenCode byte) *SSChannel {
 	s := &SSChannel{
 		node:        node,
 		listenCode:  listenCode,

@@ -64,7 +64,7 @@ func testNetworkedInstancesShouldDecide(t *testing.T, n, f uint) {
 		return on.GetTestNode(t, address, "localhost:6000")
 	})
 	ssChans := lo.Map(nodes, func(node *on.Node, _ int) *on.SSChannel {
-		return on.CreateSSChannel(node, 'a')
+		return on.NewSSChannel(node, 'a')
 	})
 	on.InitializeNodes(t, nodes)
 	id := uuid.New()
@@ -85,13 +85,13 @@ func testNetworkedInstancesShouldDecide(t *testing.T, n, f uint) {
 }
 
 func makeAbaNetworkedInstance(t *testing.T, id uuid.UUID, node *on.Node, ssChan *on.SSChannel, n uint, f uint) *abaNetworkedInstance {
-	ctBebChan := on.CreateBEBChannel(node, 'b')
+	ctBebChan := on.NewBEBChannel(node, 'b')
 	ctChan, err := ct.NewCoinTosserChannel(ssChan, ctBebChan, f)
 	assert.NoError(t, err)
-	abaBebChan := on.CreateBEBChannel(node, 'c')
+	abaBebChan := on.NewBEBChannel(node, 'c')
 	abamidware := newABAMiddleware(abaBebChan)
-	termBebChan := on.CreateBEBChannel(node, 'd')
-	termBrbChan := brb.CreateBRBChannel(n, f, termBebChan)
+	termBebChan := on.NewBEBChannel(node, 'd')
+	termBrbChan := brb.NewBRBChannel(n, f, termBebChan)
 	termidware := newTerminationMiddleware(termBrbChan)
 	abaInstance := newAbaNetworkedInstance(id, n, f, abamidware, termidware, ctChan)
 	return abaInstance

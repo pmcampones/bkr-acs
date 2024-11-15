@@ -11,8 +11,8 @@ import (
 
 func TestChannelShouldBroadcastToSelf(t *testing.T) {
 	node := getNode(t, "localhost:6000")
-	beb := on.CreateBEBChannel(node, 'b')
-	c := CreateBRBChannel(1, 0, beb)
+	beb := on.NewBEBChannel(node, 'b')
+	c := NewBRBChannel(1, 0, beb)
 	on.InitializeNodes(t, []*on.Node{node})
 	msg := []byte("hello")
 	assert.NoError(t, c.BRBroadcast(msg))
@@ -52,7 +52,7 @@ func testShouldBroadcastToAll(t *testing.T, n, f, correct, byzantine uint) {
 		return getChannel(n, f, node)
 	})
 	byzChannels := lo.Map(nodes[correct:correct+byzantine], func(node *on.Node, _ int) *byzChannel {
-		beb := on.CreateBEBChannel(node, 'b')
+		beb := on.NewBEBChannel(node, 'b')
 		return createByzChannel(beb)
 	})
 	on.InitializeNodes(t, nodes)
@@ -68,8 +68,8 @@ func getNode(t *testing.T, address string) *on.Node {
 }
 
 func getChannel(n, f uint, node *on.Node) *BRBChannel {
-	beb := on.CreateBEBChannel(node, 'b')
-	return CreateBRBChannel(n, f, beb)
+	beb := on.NewBEBChannel(node, 'b')
+	return NewBRBChannel(n, f, beb)
 }
 
 func teardown(t *testing.T, channels []*BRBChannel, byzChannels []*byzChannel, nodes []*on.Node) {

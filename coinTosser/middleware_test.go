@@ -9,7 +9,7 @@ import (
 
 func TestShouldUnmarshalCTShareMessage(t *testing.T) {
 	node := on.GetTestNode(t, "localhost:6000", "localhost:6000")
-	bebChannel := on.CreateBEBChannel(node, 'c')
+	bebChannel := on.NewBEBChannel(node, 'c')
 	on.InitializeNodes(t, []*on.Node{node})
 	deliverChan := make(chan *msg)
 	m := newCTMiddleware(bebChannel, deliverChan)

@@ -13,7 +13,7 @@ type BEBChannel struct {
 	deliverChan chan BEBMsg
 }
 
-func CreateBEBChannel(node *Node, listenCode byte) *BEBChannel {
+func NewBEBChannel(node *Node, listenCode byte) *BEBChannel {
 	beb := &BEBChannel{
 		node:        node,
 		listenCode:  listenCode,

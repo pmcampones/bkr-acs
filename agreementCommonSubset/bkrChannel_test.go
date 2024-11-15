@@ -18,8 +18,8 @@ func TestChannelShouldAcceptOwnProposal(t *testing.T) {
 	node := on.GetTestNode(t, "localhost:6000", "localhost:6000")
 	proposer, err := node.GetId()
 	assert.NoError(t, err)
-	bebChan := on.CreateBEBChannel(node, 'z')
-	brbChan := brb.CreateBRBChannel(1, 0, bebChan)
+	bebChan := on.NewBEBChannel(node, 'z')
+	brbChan := brb.NewBRBChannel(1, 0, bebChan)
 	abaChan := getAbachans(t, 1, 0, []*on.Node{node})[0]
 	bkrChan := NewBKRChannel(0, abaChan, brbChan, []uuid.UUID{proposer})
 	id := uuid.New()
@@ -54,10 +54,10 @@ func testChannelShouldAgreeProposals(t *testing.T, n, f uint, maxDelay uint) {
 		return id
 	})
 	bebChans := lo.Map(nodes, func(n *on.Node, _ int) *on.BEBChannel {
-		return on.CreateBEBChannel(n, 'z')
+		return on.NewBEBChannel(n, 'z')
 	})
 	brbChans := lo.Map(bebChans, func(b *on.BEBChannel, _ int) *brb.BRBChannel {
-		return brb.CreateBRBChannel(n, f, b)
+		return brb.NewBRBChannel(n, f, b)
 	})
 	abaChans := getAbachans(t, n, f, nodes)
 	bkrChans := lo.ZipBy2(abaChans, brbChans, func(a *aba.AbaChannel, b *brb.BRBChannel) *BKRChannel {

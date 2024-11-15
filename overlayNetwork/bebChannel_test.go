@@ -22,7 +22,7 @@ func TestShouldBroadcastSelf(t *testing.T) {
 	contact := "localhost:6000"
 	node := getNode(t, contact)
 	InitializeNodes(t, []*Node{node})
-	beb := CreateBEBChannel(node, 'b')
+	beb := NewBEBChannel(node, 'b')
 	nmsg := newNodeMsg(beb, [][]byte{[]byte("hello")})
 	testShouldBroadcast(t, []*nodeMsg{nmsg})
 	assert.Equal(t, 1, len(nmsg.rMsgs))
@@ -33,7 +33,7 @@ func TestShouldBroadcastSelf(t *testing.T) {
 func TestShouldBroadcastSelfManyMessages(t *testing.T) {
 	contact := "localhost:6000"
 	node := getNode(t, contact)
-	beb := CreateBEBChannel(node, 'b')
+	beb := NewBEBChannel(node, 'b')
 	InitializeNodes(t, []*Node{node})
 	numMsgs := 10000
 	msgs := genNodeMsgs(0, numMsgs)
@@ -48,8 +48,8 @@ func TestShouldBroadcastTwoNodesSingleMessage(t *testing.T) {
 	address1 := "localhost:6001"
 	node0 := getNode(t, contact)
 	node1 := getNode(t, address1)
-	beb0 := CreateBEBChannel(node0, 'b')
-	beb1 := CreateBEBChannel(node1, 'b')
+	beb0 := NewBEBChannel(node0, 'b')
+	beb1 := NewBEBChannel(node1, 'b')
 	InitializeNodes(t, []*Node{node0, node1})
 	nmsg0 := newNodeMsg(beb0, [][]byte{[]byte("hello")})
 	nmsg1 := newNodeMsg(beb1, [][]byte{})
@@ -67,8 +67,8 @@ func TestShouldBroadcastTwoNodesManyMessages(t *testing.T) {
 	address1 := "localhost:6001"
 	node0 := getNode(t, contact)
 	node1 := getNode(t, address1)
-	beb0 := CreateBEBChannel(node0, 'b')
-	beb1 := CreateBEBChannel(node1, 'b')
+	beb0 := NewBEBChannel(node0, 'b')
+	beb1 := NewBEBChannel(node1, 'b')
 	InitializeNodes(t, []*Node{node0, node1})
 	numMsgs := 10000
 	msgs0 := genNodeMsgs(0, numMsgs)
@@ -86,7 +86,7 @@ func TestShouldBroadcastManyNodesManyMessages(t *testing.T) {
 	numNodes := 100
 	addresses := lo.Map(lo.Range(numNodes), func(_ int, i int) string { return fmt.Sprintf("localhost:%d", 6000+i) })
 	nodes := lo.Map(addresses, func(address string, _ int) *Node { return getNode(t, address) })
-	bebs := lo.Map(nodes, func(n *Node, _ int) *BEBChannel { return CreateBEBChannel(n, 'b') })
+	bebs := lo.Map(nodes, func(n *Node, _ int) *BEBChannel { return NewBEBChannel(n, 'b') })
 	InitializeNodes(t, nodes)
 	numMsgs := 100
 	msgs := lo.Map(lo.Range(numNodes), func(_ int, i int) [][]byte { return genNodeMsgs(i, numMsgs) })
