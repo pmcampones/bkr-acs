@@ -17,7 +17,7 @@ const (
 	reject = 0
 )
 
-type BKR struct {
+type bkr struct {
 	id          uuid.UUID
 	f           uint
 	acceptors   []*proposalAcceptor
@@ -26,9 +26,9 @@ type BKR struct {
 	output      chan [][]byte
 }
 
-func NewBKR(id uuid.UUID, f uint, proposers []uuid.UUID, abaChan *aba.AbaChannel) *BKR {
-	bkrLogger.Info("initializing BKR", "id", id, "f", f, "proposers", proposers)
-	b2 := &BKR{
+func newBKR(id uuid.UUID, f uint, proposers []uuid.UUID, abaChan *aba.AbaChannel) *bkr {
+	bkrLogger.Info("initializing bkr", "id", id, "f", f, "proposers", proposers)
+	b := &bkr{
 		id:          id,
 		f:           f,
 		acceptors:   computeAcceptors(id, proposers, abaChan),
@@ -36,11 +36,11 @@ func NewBKR(id uuid.UUID, f uint, proposers []uuid.UUID, abaChan *aba.AbaChannel
 		results:     make([][]byte, len(proposers)),
 		output:      make(chan [][]byte, 1),
 	}
-	go b2.processResponses()
-	for i, acceptor := range b2.acceptors {
-		go b2.waitAcceptorResponse(acceptor, uint(i))
+	go b.processResponses()
+	for i, acceptor := range b.acceptors {
+		go b.waitAcceptorResponse(acceptor, uint(i))
 	}
-	return b2
+	return b
 }
 
 func computeAcceptors(bkrId uuid.UUID, proposers []uuid.UUID, abaChan *aba.AbaChannel) []*proposalAcceptor {
@@ -50,12 +50,12 @@ func computeAcceptors(bkrId uuid.UUID, proposers []uuid.UUID, abaChan *aba.AbaCh
 	})
 }
 
-func (b *BKR) waitAcceptorResponse(acceptor *proposalAcceptor, idx uint) {
+func (b *bkr) waitAcceptorResponse(acceptor *proposalAcceptor, idx uint) {
 	response := <-acceptor.output
 	b.resultsChan <- lo.Tuple2[mo.Option[[]byte], uint]{A: response, B: idx}
 }
 
-func (b *BKR) processResponses() {
+func (b *bkr) processResponses() {
 	for i := uint(0); i < uint(len(b.acceptors)); i++ {
 		response := <-b.resultsChan
 		proposal, idx := response.Unpack()
@@ -78,19 +78,24 @@ func (b *BKR) processResponses() {
 	b.output <- accepted
 }
 
-func (b *BKR) getAccepted() [][]byte {
+func (b *bkr) getAccepted() [][]byte {
 	return lo.Filter(b.results, func(r []byte, _ int) bool { return r != nil })
 }
 
-func (b *BKR) receiveInput(input []byte, proposer uuid.UUID) error {
+func (b *bkr) receiveInput(input []byte, proposer uuid.UUID) error {
 	bkrLogger.Debug("receiving input", "input", string(input), "proposer", proposer)
+	acceptor, err := b.getAcceptor(proposer)
+	if err != nil {
+		return fmt.Errorf("unable to find acceptor for proposer %s", proposer)
+	}
+	return acceptor.submitInput(input)
+}
+
+func (b *bkr) getAcceptor(proposer uuid.UUID) (*proposalAcceptor, error) {
 	for _, a := range b.acceptors {
 		if a.proposer == proposer {
-			if !a.hasProposed() {
-				return a.submitInput(input)
-			}
-			return nil
+			return a, nil
 		}
 	}
-	return fmt.Errorf("unable to find acceptor for proposer %s", proposer)
+	return nil, fmt.Errorf("unable to find acceptor for proposer %s", proposer)
 }

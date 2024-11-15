@@ -1,0 +1,142 @@
+package agreementCommonSubset
+
+import (
+	"fmt"
+	"github.com/google/uuid"
+	"log/slog"
+	aba "pace/asynchronousBinaryAgreement"
+	brb "pace/byzantineReliableBroadcast"
+	"pace/utils"
+	"unsafe"
+)
+
+var bkrChannelLogger = utils.GetLogger(slog.LevelDebug)
+
+type bkrProposalMsg struct {
+	bkrId    uuid.UUID
+	proposal []byte
+}
+
+func (m *bkrProposalMsg) marshal() []byte {
+	return append(m.bkrId[:], m.proposal...)
+}
+
+func (m *bkrProposalMsg) unmarshal(data []byte) error {
+	idSize := unsafe.Sizeof(uuid.UUID{})
+	if len(data) < int(idSize) {
+		return fmt.Errorf("data is too short to unmarshal, expected at least %d bytes, got %d", idSize, len(data))
+	}
+	m.bkrId = uuid.UUID(data[:idSize])
+	m.proposal = data[idSize:]
+	return nil
+}
+
+type BKRChannel struct {
+	f             uint
+	abaChannel    *aba.AbaChannel
+	brbChannel    *brb.BRBChannel
+	participants  []uuid.UUID
+	instances     map[uuid.UUID]*bkr
+	finished      map[uuid.UUID]bool
+	commands      chan func() error
+	closeChan     chan struct{}
+	closeListener chan struct{}
+}
+
+func newBKRChannel(f uint, abaChannel *aba.AbaChannel, brbChannel *brb.BRBChannel, participants []uuid.UUID) *BKRChannel {
+	c := &BKRChannel{
+		f:             f,
+		abaChannel:    abaChannel,
+		brbChannel:    brbChannel,
+		participants:  participants,
+		instances:     make(map[uuid.UUID]*bkr),
+		finished:      make(map[uuid.UUID]bool),
+		commands:      make(chan func() error),
+		closeChan:     make(chan struct{}, 1),
+		closeListener: make(chan struct{}, 1),
+	}
+	go c.listenBroadcasts()
+	go c.invoker()
+	return c
+}
+
+func (c *BKRChannel) NewBKRInstance(id uuid.UUID) chan [][]byte {
+	instance := c.getInstance(id)
+	return instance.output
+}
+
+func (c *BKRChannel) Propose(id uuid.UUID, proposal []byte) error {
+	msg := &bkrProposalMsg{bkrId: id, proposal: proposal}
+	data := msg.marshal()
+	if err := c.brbChannel.BRBroadcast(data); err != nil {
+		return fmt.Errorf("unable to broadcast message: %w", err)
+	}
+	return nil
+}
+
+func (c *BKRChannel) listenBroadcasts() {
+	for {
+		select {
+		case msg := <-c.brbChannel.BrbDeliver:
+			if err := c.processBroadcast(msg); err != nil {
+				bkrChannelLogger.Warn("unable to process broadcast message", "sender", msg.Sender, "error", err)
+			}
+		case <-c.closeListener:
+			bkrChannelLogger.Info("closing listener")
+			return
+		}
+	}
+}
+
+func (c *BKRChannel) processBroadcast(msg brb.BRBMsg) error {
+	bkrMsg := &bkrProposalMsg{}
+	if err := bkrMsg.unmarshal(msg.Content); err != nil {
+		return fmt.Errorf("unable to unmarshal message: %w", err)
+	}
+	go func() {
+		c.commands <- func() error {
+			if err := c.submitProposal(bkrMsg.bkrId, bkrMsg.proposal, msg.Sender); err != nil {
+				return fmt.Errorf("unable to submit proposal: %w", err)
+			}
+			return nil
+		}
+	}()
+	return nil
+}
+
+func (c *BKRChannel) submitProposal(bkrId uuid.UUID, proposal []byte, sender uuid.UUID) error {
+	if c.finished[bkrId] {
+		return fmt.Errorf("bkr instance %s is already finished", bkrId)
+	} else if err := c.getInstance(bkrId).receiveInput(proposal, sender); err != nil {
+		return fmt.Errorf("unable to submit proposal to bkrInstance: %w", err)
+	}
+	return nil
+}
+
+func (c *BKRChannel) getInstance(bkrId uuid.UUID) *bkr {
+	bkrInstance := c.instances[bkrId]
+	if bkrInstance == nil {
+		bkrInstance = newBKR(bkrId, c.f, c.participants, c.abaChannel)
+		c.instances[bkrId] = bkrInstance
+	}
+	return bkrInstance
+}
+
+func (c *BKRChannel) invoker() {
+	for {
+		select {
+		case cmd := <-c.commands:
+			if err := cmd(); err != nil {
+				bkrChannelLogger.Warn("unable to execute cmd: %v", err)
+			}
+		case <-c.closeChan:
+			bkrChannelLogger.Info("closing invoker")
+			return
+		}
+	}
+}
+
+func (c *BKRChannel) Close() {
+	bkrChannelLogger.Info("sending signal to close invoker")
+	c.closeChan <- struct{}{}
+}

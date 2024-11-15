@@ -35,8 +35,8 @@ func testShouldOutputProposalsAlt(t *testing.T, n, f uint) {
 	abachans := getAbachans(t, n, f, nodes)
 	id := uuid.New()
 	proposers := lo.Map(nodes, func(node *on.Node, _ int) uuid.UUID { return uuid.New() })
-	bkr2Instances := lo.Map(abachans, func(abachan *aba.AbaChannel, _ int) *BKR {
-		return NewBKR(id, f, proposers, abachan)
+	bkr2Instances := lo.Map(abachans, func(abachan *aba.AbaChannel, _ int) *bkr {
+		return newBKR(id, f, proposers, abachan)
 	})
 	for _, bkr := range bkr2Instances {
 		for i, participant := range proposers {
@@ -44,7 +44,7 @@ func testShouldOutputProposalsAlt(t *testing.T, n, f uint) {
 			assert.NoError(t, bkr.receiveInput(input, participant))
 		}
 	}
-	outputs := lo.Map(bkr2Instances, func(bkr *BKR, _ int) [][]byte { return <-bkr.output })
+	outputs := lo.Map(bkr2Instances, func(bkr *bkr, _ int) [][]byte { return <-bkr.output })
 	assert.True(t, uint(len(outputs[0])) >= f)
 	firstOutput := outputs[0]
 	assert.True(t, lo.EveryBy(outputs, func(output [][]byte) bool { return equalsOutputs(output, firstOutput) }))
