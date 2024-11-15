@@ -85,7 +85,7 @@ func testShouldOutputProposals(t *testing.T, n, f uint, receiveInput func(instan
 	assert.True(t, uint(len(outputs[0])) >= f)
 	firstOutput := outputs[0]
 	assert.True(t, lo.EveryBy(outputs, func(output [][]byte) bool { return equalsOutputs(output, firstOutput) }))
-	assert.True(t, lo.EveryBy(nodes, func(node *on.Node) bool { return node.Disconnect() == nil }))
+	assert.True(t, lo.EveryBy(nodes, func(node *on.Node) bool { return node.Close() == nil }))
 }
 
 func getAbachans(t *testing.T, n uint, f uint, nodes []*on.Node) []*aba.AbaChannel {

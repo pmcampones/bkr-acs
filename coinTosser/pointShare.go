@@ -45,7 +45,7 @@ func (ps *pointShare) unmarshalBinary(data []byte) error {
 	if err != nil {
 		return fmt.Errorf("unable to get scalar size: %v", err)
 	}
-	pointSize, err := utils.GetElementSize()
+	pointSize, err := getElementSize()
 	if err != nil {
 		return fmt.Errorf("unable to get element size: %v", err)
 	} else if len(data) != idSize+pointSize {

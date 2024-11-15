@@ -30,7 +30,7 @@ func TestChannelShouldAcceptOwnProposal(t *testing.T) {
 	res := <-outputListener
 	assert.Equal(t, 1, len(res))
 	assert.True(t, slices.Equal([]byte("Hello World"), res[0]))
-	assert.NoError(t, node.Disconnect())
+	assert.NoError(t, node.Close())
 }
 
 func TestChannelShouldAgreeProposalsNoFaults(t *testing.T) {
@@ -81,5 +81,5 @@ func testChannelShouldAgreeProposals(t *testing.T, n, f uint, maxDelay uint) {
 	assert.True(t, len(results) >= int(n-f))
 	firstResult := results[0]
 	assert.True(t, lo.EveryBy(results, func(r [][]byte) bool { return equalsOutputs(r, firstResult) }))
-	assert.True(t, lo.EveryBy(nodes, func(n *on.Node) bool { return n.Disconnect() == nil }))
+	assert.True(t, lo.EveryBy(nodes, func(n *on.Node) bool { return n.Close() == nil }))
 }

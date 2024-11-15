@@ -23,7 +23,7 @@ func TestShouldMarshalAndUnmarshalBval(t *testing.T) {
 	assert.Equal(t, val, amsg.val)
 	assert.NotEqual(t, nil, amsg.sender)
 	m.close()
-	assert.NoError(t, node.Disconnect())
+	assert.NoError(t, node.Close())
 }
 
 func TestShouldMarshalAndUnmarshalAux(t *testing.T) {
@@ -42,5 +42,5 @@ func TestShouldMarshalAndUnmarshalAux(t *testing.T) {
 	assert.Equal(t, val, amsg.val)
 	assert.NotEqual(t, nil, amsg.sender)
 	m.close()
-	assert.NoError(t, node.Disconnect())
+	assert.NoError(t, node.Close())
 }

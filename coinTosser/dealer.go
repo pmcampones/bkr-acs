@@ -10,7 +10,6 @@ import (
 	ss "github.com/cloudflare/circl/secretsharing"
 	"github.com/samber/lo"
 	on "pace/overlayNetwork"
-	"pace/utils"
 	"unsafe"
 )
 
@@ -99,7 +98,7 @@ func unmarshalCommitment(data []byte) (group.Element, []pointShare, error) {
 
 func unmarshalBase(dataIn []byte) (group.Element, []byte, error) {
 	base := group.Ristretto255.NewElement()
-	baseLen, err := utils.GetElementSize()
+	baseLen, err := getElementSize()
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to get element length: %v", err)
 	} else if len(dataIn) < baseLen {

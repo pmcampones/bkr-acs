@@ -8,11 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 	"log/slog"
-	"maps"
 	"net"
 	"pace/utils"
-	"slices"
 	"sync"
 )
 
@@ -27,7 +26,7 @@ type Node struct {
 	contact      string
 	hasJoined    bool
 	peersLock    sync.RWMutex
-	peers        map[string]*peer
+	peers        []*peer
 	msgObservers []nodeMessageObserver
 	memChan      chan struct{}
 	config       *tls.Config
@@ -52,7 +51,7 @@ func NewNode(address, contact string) (*Node, error) {
 		contact:      contact,
 		hasJoined:    false,
 		peersLock:    sync.RWMutex{},
-		peers:        make(map[string]*peer),
+		peers:        make([]*peer, 0),
 		msgObservers: make([]nodeMessageObserver, 0),
 		memChan:      make(chan struct{}),
 		config:       config,
@@ -178,7 +177,7 @@ func (n *Node) maintainConnection(peer peer, amContact bool) {
 func (n *Node) updatePeers(peer peer) {
 	n.peersLock.Lock()
 	defer n.peersLock.Unlock()
-	n.peers[peer.name] = &peer
+	n.peers = append(n.peers, &peer)
 }
 
 func (n *Node) sendMembership(peer peer) error {
@@ -205,10 +204,10 @@ func (n *Node) closeConnection(peer peer) {
 	n.forgetPeer(peer)
 }
 
-func (n *Node) forgetPeer(peer peer) {
+func (n *Node) forgetPeer(rem peer) {
 	n.peersLock.Lock()
 	defer n.peersLock.Unlock()
-	delete(n.peers, peer.name)
+	n.peers = lo.Filter(n.peers, func(p *peer, _ int) bool { return rem.name != p.name })
 }
 
 func (n *Node) closeAllConnections() {
@@ -221,11 +220,7 @@ func (n *Node) closeAllConnections() {
 			logger.Warn("error closing connection", "peer name", peer.name, "error", err)
 		}
 	}
-	pNames := slices.Collect(maps.Keys(n.peers))
-	for _, p := range pNames {
-		delete(n.peers, p)
-		logger.Debug("peer deleted", "peer name", p)
-	}
+	n.peers = make([]*peer, 0)
 }
 
 func (n *Node) readFromConnection(peer peer) {
@@ -284,17 +279,6 @@ func (n *Node) getPeers() []*peer {
 	return peers
 }
 
-func (n *Node) getMembershipChan() <-chan struct{} {
-	return n.memChan
-}
-
-func (n *Node) Disconnect() error {
-	err := n.listener.Close()
-	n.closeAllConnections()
-	<-n.closeChan
-	return err
-}
-
 func (n *Node) GetId() (uuid.UUID, error) {
 	pk := n.sk.PublicKey
 	id, err := utils.PkToUUID(&pk)
@@ -314,4 +298,11 @@ func (n *Node) GetPeerIds() ([]uuid.UUID, error) {
 		ids = append(ids, id)
 	}
 	return ids, nil
+}
+
+func (n *Node) Close() error {
+	err := n.listener.Close()
+	n.closeAllConnections()
+	<-n.closeChan
+	return err
 }

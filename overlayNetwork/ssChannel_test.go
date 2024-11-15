@@ -35,7 +35,7 @@ func testShouldSSNoThreshold(t *testing.T, numNodes int) {
 	results := lo.Map(s, func(s *SSChannel, _ int) *SSMsg { return <-s.deliverChan })
 	assert.True(t, lo.EveryBy(results, func(msg *SSMsg) bool { return areScalarEquals(t, secret, msg.Share.Value) }))
 	assert.True(t, lo.EveryBy(results, func(msg *SSMsg) bool { return bytes.Equal(commitment, msg.Commitment) }))
-	assert.True(t, lo.EveryBy(nodes, func(node *Node) bool { return node.Disconnect() == nil }))
+	assert.True(t, lo.EveryBy(nodes, func(node *Node) bool { return node.Close() == nil }))
 }
 
 func TestShouldSSWithHalfThreshold(t *testing.T) {
@@ -64,7 +64,7 @@ func testShouldSSWithThreshold(t *testing.T, numNodes, threshold int) {
 	recov, err := ss.Recover(uint(threshold), shares)
 	assert.NoError(t, err)
 	assert.True(t, areScalarEquals(t, secret, recov))
-	assert.True(t, lo.EveryBy(nodes, func(node *Node) bool { return node.Disconnect() == nil }))
+	assert.True(t, lo.EveryBy(nodes, func(node *Node) bool { return node.Close() == nil }))
 }
 
 func areScalarEquals(t *testing.T, a, b group.Scalar) bool {

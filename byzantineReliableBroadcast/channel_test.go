@@ -18,7 +18,7 @@ func TestChannelShouldBroadcastToSelf(t *testing.T) {
 	assert.NoError(t, c.BRBroadcast(msg))
 	recov := <-c.BrbDeliver
 	assert.Equal(t, msg, recov.Content)
-	assert.NoError(t, node.Disconnect())
+	assert.NoError(t, node.Close())
 	c.Close()
 }
 
@@ -79,5 +79,5 @@ func teardown(t *testing.T, channels []*BRBChannel, byzChannels []*byzChannel, n
 	for _, bc := range byzChannels {
 		bc.close()
 	}
-	assert.True(t, lo.EveryBy(nodes, func(node *on.Node) bool { return node.Disconnect() == nil }))
+	assert.True(t, lo.EveryBy(nodes, func(node *on.Node) bool { return node.Close() == nil }))
 }

@@ -54,5 +54,5 @@ func testAbaChannelShouldDecideMultiple(t *testing.T, n, f uint) {
 	for _, abachan := range abachans {
 		abachan.Close()
 	}
-	assert.True(t, lo.EveryBy(nodes, func(node *on.Node) bool { return node.Disconnect() == nil }))
+	assert.True(t, lo.EveryBy(nodes, func(node *on.Node) bool { return node.Close() == nil }))
 }

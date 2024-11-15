@@ -27,7 +27,7 @@ func TestShouldBroadcastSelf(t *testing.T) {
 	testShouldBroadcast(t, []*nodeMsg{nmsg})
 	assert.Equal(t, 1, len(nmsg.rMsgs))
 	assert.Equal(t, "hello", string(nmsg.rMsgs[0]))
-	assert.NoError(t, node.Disconnect())
+	assert.NoError(t, node.Close())
 }
 
 func TestShouldBroadcastSelfManyMessages(t *testing.T) {
@@ -40,7 +40,7 @@ func TestShouldBroadcastSelfManyMessages(t *testing.T) {
 	nmsg := newNodeMsg(beb, msgs)
 	testShouldBroadcast(t, []*nodeMsg{nmsg})
 	assert.Equal(t, numMsgs, len(nmsg.rMsgs))
-	assert.NoError(t, node.Disconnect())
+	assert.NoError(t, node.Close())
 }
 
 func TestShouldBroadcastTwoNodesSingleMessage(t *testing.T) {
@@ -58,8 +58,8 @@ func TestShouldBroadcastTwoNodesSingleMessage(t *testing.T) {
 	assert.Equal(t, 1, len(nmsg1.rMsgs))
 	assert.Equal(t, "hello", string(nmsg0.rMsgs[0]))
 	assert.Equal(t, "hello", string(nmsg1.rMsgs[0]))
-	assert.NoError(t, node0.Disconnect())
-	assert.NoError(t, node1.Disconnect())
+	assert.NoError(t, node0.Close())
+	assert.NoError(t, node1.Close())
 }
 
 func TestShouldBroadcastTwoNodesManyMessages(t *testing.T) {
@@ -78,8 +78,8 @@ func TestShouldBroadcastTwoNodesManyMessages(t *testing.T) {
 	testShouldBroadcast(t, []*nodeMsg{nmsg0, nmsg1})
 	assert.Equal(t, len(msgs0)+len(msgs1), len(nmsg0.rMsgs))
 	assert.Equal(t, len(msgs0)+len(msgs1), len(nmsg1.rMsgs))
-	assert.NoError(t, node0.Disconnect())
-	assert.NoError(t, node1.Disconnect())
+	assert.NoError(t, node0.Close())
+	assert.NoError(t, node1.Close())
 }
 
 func TestShouldBroadcastManyNodesManyMessages(t *testing.T) {
@@ -94,7 +94,7 @@ func TestShouldBroadcastManyNodesManyMessages(t *testing.T) {
 	testShouldBroadcast(t, nodeMsgs)
 	totalMsgs := numMsgs * numNodes
 	assert.True(t, lo.EveryBy(nodeMsgs, func(nm *nodeMsg) bool { return len(nm.rMsgs) == totalMsgs }))
-	assert.True(t, lo.EveryBy(nodes, func(n *Node) bool { return n.Disconnect() == nil }))
+	assert.True(t, lo.EveryBy(nodes, func(n *Node) bool { return n.Close() == nil }))
 }
 
 func genNodeMsgs(nodeIdx, numMsgs int) [][]byte {

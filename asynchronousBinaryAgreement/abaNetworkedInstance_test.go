@@ -81,7 +81,7 @@ func testNetworkedInstancesShouldDecide(t *testing.T, n, f uint) {
 	}
 	results := lo.Map(abaInstances, func(abaInstance *abaNetworkedInstance, _ int) byte { return <-abaInstance.decisionChan })
 	assert.True(t, lo.EveryBy(results, func(res byte) bool { return res == results[0] }))
-	assert.True(t, lo.EveryBy(nodes, func(node *on.Node) bool { return node.Disconnect() == nil }))
+	assert.True(t, lo.EveryBy(nodes, func(node *on.Node) bool { return node.Close() == nil }))
 }
 
 func makeAbaNetworkedInstance(t *testing.T, id uuid.UUID, node *on.Node, ssChan *on.SSChannel, n uint, f uint) *abaNetworkedInstance {

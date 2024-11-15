@@ -56,5 +56,5 @@ func testShouldDeliverWithTheshold(t *testing.T, numNodes, threshold uint) {
 	for _, ct := range ctChannels {
 		ct.Close()
 	}
-	assert.True(t, lo.EveryBy(nodes, func(n *on.Node) bool { return n.Disconnect() == nil }))
+	assert.True(t, lo.EveryBy(nodes, func(n *on.Node) bool { return n.Close() == nil }))
 }

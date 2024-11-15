@@ -20,7 +20,7 @@ func TestShouldDealToSelf(t *testing.T) {
 	d, err := listenDeal(ssChan.GetSSChan())
 	assert.NoError(t, err)
 	assert.Equal(t, secret, d.share.Value)
-	assert.NoError(t, node.Disconnect())
+	assert.NoError(t, node.Close())
 }
 
 func TestShouldDealToMany(t *testing.T) {
@@ -40,7 +40,7 @@ func TestShouldDealToMany(t *testing.T) {
 	assert.True(t, lo.EveryBy(deals, func(d *deal) bool { return areElementsEqualsTest(t, commitBase, d.base) }))
 	pointShares := deals[0].commits
 	assert.True(t, lo.EveryBy(deals, func(d *deal) bool { return arePointShareEqualsArray(t, pointShares, d.commits) }))
-	assert.True(t, lo.EveryBy(nodes, func(node *on.Node) bool { return node.Disconnect() == nil }))
+	assert.True(t, lo.EveryBy(nodes, func(node *on.Node) bool { return node.Close() == nil }))
 }
 
 func TestShouldDealRecoverableSecret(t *testing.T) {
