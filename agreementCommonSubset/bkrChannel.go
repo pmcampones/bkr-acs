@@ -55,6 +55,7 @@ func NewBKRChannel(f uint, abaChannel *aba.AbaChannel, brbChannel *brb.BRBChanne
 		closeChan:     make(chan struct{}, 1),
 		closeListener: make(chan struct{}, 1),
 	}
+	bkrChannelLogger.Info("initializing bkr channel", "f", f, "participants", participants)
 	go c.listenBroadcasts()
 	go c.invoker()
 	return c
@@ -68,6 +69,7 @@ func (c *BKRChannel) NewBKRInstance(id uuid.UUID) chan [][]byte {
 func (c *BKRChannel) Propose(id uuid.UUID, proposal []byte) error {
 	msg := &bkrProposalMsg{bkrId: id, proposal: proposal}
 	data := msg.marshal()
+	bkrChannelLogger.Debug("broadcasting proposal", "id", id, "proposal", string(proposal))
 	if err := c.brbChannel.BRBroadcast(data); err != nil {
 		return fmt.Errorf("unable to broadcast message: %w", err)
 	}
@@ -105,6 +107,7 @@ func (c *BKRChannel) processBroadcast(msg brb.BRBMsg) error {
 }
 
 func (c *BKRChannel) submitProposal(bkrId uuid.UUID, proposal []byte, sender uuid.UUID) error {
+	bkrChannelLogger.Debug("submitting proposal", "id", bkrId, "proposal", string(proposal), "sender", sender)
 	if c.finished[bkrId] {
 		return fmt.Errorf("bkr instance %s is already finished", bkrId)
 	} else if err := c.getInstance(bkrId).receiveInput(proposal, sender); err != nil {
@@ -116,6 +119,7 @@ func (c *BKRChannel) submitProposal(bkrId uuid.UUID, proposal []byte, sender uui
 func (c *BKRChannel) getInstance(bkrId uuid.UUID) *bkr {
 	bkrInstance := c.instances[bkrId]
 	if bkrInstance == nil {
+		bkrChannelLogger.Debug("creating new bkr instance", "id", bkrId)
 		bkrInstance = newBKR(bkrId, c.f, c.participants, c.abaChannel)
 		c.instances[bkrId] = bkrInstance
 	}
