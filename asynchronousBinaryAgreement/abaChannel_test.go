@@ -29,7 +29,7 @@ func TestAbaChannelShouldDecideMultipleWithFaults(t *testing.T) {
 func testAbaChannelShouldDecideMultiple(t *testing.T, n, f uint) {
 	nodes := lo.Map(lo.Range(int(n)), func(i int, _ int) *on.Node {
 		address := fmt.Sprintf("localhost:%d", 6000+i)
-		return on.GetNode(t, address, "localhost:6000")
+		return on.GetTestNode(t, address, "localhost:6000")
 	})
 	dealSSs := lo.Map(nodes, func(node *on.Node, _ int) *on.SSChannel { return on.CreateSSChannel(node, 'd') })
 	ctBebs := lo.Map(nodes, func(node *on.Node, _ int) *on.BEBChannel { return on.CreateBEBChannel(node, 'c') })

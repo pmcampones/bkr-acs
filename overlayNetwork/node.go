@@ -2,6 +2,8 @@ package overlayNetwork
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -34,7 +36,15 @@ type Node struct {
 	closeChan    chan struct{}
 }
 
-func NewNode(address, contact string, sk *ecdsa.PrivateKey, cert *tls.Certificate) *Node {
+func NewNode(address, contact string) (*Node, error) {
+	sk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("unable to generate secret key: %v", err)
+	}
+	cert, err := makeSelfSignedCert(sk)
+	if err != nil {
+		return nil, fmt.Errorf("unable to make self-signed certificate: %v", err)
+	}
 	config := computeConfig(cert)
 	isContact := address == contact
 	node := Node{
@@ -51,7 +61,7 @@ func NewNode(address, contact string, sk *ecdsa.PrivateKey, cert *tls.Certificat
 	}
 	node.listener = node.setupTLSListener(address)
 	go node.listenConnections(isContact)
-	return &node
+	return &node, nil
 }
 
 // Join adds a new node to the overlayNetwork

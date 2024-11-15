@@ -15,7 +15,7 @@ import (
 )
 
 func TestChannelShouldAcceptOwnProposal(t *testing.T) {
-	node := on.GetNode(t, "localhost:6000", "localhost:6000")
+	node := on.GetTestNode(t, "localhost:6000", "localhost:6000")
 	proposer, err := node.GetId()
 	assert.NoError(t, err)
 	bebChan := on.CreateBEBChannel(node, 'z')
@@ -30,6 +30,7 @@ func TestChannelShouldAcceptOwnProposal(t *testing.T) {
 	res := <-outputListener
 	assert.Equal(t, 1, len(res))
 	assert.True(t, slices.Equal([]byte("Hello World"), res[0]))
+	assert.NoError(t, node.Disconnect())
 }
 
 func TestChannelShouldAgreeProposalsNoFaults(t *testing.T) {
@@ -45,7 +46,7 @@ func TestChannelShouldAgreeProposalMaxFaults(t *testing.T) {
 func testChannelShouldAgreeProposals(t *testing.T, n, f uint, maxDelay uint) {
 	nodes := lo.Map(lo.Range(int(n)), func(_ int, i int) *on.Node {
 		address := fmt.Sprintf("localhost:%d", 6000+i)
-		return on.GetNode(t, address, "localhost:6000")
+		return on.GetTestNode(t, address, "localhost:6000")
 	})
 	proposers := lo.Map(nodes, func(n *on.Node, _ int) uuid.UUID {
 		id, err := n.GetId()
@@ -80,4 +81,5 @@ func testChannelShouldAgreeProposals(t *testing.T, n, f uint, maxDelay uint) {
 	assert.True(t, len(results) >= int(n-f))
 	firstResult := results[0]
 	assert.True(t, lo.EveryBy(results, func(r [][]byte) bool { return equalsOutputs(r, firstResult) }))
+	assert.True(t, lo.EveryBy(nodes, func(n *on.Node) bool { return n.Disconnect() == nil }))
 }

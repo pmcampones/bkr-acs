@@ -121,5 +121,5 @@ func broadcastAllMsgs(t *testing.T, nodeMsgs []*nodeMsg) {
 }
 
 func getNode(t *testing.T, address string) *Node {
-	return GetNode(t, address, "localhost:6000")
+	return GetTestNode(t, address, "localhost:6000")
 }

@@ -64,7 +64,7 @@ func testShouldBroadcastToAll(t *testing.T, n, f, correct, byzantine uint) {
 }
 
 func getNode(t *testing.T, address string) *on.Node {
-	return on.GetNode(t, address, "localhost:6000")
+	return on.GetTestNode(t, address, "localhost:6000")
 }
 
 func getChannel(n, f uint, node *on.Node) *BRBChannel {

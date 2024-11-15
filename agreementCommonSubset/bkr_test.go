@@ -67,7 +67,7 @@ func delayedProposal(t *testing.T, maxDelay uint) func(instance *bkr, input []by
 func testShouldOutputProposals(t *testing.T, n, f uint, receiveInput func(instance *bkr, input []byte, participant uuid.UUID)) {
 	nodes := lo.Map(lo.Range(int(n)), func(i int, _ int) *on.Node {
 		address := fmt.Sprintf("localhost:%d", 6000+i)
-		return on.GetNode(t, address, "localhost:6000")
+		return on.GetTestNode(t, address, "localhost:6000")
 	})
 	abachans := getAbachans(t, n, f, nodes)
 	id := uuid.New()

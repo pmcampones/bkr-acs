@@ -61,7 +61,7 @@ func TestNetworkedInstancesShouldDecideWithFaults(t *testing.T) {
 func testNetworkedInstancesShouldDecide(t *testing.T, n, f uint) {
 	nodes := lo.Map(lo.Range(int(n)), func(i int, _ int) *on.Node {
 		address := fmt.Sprintf("localhost:%d", 6000+i)
-		return on.GetNode(t, address, "localhost:6000")
+		return on.GetTestNode(t, address, "localhost:6000")
 	})
 	ssChans := lo.Map(nodes, func(node *on.Node, _ int) *on.SSChannel {
 		return on.CreateSSChannel(node, 'a')

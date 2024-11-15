@@ -11,7 +11,7 @@ import (
 func TestMarshalAndUnmarshalTerminationMessage(t *testing.T) {
 	abaInstance := uuid.New()
 	decision := byte(1)
-	node := on.GetNode(t, "localhost:6000", "localhost:6000")
+	node := on.GetTestNode(t, "localhost:6000", "localhost:6000")
 	bebChannel := on.CreateBEBChannel(node, 't')
 	brbChannel := brb.CreateBRBChannel(1, 0, bebChannel)
 	on.InitializeNodes(t, []*on.Node{node})

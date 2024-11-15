@@ -11,7 +11,7 @@ import (
 )
 
 func TestShouldDealToSelf(t *testing.T) {
-	node := on.GetNode(t, "localhost:6000", "localhost:6000")
+	node := on.GetTestNode(t, "localhost:6000", "localhost:6000")
 	ssChan := on.CreateSSChannel(node, 's')
 	on.InitializeNodes(t, []*on.Node{node})
 	secret := group.Ristretto255.NewScalar().SetUint64(42)
@@ -27,7 +27,7 @@ func TestShouldDealToMany(t *testing.T) {
 	numNodes := 10
 	nodes := lo.Map(lo.Range(numNodes), func(i int, _ int) *on.Node {
 		address := fmt.Sprintf("localhost:%d", 6000+i)
-		return on.GetNode(t, address, "localhost:6000")
+		return on.GetTestNode(t, address, "localhost:6000")
 	})
 	ssChans := lo.Map(nodes, func(node *on.Node, _ int) *on.SSChannel { return on.CreateSSChannel(node, 's') })
 	on.InitializeNodes(t, nodes)
@@ -47,7 +47,7 @@ func TestShouldDealRecoverableSecret(t *testing.T) {
 	numNodes := 10
 	nodes := lo.Map(lo.Range(numNodes), func(i int, _ int) *on.Node {
 		address := fmt.Sprintf("localhost:%d", 6000+i)
-		return on.GetNode(t, address, "localhost:6000")
+		return on.GetTestNode(t, address, "localhost:6000")
 	})
 	ssChans := lo.Map(nodes, func(node *on.Node, _ int) *on.SSChannel { return on.CreateSSChannel(node, 's') })
 	on.InitializeNodes(t, nodes)
