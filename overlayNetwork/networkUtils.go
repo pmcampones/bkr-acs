@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"log"
 	"math/big"
@@ -22,15 +21,12 @@ func GetTestNode(t *testing.T, address, contact string) *Node {
 }
 
 func InitializeNodes(t *testing.T, nodes []*Node) {
-	memChans := lo.Map(nodes, func(n *Node, _ int) chan struct{} { return n.memChan })
 	for _, n := range nodes {
 		err := n.Join()
 		assert.NoError(t, err)
 	}
-	for _, ch := range memChans {
-		for i := 0; i < len(nodes)-1; i++ {
-			<-ch
-		}
+	for _, n := range nodes {
+		n.WaitForPeers(uint(len(nodes) - 1))
 	}
 }
 

@@ -300,6 +300,12 @@ func (n *Node) GetPeerIds() ([]uuid.UUID, error) {
 	return ids, nil
 }
 
+func (n *Node) WaitForPeers(numPeers uint) {
+	for i := uint(0); i < numPeers; i++ {
+		<-n.memChan
+	}
+}
+
 func (n *Node) Close() error {
 	err := n.listener.Close()
 	n.closeAllConnections()
