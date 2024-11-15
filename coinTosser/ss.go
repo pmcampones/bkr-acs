@@ -106,9 +106,18 @@ func getPointShareSize() (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("unable to get scalar size: %v", err)
 	}
-	elementSize, err := utils.GetElementSize()
+	elementSize, err := getElementSize()
 	if err != nil {
 		return 0, fmt.Errorf("unable to get element size: %v", err)
 	}
 	return scalarSize + elementSize, nil
+}
+
+func getElementSize() (int, error) {
+	element := group.Ristretto255.NewElement()
+	elementBytes, err := element.MarshalBinary()
+	if err != nil {
+		return 0, fmt.Errorf("unable to marshal element: %v", err)
+	}
+	return len(elementBytes), nil
 }

@@ -1,6 +1,7 @@
 package asynchronousBinaryAgreement
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -101,7 +102,7 @@ func (o *mmrOrderedScheduler) listenCoinRequests(t *testing.T, coinChan chan uin
 	func() {
 		for {
 			round := <-coinChan
-			coinBool := utils.HashToBool([]byte(fmt.Sprintf("%d", round)))
+			coinBool := hashToBool([]byte(fmt.Sprintf("%d", round)))
 			coin := byte(0)
 			if coinBool {
 				coin = 1
@@ -234,7 +235,7 @@ func (u *mmrUnorderedScheduler) listenCoinRequests(coinChan chan uint16, m *conc
 	func() {
 		for {
 			round := <-coinChan
-			coinBool := utils.HashToBool([]byte(fmt.Sprintf("%d", round)))
+			coinBool := hashToBool([]byte(fmt.Sprintf("%d", round)))
 			coin := byte(0)
 			if coinBool {
 				coin = 1
@@ -246,4 +247,9 @@ func (u *mmrUnorderedScheduler) listenCoinRequests(coinChan chan uint16, m *conc
 			}()
 		}
 	}()
+}
+
+func hashToBool(seed []byte) bool {
+	hash := sha256.Sum256(seed)
+	return hash[0]%2 == 0
 }
