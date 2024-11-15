@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"log/slog"
 	"maps"
 	"net"
@@ -282,4 +283,25 @@ func (n *Node) Disconnect() error {
 	n.closeAllConnections()
 	<-n.closeChan
 	return err
+}
+
+func (n *Node) GetId() (uuid.UUID, error) {
+	pk := n.sk.PublicKey
+	id, err := utils.PkToUUID(&pk)
+	if err != nil {
+		return uuid.UUID{}, fmt.Errorf("unable to extract ID from public key")
+	}
+	return id, nil
+}
+
+func (n *Node) GetPeerIds() ([]uuid.UUID, error) {
+	ids := make([]uuid.UUID, 0)
+	for address, p := range n.peers {
+		id, err := utils.PkToUUID(p.pk)
+		if err != nil {
+			return nil, fmt.Errorf("unable to extract ID from %v public key", address)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }

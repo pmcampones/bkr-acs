@@ -43,7 +43,7 @@ type BKRChannel struct {
 	closeListener chan struct{}
 }
 
-func newBKRChannel(f uint, abaChannel *aba.AbaChannel, brbChannel *brb.BRBChannel, participants []uuid.UUID) *BKRChannel {
+func NewBKRChannel(f uint, abaChannel *aba.AbaChannel, brbChannel *brb.BRBChannel, participants []uuid.UUID) *BKRChannel {
 	c := &BKRChannel{
 		f:             f,
 		abaChannel:    abaChannel,
@@ -127,7 +127,7 @@ func (c *BKRChannel) invoker() {
 		select {
 		case cmd := <-c.commands:
 			if err := cmd(); err != nil {
-				bkrChannelLogger.Warn("unable to execute cmd: %v", err)
+				bkrChannelLogger.Warn("unable to execute command", "error", err)
 			}
 		case <-c.closeChan:
 			bkrChannelLogger.Info("closing invoker")
