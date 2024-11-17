@@ -49,12 +49,12 @@ func PkToUUID(pk *ecdsa.PublicKey) (UUID, error) {
 }
 
 func GetLogger(level slog.Level) *slog.Logger {
-	return slog.New(
-		tint.NewHandler(os.Stdout, &tint.Options{
-			Level:      level,
-			TimeFormat: time.Kitchen,
-		}),
-	)
+	coloredHandler := tint.NewHandler(os.Stdout, &tint.Options{
+		Level:      level,
+		TimeFormat: time.Kitchen,
+	})
+	prefixedHandler := NewPrefixedHandler("test", coloredHandler)
+	return slog.New(prefixedHandler)
 }
 
 func GetScalarSize() (int, error) {
