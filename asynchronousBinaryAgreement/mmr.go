@@ -7,7 +7,7 @@ import (
 	"pace/utils"
 )
 
-var abaLogger = utils.GetLogger(slog.LevelWarn)
+var abaLogger = utils.GetLogger("MMR Instance", slog.LevelDebug)
 
 const firstRound = 0
 const averageNumRounds = 2
@@ -53,7 +53,7 @@ func newMMR(n, f uint) *mmr {
 }
 
 func (m *mmr) propose(est byte, r uint16) error {
-	abaLogger.Debug("proposing estimate", "est", est, "mmrRound", r)
+	abaLogger.Debug("proposing estimate", "est", est, "round", r)
 	if round, err := m.getRound(r); err != nil {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
 	} else if err := round.round.propose(est); err != nil {
@@ -63,7 +63,7 @@ func (m *mmr) propose(est byte, r uint16) error {
 }
 
 func (m *mmr) submitBVal(bVal byte, sender uuid.UUID, r uint16) error {
-	abaLogger.Debug("submitting bVal", "bVal", bVal, "sender", sender, "mmrRound", r)
+	abaLogger.Debug("submitting bVal", "bVal", bVal, "sender", sender, "round", r)
 	if round, err := m.getRound(r); err != nil {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
 	} else if err := round.round.submitBVal(bVal, sender); err != nil {
@@ -73,7 +73,7 @@ func (m *mmr) submitBVal(bVal byte, sender uuid.UUID, r uint16) error {
 }
 
 func (m *mmr) submitAux(aux byte, sender uuid.UUID, r uint16) error {
-	abaLogger.Debug("submitting aux", "aux", aux, "sender", sender, "mmrRound", r)
+	abaLogger.Debug("submitting aux", "aux", aux, "sender", sender, "round", r)
 	if round, err := m.getRound(r); err != nil {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
 	} else if err := round.round.submitAux(aux, sender); err != nil {
@@ -124,22 +124,22 @@ func (m *mmr) listenRequests(round *mmrRound, close chan struct{}, rnum uint16) 
 	for {
 		select {
 		case bVal := <-round.bValChan:
-			abaLogger.Debug("broadcasting bVal", "bVal", bVal, "mmrRound", rnum)
+			abaLogger.Debug("broadcasting bVal", "bVal", bVal, "round", rnum)
 			go func() {
 				m.deliverBVal <- roundMsg{val: bVal, r: rnum}
 			}()
 		case aux := <-round.auxChan:
-			abaLogger.Debug("broadcasting aux", "aux", aux, "mmrRound", rnum)
+			abaLogger.Debug("broadcasting aux", "aux", aux, "round", rnum)
 			go func() {
 				m.deliverAux <- roundMsg{val: aux, r: rnum}
 			}()
 		case <-round.coinReqChan:
-			abaLogger.Debug("coin request", "mmrRound", rnum)
+			abaLogger.Debug("coin request", "round", rnum)
 			go func() {
 				m.coinReq <- rnum
 			}()
 		case <-close:
-			abaLogger.Info("closing concurrentMMR round", "mmrRound", rnum)
+			abaLogger.Info("closing concurrentMMR round", "round", rnum)
 			return
 		}
 	}

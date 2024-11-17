@@ -7,9 +7,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/google/uuid"
+	"log/slog"
 	on "pace/overlayNetwork"
 	"pace/utils"
 )
+
+var abaMiddlewareLogger = utils.GetLogger("ABA Middleware", slog.LevelDebug)
 
 type middlewareCode byte
 
@@ -39,6 +42,7 @@ func newABAMiddleware(beb *on.BEBChannel) *abaMiddleware {
 		closeChan: make(chan struct{}),
 	}
 	go m.bebDeliver()
+	abaMiddlewareLogger.Info("new abaMiddleware created")
 	return m
 }
 
@@ -48,7 +52,7 @@ func (m *abaMiddleware) bebDeliver() {
 		case bebMsg := <-m.beb.GetBEBChan():
 			m.processMsg(bebMsg)
 		case <-m.closeChan:
-			abaChannelLogger.Info("closing byzantineReliableBroadcast abaMiddleware")
+			abaChannelLogger.Info("closing listener")
 			return
 		}
 	}
@@ -56,9 +60,9 @@ func (m *abaMiddleware) bebDeliver() {
 
 func (m *abaMiddleware) processMsg(bebMsg on.BEBMsg) {
 	if amsg, err := m.parseMsg(bebMsg.Content, bebMsg.Sender); err != nil {
-		abaChannelLogger.Warn("unable to processMsg message during beb delivery", "error", err)
+		abaMiddlewareLogger.Warn("unable to processMsg message during beb delivery", "error", err)
 	} else {
-		abaChannelLogger.Debug("received message from beb", "sender", amsg.sender, "type", amsg.kind, "inner", amsg.instance, "val", amsg.val)
+		abaMiddlewareLogger.Debug("received message", "sender", amsg.sender, "type", amsg.kind, "instance", amsg.instance, "val", amsg.val)
 		go func() { m.output <- amsg }()
 	}
 }
@@ -98,6 +102,7 @@ func (m *abaMiddleware) broadcastAux(instance uuid.UUID, round uint16, val byte)
 }
 
 func (m *abaMiddleware) broadcastMsg(instance uuid.UUID, kind middlewareCode, round uint16, val byte) error {
+	abaMiddlewareLogger.Debug("broadcasting message", "instance", instance, "kind", kind, "round", round, "val", val)
 	buf := bytes.NewBuffer([]byte{})
 	writer := bufio.NewWriter(buf)
 	if instanceBytes, err := instance.MarshalBinary(); err != nil {
@@ -119,6 +124,6 @@ func (m *abaMiddleware) broadcastMsg(instance uuid.UUID, kind middlewareCode, ro
 }
 
 func (m *abaMiddleware) close() {
-	abaChannelLogger.Info("sending close signal to abaMiddleware")
+	abaMiddlewareLogger.Info("sending close signal to listener")
 	m.closeChan <- struct{}{}
 }

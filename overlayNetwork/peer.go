@@ -5,9 +5,12 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/google/uuid"
+	"log/slog"
 	"net"
 	"pace/utils"
 )
+
+var peerLogger = utils.GetLogger("Peer", slog.LevelDebug)
 
 type listenerCloseError struct {
 	err error
@@ -48,6 +51,7 @@ func newOutbound(myName, address string, config *tls.Config) (peer, error) {
 		pk:   pk,
 		pkId: pkId,
 	}
+	peerLogger.Debug("new outbound peer created", "address", address, "id", pkId)
 	return peer, nil
 }
 
@@ -76,6 +80,7 @@ func getInbound(listener net.Listener) (peer, error) {
 		pk:   pk,
 		pkId: pkId,
 	}
+	peerLogger.Debug("new inbound peer created", "address", name, "id", pkId)
 	return peer, nil
 }
 

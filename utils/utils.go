@@ -48,12 +48,12 @@ func PkToUUID(pk *ecdsa.PublicKey) (UUID, error) {
 	return BytesToUUID(pkBytes), nil
 }
 
-func GetLogger(level slog.Level) *slog.Logger {
+func GetLogger(prefix string, level slog.Level) *slog.Logger {
 	coloredHandler := tint.NewHandler(os.Stdout, &tint.Options{
 		Level:      level,
 		TimeFormat: time.Kitchen,
 	})
-	prefixedHandler := NewPrefixedHandler("test", coloredHandler)
+	prefixedHandler := NewPrefixedHandler(prefix, coloredHandler)
 	return slog.New(prefixedHandler)
 }
 

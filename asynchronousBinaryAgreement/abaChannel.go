@@ -10,7 +10,7 @@ import (
 	"pace/utils"
 )
 
-var abaChannelLogger = utils.GetLogger(slog.LevelWarn)
+var abaChannelLogger = utils.GetLogger("ABA Channel", slog.LevelDebug)
 
 type AbaInstance struct {
 	inner  *abaNetworkedInstance
@@ -135,7 +135,7 @@ func (c *AbaChannel) processMiddlewareMsg(msg *abaMsg) error {
 
 func (c *AbaChannel) getInstance(id uuid.UUID) (*AbaInstance, error) {
 	if c.finished[id] {
-		return nil, fmt.Errorf("requested inner is already finished")
+		return nil, fmt.Errorf("requested instance is already finished")
 	}
 	instance := c.instances[id]
 	if instance == nil {
@@ -187,14 +187,14 @@ func (c *AbaChannel) invoker() {
 				abaChannelLogger.Warn("error executing command", "error", err)
 			}
 		case <-c.invokerClose:
-			abaChannelLogger.Info("closing asynchronousBinaryAgreement channel")
+			abaChannelLogger.Info("closing invoker")
 			return
 		}
 	}
 }
 
 func (c *AbaChannel) Close() {
-	abaChannelLogger.Info("signaling close of asynchronousBinaryAgreement channel")
+	abaChannelLogger.Info("signaling close of listener and invoker")
 	c.listenerClose <- struct{}{}
 	c.invokerClose <- struct{}{}
 }

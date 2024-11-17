@@ -3,7 +3,11 @@ package byzantineReliableBroadcast
 import (
 	"fmt"
 	"github.com/google/uuid"
+	"log/slog"
+	"pace/utils"
 )
+
+var phase2Logger = utils.GetLogger("BRB Phase 2", slog.LevelDebug)
 
 type brbPhase2Handler struct {
 	data       *brbData
@@ -25,12 +29,13 @@ func (b *brbPhase2Handler) handleEcho(msg []byte, id uuid.UUID) error {
 	if b.isFinished {
 		return nil
 	} else {
-		instanceLogger.Debug("processing echo message on phase 2")
 		numEchoes, ok := b.data.echoes[id]
 		if !ok {
 			return fmt.Errorf("unable to find echoes in phase 2 with message id %s", id)
 		}
+		phase2Logger.Debug("processing echo message", "sender", id, "msg", string(msg), "received", numEchoes, "required", b.data.n-b.data.f)
 		if numEchoes == b.data.n-b.data.f {
+			phase2Logger.Info("received enough echoes to advance to phase 3")
 			b.isFinished = true
 			b.sendReady(msg)
 			return nil
@@ -43,12 +48,13 @@ func (b *brbPhase2Handler) handleReady(msg []byte, id uuid.UUID) error {
 	if b.isFinished {
 		return b.nextPhase.handleReady(msg, id)
 	} else {
-		instanceLogger.Debug("processing ready message on phase 2")
 		numReadies, ok := b.data.readies[id]
 		if !ok {
 			return fmt.Errorf("unable to find readies in phase 2 with message id %s", id)
 		}
+		phase2Logger.Debug("processing ready message", "sender", id, "msg", string(msg), "received", numReadies, "required", b.data.f+1)
 		if numReadies == b.data.f+1 {
+			phase2Logger.Info("received enough readies to advance to phase 3")
 			b.isFinished = true
 			b.sendReady(msg)
 			return b.nextPhase.handleReady(msg, id)
@@ -58,6 +64,6 @@ func (b *brbPhase2Handler) handleReady(msg []byte, id uuid.UUID) error {
 }
 
 func (b *brbPhase2Handler) sendReady(msg []byte) {
-	instanceLogger.Info("sending ready message")
+	phase2Logger.Info("sending ready message", "msg", string(msg))
 	go func() { b.readyChan <- msg }()
 }

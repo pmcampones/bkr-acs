@@ -8,7 +8,7 @@ import (
 	"pace/utils"
 )
 
-var channelLogger = utils.GetLogger(slog.LevelWarn)
+var channelLogger = utils.GetLogger("BRB Channel", slog.LevelDebug)
 
 type BRBMsg struct {
 	Content []byte

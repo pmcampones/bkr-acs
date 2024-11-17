@@ -1,6 +1,12 @@
 package overlayNetwork
 
-import "crypto/ecdsa"
+import (
+	"crypto/ecdsa"
+	"log/slog"
+	"pace/utils"
+)
+
+var bebLogger = utils.GetLogger("BEB Channel", slog.LevelDebug)
 
 type BEBMsg struct {
 	Content []byte
@@ -20,10 +26,12 @@ func NewBEBChannel(node *Node, listenCode byte) *BEBChannel {
 		deliverChan: make(chan BEBMsg),
 	}
 	node.attachMessageObserver(beb)
+	bebLogger.Info("beb channel created", "listenCode", listenCode)
 	return beb
 }
 
 func (b *BEBChannel) BEBroadcast(msg []byte) error {
+	bebLogger.Debug("broadcasting message", "msg", string(msg))
 	wrappedMsg := append([]byte{b.listenCode}, msg...)
 	peers := b.node.getPeers()
 	if err := b.node.unicastSelf(wrappedMsg); err != nil {
@@ -32,7 +40,7 @@ func (b *BEBChannel) BEBroadcast(msg []byte) error {
 	for _, peer := range peers {
 		err := b.node.unicast(wrappedMsg, peer.conn)
 		if err != nil {
-			logger.Warn("error sending to connection", "peer name", peer.name, "error", err)
+			nodeLogger.Warn("error sending to connection", "peer name", peer.name, "error", err)
 		}
 	}
 	return nil

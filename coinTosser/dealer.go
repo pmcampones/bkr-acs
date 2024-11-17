@@ -9,11 +9,16 @@ import (
 	"github.com/cloudflare/circl/group"
 	ss "github.com/cloudflare/circl/secretsharing"
 	"github.com/samber/lo"
+	"log/slog"
 	on "pace/overlayNetwork"
+	"pace/utils"
 	"unsafe"
 )
 
+var dealLogger = utils.GetLogger("Deal", slog.LevelDebug)
+
 func DealSecret(ssChannel *on.SSChannel, secret group.Scalar, threshold uint) error {
+	dealLogger.Info("dealing secret", "secret", secret, "threshold", threshold)
 	return ssChannel.SSBroadcast(secret, threshold, computeCommitment)
 }
 
@@ -77,6 +82,7 @@ func listenDeal(ssChan <-chan *on.SSMsg) (*deal, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to unmarshal commitment: %v", err)
 	}
+	dealLogger.Info("received deal", "share", share, "base", base, "commits", commits)
 	return &deal{base, share, commits}, nil
 }
 

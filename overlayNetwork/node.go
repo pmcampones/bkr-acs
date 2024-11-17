@@ -15,7 +15,7 @@ import (
 	"sync"
 )
 
-var logger = utils.GetLogger(slog.LevelWarn)
+var nodeLogger = utils.GetLogger("Network Node", slog.LevelDebug)
 
 type nodeMessageObserver interface {
 	bebDeliver(msg []byte, sender *ecdsa.PublicKey)
@@ -68,15 +68,15 @@ func (n *Node) Join() error {
 	if n.hasJoined {
 		return fmt.Errorf("node has already joined the overlayNetwork")
 	}
-	logger.Info("I am joining the overlayNetwork", "contact", n.contact)
+	nodeLogger.Info("I am joining the overlayNetwork", "contact", n.contact)
 	if !(n.address == n.contact) {
-		logger.Info("I am not the contact")
+		nodeLogger.Info("I am not the contact")
 		err := n.connectToContact()
 		if err != nil {
 			return fmt.Errorf("unable to connect to contact: %v", err)
 		}
 	} else {
-		logger.Info("I am the contact")
+		nodeLogger.Info("I am the contact")
 	}
 	n.hasJoined = true
 	return nil
@@ -91,10 +91,10 @@ func (n *Node) unicast(msg []byte, c net.Conn) error {
 		return fmt.Errorf("node has not joined the overlayNetwork")
 	}
 	toSend := append([]byte{byte(generic)}, msg...)
-	logger.Debug("unicasting message to connection", "conn", c.RemoteAddr(), "message", string(msg), "myself", n.address)
+	nodeLogger.Debug("unicasting message to connection", "conn", c.RemoteAddr(), "message", string(msg), "myself", n.address)
 	err := send(c, toSend)
 	if err != nil {
-		logger.Warn("error sending to connection", "conn", c.RemoteAddr(), "error", err)
+		nodeLogger.Warn("error sending to connection", "conn", c.RemoteAddr(), "error", err)
 	}
 	return nil
 }
@@ -113,7 +113,7 @@ func (n *Node) connectToContact() error {
 	if err != nil {
 		return fmt.Errorf("unable to connect to contact: %v", err)
 	}
-	logger.Debug("establishing connection with peer", "peer name", peer.name, "peer key", *peer.pk)
+	nodeLogger.Debug("establishing connection with peer", "peer name", peer.name, "peer key", *peer.pk)
 	go n.maintainConnection(peer, false)
 	return nil
 }
@@ -123,14 +123,14 @@ func (n *Node) listenConnections(amContact bool) {
 		peer, err := getInbound(n.listener)
 		if err != nil {
 			if isListenerClosed(err) {
-				logger.Info("closing listener")
+				nodeLogger.Info("closing listener")
 				break
 			} else {
-				logger.Warn("error accepting connection with peer", "peer name", peer.name, "error", err)
+				nodeLogger.Warn("error accepting connection with peer", "peer name", peer.name, "error", err)
 				continue
 			}
 		}
-		logger.Debug("received connection from peer", "peer name", peer.name, "peer key", *peer.pk)
+		nodeLogger.Debug("received connection from peer", "peer name", peer.name, "peer key", *peer.pk)
 		go n.maintainConnection(peer, amContact)
 	}
 	n.closeChan <- struct{}{}
@@ -144,7 +144,7 @@ func isListenerClosed(err error) bool {
 func (n *Node) setupTLSListener(address string) net.Listener {
 	listener, err := tls.Listen("tcp", address, n.config)
 	if err != nil {
-		logger.Error("error listening on address", "address", address, "error", err)
+		nodeLogger.Error("error listening on address", "address", address, "error", err)
 		panic(err)
 	}
 	return listener
@@ -161,12 +161,12 @@ func computeConfig(cert *tls.Certificate) *tls.Config {
 
 func (n *Node) maintainConnection(peer peer, amContact bool) {
 	defer n.closeConnection(peer)
-	logger.Debug("maintaining connection with peer", "peer name", peer.name)
+	nodeLogger.Debug("maintaining connection with peer", "peer name", peer.name)
 	n.updatePeers(peer)
 	if amContact {
 		err := n.sendMembership(peer)
 		if err != nil {
-			logger.Warn("unable to send membership to peer", "peer name", peer.name, "error", err)
+			nodeLogger.Warn("unable to send membership to peer", "peer name", peer.name, "error", err)
 			return
 		}
 	}
@@ -183,7 +183,7 @@ func (n *Node) updatePeers(peer peer) {
 func (n *Node) sendMembership(peer peer) error {
 	n.peersLock.RLock()
 	defer n.peersLock.RUnlock()
-	logger.Debug("sending membership to peer", "peer name", peer.name, "membership", n.peers)
+	nodeLogger.Debug("sending membership to peer", "peer name", peer.name, "membership", n.peers)
 	for _, p := range n.peers {
 		if p.name != peer.name {
 			toSend := append([]byte{byte(membership)}, []byte(p.name)...)
@@ -199,7 +199,7 @@ func (n *Node) sendMembership(peer peer) error {
 func (n *Node) closeConnection(peer peer) {
 	err := peer.conn.Close()
 	if err != nil {
-		logger.Warn("error closing connection", "peer name", peer.name, "error", err)
+		nodeLogger.Warn("error closing connection", "peer name", peer.name, "error", err)
 	}
 	n.forgetPeer(peer)
 }
@@ -211,13 +211,13 @@ func (n *Node) forgetPeer(rem peer) {
 }
 
 func (n *Node) closeAllConnections() {
-	logger.Info("closing all connections")
+	nodeLogger.Info("closing all connections")
 	n.peersLock.Lock()
 	defer n.peersLock.Unlock()
 	for _, peer := range n.peers {
 		err := peer.conn.Close()
 		if err != nil {
-			logger.Warn("error closing connection", "peer name", peer.name, "error", err)
+			nodeLogger.Warn("error closing connection", "peer name", peer.name, "error", err)
 		}
 	}
 	n.peers = make([]*peer, 0)
@@ -228,11 +228,11 @@ func (n *Node) readFromConnection(peer peer) {
 		msg, err := receive(peer.conn)
 		if err != nil {
 			if isConnectionClosed(err) {
-				logger.Debug("connection closed", "peer name", peer.name)
+				nodeLogger.Debug("connection closed", "peer name", peer.name)
 				n.forgetPeer(peer)
 				return
 			} else {
-				logger.Warn("error reading from connection", "peer name", peer.name, "error", err)
+				nodeLogger.Warn("error reading from connection", "peer name", peer.name, "error", err)
 				continue
 			}
 		}
@@ -256,7 +256,7 @@ func (n *Node) processMessage(msg []byte, sender *ecdsa.PublicKey) {
 			go func() { observer.bebDeliver(content, sender) }()
 		}
 	default:
-		logger.Error("unhandled default case", "msg type", msgType, "msg content", string(content))
+		nodeLogger.Error("unhandled default case", "msg type", msgType, "msg content", string(content))
 	}
 }
 
@@ -264,7 +264,7 @@ func (n *Node) processMembershipMsg(msg []byte) {
 	address := string(msg)
 	outbound, err := newOutbound(n.address, address, n.config)
 	if err != nil {
-		logger.Warn("error connecting to peer", "error", err)
+		nodeLogger.Warn("error connecting to peer", "error", err)
 	}
 	n.maintainConnection(outbound, false)
 }

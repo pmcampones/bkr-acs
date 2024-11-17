@@ -15,7 +15,7 @@ import (
 	"slices"
 )
 
-var logger = utils.GetLogger(slog.LevelDebug)
+var logger = utils.GetLogger("", slog.LevelDebug)
 
 func main() {
 	propsPathname := flag.String("config", "config/config.properties", "pathname of the configuration file")

@@ -11,7 +11,7 @@ import (
 	"pace/utils"
 )
 
-var termLogger = utils.GetLogger(slog.LevelWarn)
+var termLogger = utils.GetLogger("ABA Termination Middleware", slog.LevelDebug)
 
 type terminationMsg struct {
 	sender   uuid.UUID
@@ -32,6 +32,7 @@ func newTerminationMiddleware(brb *brb.BRBChannel) *terminationMiddleware {
 		closeChan: make(chan struct{}),
 	}
 	go tg.brbDeliver()
+	termLogger.Info("new termination middleware created")
 	return tg
 }
 
@@ -72,6 +73,7 @@ func (m *terminationMiddleware) parseMsg(msg []byte, sender uuid.UUID) (*termina
 }
 
 func (m *terminationMiddleware) broadcastDecision(instance uuid.UUID, decision byte) error {
+	termLogger.Debug("broadcasting termination decision", "instance", instance, "decision", decision)
 	buf := bytes.NewBuffer([]byte{})
 	writer := bufio.NewWriter(buf)
 	if idBytes, err := instance.MarshalBinary(); err != nil {

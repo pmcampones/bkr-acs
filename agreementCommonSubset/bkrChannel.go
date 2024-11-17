@@ -10,7 +10,7 @@ import (
 	"unsafe"
 )
 
-var bkrChannelLogger = utils.GetLogger(slog.LevelDebug)
+var bkrChannelLogger = utils.GetLogger("BKR Channel", slog.LevelDebug)
 
 type bkrProposalMsg struct {
 	bkrId    uuid.UUID
@@ -55,7 +55,7 @@ func NewBKRChannel(f uint, abaChannel *aba.AbaChannel, brbChannel *brb.BRBChanne
 		closeChan:     make(chan struct{}, 1),
 		closeListener: make(chan struct{}, 1),
 	}
-	bkrChannelLogger.Info("initializing bkr channel", "f", f, "participants", participants)
+	bkrChannelLogger.Info("initializing channel", "f", f, "participants", participants)
 	go c.listenBroadcasts()
 	go c.invoker()
 	return c

@@ -5,9 +5,12 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"github.com/google/uuid"
+	"log/slog"
 	"pace/overlayNetwork"
 	"pace/utils"
 )
+
+var middlewareLogger = utils.GetLogger("CT Middleware", slog.LevelDebug)
 
 type msg struct {
 	id     uuid.UUID
@@ -28,6 +31,7 @@ func newCTMiddleware(bebChannel *overlayNetwork.BEBChannel, deliverChan chan<- *
 		closeChan:   make(chan struct{}, 1),
 	}
 	go m.bebDeliver(bebChannel.GetBEBChan())
+	middlewareLogger.Info("new CT middleware created")
 	return m
 }
 
@@ -39,6 +43,7 @@ func (m *ctMiddleware) bebDeliver(bebChan <-chan overlayNetwork.BEBMsg) {
 			if err != nil {
 				channelLogger.Warn("unable to processMsg message during beb delivery", "error", err)
 			}
+			middlewareLogger.Debug("beb message delivered", "instance", structMsg.id, "sender", structMsg.sender, "share", structMsg.share)
 			m.deliverChan <- structMsg
 		case <-m.closeChan:
 			return
@@ -71,6 +76,7 @@ func (m *ctMiddleware) processMsg(content []byte, sender *ecdsa.PublicKey) (*msg
 }
 
 func (m *ctMiddleware) broadcastCTShare(id uuid.UUID, share ctShare) error {
+	middlewareLogger.Debug("broadcasting CT share", "instance", id, "share", share)
 	idBytes, err := id.MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("unable to marshal id: %v", err)

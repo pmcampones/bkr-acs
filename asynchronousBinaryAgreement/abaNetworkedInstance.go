@@ -5,10 +5,14 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/google/uuid"
+	"log/slog"
 	ct "pace/coinTosser"
+	"pace/utils"
 	"sync"
 	"unsafe"
 )
+
+var abaNetworkedLogger = utils.GetLogger("ABA Networked Instance", slog.LevelDebug)
 
 type abaNetworkedInstance struct {
 	id             uuid.UUID
@@ -41,7 +45,7 @@ func newAbaNetworkedInstance(id uuid.UUID, n, f uint, abamidware *abaMiddleware,
 }
 
 func (a *abaNetworkedInstance) propose(est byte) error {
-	abaChannelLogger.Debug("proposing initial estimate", "instanceId", a.id, "est", est)
+	abaNetworkedLogger.Info("proposing initial estimate", "instance", a.id, "est", est)
 	if err := a.instance.propose(est); err != nil {
 		return fmt.Errorf("unable to propose initial estimate: %w", err)
 	}
@@ -49,30 +53,33 @@ func (a *abaNetworkedInstance) propose(est byte) error {
 }
 
 func (a *abaNetworkedInstance) listener() {
-	abaChannelLogger.Debug("starting listener aba networked inner")
+	abaNetworkedLogger.Info("starting listener aba networked inner", "instance", a.id)
 	for {
 		select {
 		case bVal := <-a.instance.getBValChan():
 			if err := a.abamidware.broadcastBVal(a.id, bVal.r, bVal.val); err != nil {
-				abaChannelLogger.Warn("unable to broadcast bVal", "instanceId", a.id, "round", bVal.r, "error", err)
+				abaNetworkedLogger.Warn("unable to broadcast bVal", "instance", a.id, "round", bVal.r, "error", err)
 			}
 		case aux := <-a.instance.getAuxChan():
 			if err := a.abamidware.broadcastAux(a.id, aux.r, aux.val); err != nil {
-				abaChannelLogger.Warn("unable to broadcast aux", "instanceId", a.id, "round", aux.r, "error", err)
+				abaNetworkedLogger.Warn("unable to broadcast aux", "instance", a.id, "round", aux.r, "error", err)
 			}
 		case decision := <-a.instance.getDecisionChan():
 			if a.canOutputDecision() {
+				abaNetworkedLogger.Info("outputting decision", "instance", a.id, "decision", decision)
 				a.outputDecision(decision)
 			}
 		case coinReq := <-a.instance.getCoinReqChan():
-			coin, err := a.getCoin(coinReq)
-			if err != nil {
-				abaChannelLogger.Warn("unable to get coin", "instanceId", a.id, "round", coinReq, "error", err)
-			} else if err := a.instance.submitCoin(coin, coinReq); err != nil {
-				abaChannelLogger.Warn("unable to submit coin", "instanceId", a.id, "round", coinReq, "error", err)
-			}
+			go func() {
+				coin, err := a.getCoin(coinReq)
+				if err != nil {
+					abaNetworkedLogger.Warn("unable to get coin", "instance", a.id, "round", coinReq, "error", err)
+				} else if err := a.instance.submitCoin(coin, coinReq); err != nil {
+					abaNetworkedLogger.Warn("unable to submit coin", "instance", a.id, "round", coinReq, "error", err)
+				}
+			}()
 		case <-a.listenerClose:
-			abaChannelLogger.Debug("closing listener asynchronousBinaryAgreement networked inner")
+			abaNetworkedLogger.Info("closing listener", "instance", a.id)
 			return
 		}
 	}
@@ -84,7 +91,7 @@ func (a *abaNetworkedInstance) getCoin(round uint16) (byte, error) {
 		return bot, fmt.Errorf("unable to make coin seed: %w", err)
 	}
 	coinReceiver := make(chan bool)
-	abaChannelLogger.Debug("requesting coin", "instanceId", a.id, "round", round)
+	abaNetworkedLogger.Debug("requesting coin", "instance", a.id, "round", round)
 	a.ctChan.TossCoin(coinReqSeed, coinReceiver)
 	coin := <-coinReceiver
 	if coin {
@@ -109,7 +116,7 @@ func (a *abaNetworkedInstance) makeCoinSeed(round uint16) ([]byte, error) {
 }
 
 func (a *abaNetworkedInstance) submitBVal(bVal byte, sender uuid.UUID, r uint16) error {
-	abaChannelLogger.Debug("submitting bVal", "instanceId", a.id, "round", r, "bval", bVal)
+	abaNetworkedLogger.Debug("submitting bVal", "instance", a.id, "round", r, "bval", bVal)
 	if err := a.instance.submitBVal(bVal, sender, r); err != nil {
 		return fmt.Errorf("unable to submit bVal: %w", err)
 	}
@@ -117,7 +124,7 @@ func (a *abaNetworkedInstance) submitBVal(bVal byte, sender uuid.UUID, r uint16)
 }
 
 func (a *abaNetworkedInstance) submitAux(aux byte, sender uuid.UUID, r uint16) error {
-	abaChannelLogger.Debug("submitting aux", "instanceId", a.id, "round", r, "aux", aux)
+	abaNetworkedLogger.Debug("submitting aux", "instance", a.id, "round", r, "aux", aux)
 	if err := a.instance.submitAux(aux, sender, r); err != nil {
 		return fmt.Errorf("unable to submit aux: %w", err)
 	}
@@ -125,7 +132,7 @@ func (a *abaNetworkedInstance) submitAux(aux byte, sender uuid.UUID, r uint16) e
 }
 
 func (a *abaNetworkedInstance) submitDecision(decision byte, sender uuid.UUID) error {
-	abaChannelLogger.Debug("submitting decision", "instanceId", a.id, "decision", decision, "sender", sender)
+	abaNetworkedLogger.Debug("submitting decision", "instance", a.id, "decision", decision, "sender", sender)
 	finalDec, err := a.instance.submitDecision(decision, sender)
 	if err != nil {
 		return fmt.Errorf("unable to submit decision: %w", err)
@@ -152,14 +159,14 @@ func (a *abaNetworkedInstance) canOutputDecision() bool {
 func (a *abaNetworkedInstance) outputDecision(decision byte) {
 	a.decisionChan <- decision
 	if err := a.termidware.broadcastDecision(a.id, decision); err != nil {
-		abaChannelLogger.Warn("unable to broadcast decision", "instanceId", a.id, "decision", decision, "error", err)
+		abaNetworkedLogger.Warn("unable to broadcast decision", "instance", a.id, "decision", decision, "error", err)
 	}
 }
 
 func (a *abaNetworkedInstance) close() {
 	if a.instance != nil {
 		a.instance.close()
-		abaChannelLogger.Debug("signaling close asynchronousBinaryAgreement networked inner")
+		abaNetworkedLogger.Debug("signaling close listener", "instance", a.id)
 		a.listenerClose <- struct{}{}
 	}
 }

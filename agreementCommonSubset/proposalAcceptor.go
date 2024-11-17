@@ -4,9 +4,13 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/samber/mo"
+	"log/slog"
 	aba "pace/asynchronousBinaryAgreement"
+	"pace/utils"
 	"sync"
 )
+
+var proposalLogger = utils.GetLogger("Proposal Acceptor", slog.LevelDebug)
 
 type proposalAcceptor struct {
 	proposer  uuid.UUID
@@ -31,6 +35,7 @@ func newProposalAcceptor(abaId uuid.UUID, proposer uuid.UUID, abaChan *aba.AbaCh
 		output: make(chan mo.Option[[]byte], 1),
 	}
 	go p.waitResponse()
+	proposalLogger.Info("new proposal acceptor created", "instance", abaId)
 	return p
 }
 
@@ -40,6 +45,7 @@ func (p *proposalAcceptor) submitInput(input []byte) error {
 	if p.input.IsPresent() {
 		return fmt.Errorf("input already submitted")
 	}
+	proposalLogger.Info("submitting input", "input", input)
 	p.input = mo.Some(input)
 	p.inputChan <- input
 	if !p.proposed {
@@ -57,6 +63,7 @@ func (p *proposalAcceptor) rejectProposal() error {
 	if p.input.IsPresent() {
 		return fmt.Errorf("input already submitted")
 	}
+	proposalLogger.Info("rejecting proposal")
 	if !p.proposed {
 		p.proposed = true
 		if err := p.aba.Propose(reject); err != nil {
@@ -74,10 +81,13 @@ func (p *proposalAcceptor) hasProposed() bool {
 
 func (p *proposalAcceptor) waitResponse() {
 	res := p.aba.GetOutput()
+	proposalLogger.Info("received decision", "decision", res)
 	if res == accept {
 		acceptedProposal := <-p.inputChan
+		proposalLogger.Info("accepted proposal", "proposal", acceptedProposal)
 		p.output <- mo.Some(acceptedProposal)
 	} else {
+		proposalLogger.Info("rejected proposal")
 		p.output <- mo.None[[]byte]()
 	}
 }

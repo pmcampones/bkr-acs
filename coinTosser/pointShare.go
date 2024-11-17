@@ -57,3 +57,7 @@ func (ps *pointShare) unmarshalBinary(data []byte) error {
 	}
 	return nil
 }
+
+func (ps *pointShare) String() string {
+	return fmt.Sprintf("ID: %s, Point: %s", ps.id, ps.point)
+}

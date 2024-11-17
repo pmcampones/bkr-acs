@@ -8,8 +8,11 @@ import (
 	"github.com/cloudflare/circl/group"
 	ss "github.com/cloudflare/circl/secretsharing"
 	"github.com/samber/lo"
+	"log/slog"
 	"pace/utils"
 )
+
+var ssLogger = utils.GetLogger("SSChannel", slog.LevelDebug)
 
 type SSMsg struct {
 	Share      ss.Share
@@ -31,10 +34,12 @@ func NewSSChannel(node *Node, listenCode byte) *SSChannel {
 		deliverChan: make(chan *SSMsg),
 	}
 	node.attachMessageObserver(s)
+	ssLogger.Info("ss channel created", "listenCode", listenCode)
 	return s
 }
 
 func (s *SSChannel) SSBroadcast(secret group.Scalar, threshold uint, commitMaker func([]ss.Share) ([]byte, error)) error {
+	ssLogger.Debug("broadcasting secret shares", "secret", secret, "threshold", threshold)
 	secretSharing := ss.New(rand.Reader, threshold, secret)
 	peers := s.node.getPeers()
 	shares := secretSharing.Share(uint(len(peers) + 1))
@@ -56,7 +61,7 @@ func (s *SSChannel) SSBroadcast(secret group.Scalar, threshold uint, commitMaker
 	for _, tuple := range lo.Zip2(peers, shareMsgs[1:]) {
 		peer, msg := tuple.Unpack()
 		if err := s.node.unicast(msg, peer.conn); err != nil {
-			logger.Warn("error sending ss to connection", "peer name", peer.name, "error", err)
+			nodeLogger.Warn("error sending ss to connection", "peer name", peer.name, "error", err)
 		}
 	}
 	return nil
@@ -81,7 +86,7 @@ func (s *SSChannel) wrapMsg(share ss.Share, commitment []byte) ([]byte, error) {
 
 func (s *SSChannel) bebDeliver(msg []byte, sender *ecdsa.PublicKey) {
 	if msg[0] == s.listenCode {
-		logger.Debug("bebDeliver in ss channel", "msg", msg, "sender", sender)
+		nodeLogger.Debug("bebDeliver in ss channel", "msg", msg, "sender", sender)
 		msg = msg[1:]
 		id := group.Ristretto255.NewScalar()
 		val := group.Ristretto255.NewScalar()

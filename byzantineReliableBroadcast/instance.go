@@ -7,7 +7,7 @@ import (
 	"pace/utils"
 )
 
-var instanceLogger = utils.GetLogger(slog.LevelWarn)
+var instanceLogger = utils.GetLogger("BRB Instance", slog.LevelDebug)
 
 type brbInstance struct {
 	handler   *brbHandler
@@ -29,7 +29,6 @@ func newBrbInstance(n, f uint, echo, ready chan []byte, output chan BRBMsg) *brb
 }
 
 func (e *brbInstance) send(msg []byte, sender UUID) error {
-	instanceLogger.Debug("submitting send message handling command")
 	errChan := make(chan error)
 	e.commands <- func() {
 		errChan <- e.handler.handleSend(msg, sender)
@@ -38,7 +37,6 @@ func (e *brbInstance) send(msg []byte, sender UUID) error {
 }
 
 func (e *brbInstance) echo(msg []byte, sender UUID) error {
-	instanceLogger.Debug("submitting echo message handling command")
 	errChan := make(chan error)
 	e.commands <- func() {
 		errChan <- e.handler.handleEcho(msg, sender)
@@ -47,7 +45,6 @@ func (e *brbInstance) echo(msg []byte, sender UUID) error {
 }
 
 func (e *brbInstance) ready(msg []byte, sender UUID) error {
-	instanceLogger.Debug("submitting ready message handling command")
 	errChan := make(chan error)
 	e.commands <- func() {
 		errChan <- e.handler.handleReady(msg, sender)
@@ -68,7 +65,7 @@ func (e *brbInstance) invoker(commands <-chan func(), closeChan <-chan struct{})
 }
 
 func (e *brbInstance) close() {
-	instanceLogger.Info("sending signal to close bcb handler")
+	instanceLogger.Info("sending signal to close brb handler")
 	e.closeChan <- struct{}{}
 }
 

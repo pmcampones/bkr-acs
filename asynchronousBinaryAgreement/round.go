@@ -7,7 +7,7 @@ import (
 	"pace/utils"
 )
 
-var roundLogger = utils.GetLogger(slog.LevelWarn)
+var roundLogger = utils.GetLogger("MMR Round", slog.LevelDebug)
 
 type mmrRound struct {
 	n                uint

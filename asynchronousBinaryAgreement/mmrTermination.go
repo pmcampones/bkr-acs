@@ -3,7 +3,11 @@ package asynchronousBinaryAgreement
 import (
 	"fmt"
 	"github.com/google/uuid"
+	"log/slog"
+	"pace/utils"
 )
+
+var termLocalLogger = utils.GetLogger("Local MMR Termination", slog.LevelDebug)
 
 const bot byte = 2
 
@@ -29,6 +33,7 @@ func newMmrTermination(f uint) *mmrTermination {
 		closeChan: make(chan struct{}, 1),
 	}
 	go t.invoker()
+	termLocalLogger.Info("new mmrTermination created")
 	return t
 }
 
@@ -51,7 +56,6 @@ func (t *mmrTermination) submitDecision(decision byte, sender uuid.UUID) (byte, 
 			decision: bot,
 			err:      nil,
 		}
-		abaLogger.Debug("submitting decision", "decision", decision, "sender", sender)
 		if t.received[sender] {
 			res.err = fmt.Errorf("sender %s already submitted a decision", sender)
 		} else if decision >= bot {
@@ -59,7 +63,9 @@ func (t *mmrTermination) submitDecision(decision byte, sender uuid.UUID) (byte, 
 		} else {
 			t.received[sender] = true
 			t.results[decision]++
+			abaLogger.Debug("submitting decision", "decision", decision, "sender", sender, "received", t.results[decision], "required", t.f+1)
 			if t.results[decision] == t.f+1 {
+				abaLogger.Info("decision reached", "decision", decision)
 				res.decision = decision
 			}
 		}

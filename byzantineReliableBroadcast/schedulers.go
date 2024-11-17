@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-var schedulerLogger = utils.GetLogger(slog.LevelDebug)
+var schedulerLogger = utils.GetLogger("BRB Test Schedulers", slog.LevelDebug)
 
 type scheduler interface {
 	getChannels(t *testing.T, sender uuid.UUID) (chan []byte, chan []byte)

@@ -7,10 +7,13 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/google/uuid"
+	"log/slog"
 	"math/rand"
 	on "pace/overlayNetwork"
 	"pace/utils"
 )
+
+var middlewareLogger = utils.GetLogger("BRB Middleware", slog.LevelDebug)
 
 type middlewareCode byte
 
@@ -40,6 +43,7 @@ func newBRBMiddleware(bebChannel *on.BEBChannel, deliverChan chan<- *msg) *brbMi
 		closeChan:   make(chan struct{}, 1),
 	}
 	go m.bebDeliver(bebChannel.GetBEBChan())
+	middlewareLogger.Info("new BRB middleware created")
 	return m
 }
 
@@ -47,8 +51,7 @@ func (m *brbMiddleware) bebDeliver(bebChan <-chan on.BEBMsg) {
 	for {
 		select {
 		case bebMsg := <-bebChan:
-			structMsg, err := m.processMsg(bebMsg.Content, bebMsg.Sender)
-			if err != nil {
+			if structMsg, err := m.processMsg(bebMsg.Content, bebMsg.Sender); err != nil {
 				channelLogger.Warn("unable to processMsg message during beb delivery", "error", err)
 			} else {
 				channelLogger.Debug("received message from beb", "sender", structMsg.sender, "type", structMsg.kind, "msg", string(structMsg.content))
@@ -70,6 +73,7 @@ func (m *brbMiddleware) makeChannels(id uuid.UUID) (chan []byte, chan []byte) {
 }
 
 func (m *brbMiddleware) broadcastSend(msg []byte) error {
+	middlewareLogger.Debug("broadcasting msg", "kind", send, "msg", string(msg))
 	structuredMsg, err := m.wrapSend(msg)
 	if err != nil {
 		return fmt.Errorf("error wrapping send: %v", err)
@@ -115,6 +119,7 @@ func (m *brbMiddleware) broadcastMsgOnSignal(code middlewareCode, id uuid.UUID, 
 }
 
 func (m *brbMiddleware) broadcastMsg(code middlewareCode, id uuid.UUID, msg []byte) {
+	middlewareLogger.Debug("broadcasting msg", "kind", code, "msg", string(msg))
 	structuredMsg, err := m.wrapMessage(code, id, msg)
 	if err != nil {
 		channelLogger.Warn("error wrapping message", "error", err)

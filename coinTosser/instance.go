@@ -13,7 +13,7 @@ import (
 	"unsafe"
 )
 
-var ctLogger = utils.GetLogger(slog.LevelWarn)
+var ctLogger = utils.GetLogger("CT Instance", slog.LevelDebug)
 
 const dleqDst = "DLEQ"
 
@@ -30,6 +30,7 @@ func newCoinToss(threshold uint, base group.Element, d *deal, outputChan chan bo
 		d:    d,
 		sp:   sp,
 	}
+	ctLogger.Info("new coin toss created", "threshold", threshold, "base", base)
 	return ct
 }
 
@@ -39,6 +40,7 @@ func getDLEQParams() dleq.Params {
 }
 
 func (ct *coinToss) tossCoin() (ctShare, error) {
+	ctLogger.Info("tossing coin")
 	share := shareToPoint(ct.d.share, ct.base)
 	proof, err := ct.genProof(share.point)
 	if err != nil {
@@ -84,6 +86,7 @@ func (d *deal) getCommit(idx group.Scalar) (*group.Element, error) {
 }
 
 func (ct *coinToss) submitShare(ctShare ctShare, senderId UUID) error {
+	ctLogger.Debug("received share", "share", ctShare.pt, "sender", senderId)
 	isValid, err := ct.isTossValid(ctShare)
 	if err != nil {
 		return fmt.Errorf("unable to validate share from peer %v: %v", senderId, err)
@@ -134,7 +137,9 @@ func (sp *shareProcessor) processShare(share pointShare, senderId UUID) error {
 		}
 		sp.receivedFrom[senderId] = true
 		sp.shares = append(sp.shares, share)
+		ctLogger.Debug("received share", "num received", len(sp.shares), "required", sp.t+1)
 		if len(sp.shares) == int(sp.t+1) {
+			ctLogger.Info("received all shares required to compute coin")
 			secretPoint := recoverSecretFromPoints(sp.shares)
 			coin, err := hashPointToBool(secretPoint)
 			ctLogger.Info("computed random coin", "coin", coin)
@@ -154,14 +159,14 @@ func (sp *shareProcessor) invoker(commands <-chan func(), closeChan <-chan struc
 		case command := <-commands:
 			command()
 		case <-closeChan:
-			ctLogger.Debug("closing share processor")
+			ctLogger.Info("closing share processor")
 			return
 		}
 	}
 }
 
 func (sp *shareProcessor) close() {
-	ctLogger.Debug("sending signal to close share processor")
+	ctLogger.Info("sending signal to close share processor")
 	sp.closeChan <- struct{}{}
 }
 
