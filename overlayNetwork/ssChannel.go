@@ -12,7 +12,7 @@ import (
 	"pace/utils"
 )
 
-var ssLogger = utils.GetLogger("SSChannel", slog.LevelDebug)
+var ssLogger = utils.GetLogger("SSChannel", slog.LevelWarn)
 
 type SSMsg struct {
 	Share      ss.Share

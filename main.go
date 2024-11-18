@@ -10,25 +10,27 @@ import (
 	acs "pace/agreementCommonSubset"
 	aba "pace/asynchronousBinaryAgreement"
 	brb "pace/byzantineReliableBroadcast"
+	ct "pace/coinTosser"
 	on "pace/overlayNetwork"
 	"pace/utils"
 	"slices"
 )
 
-var logger = utils.GetLogger("", slog.LevelDebug)
+var logger = utils.GetLogger("Main", slog.LevelDebug)
 
 func main() {
 	propsPathname := flag.String("config", "config/config.properties", "pathname of the configuration file")
 	address := flag.String("address", "localhost:6000", "address of the current node")
 	flag.Parse()
 	props := properties.MustLoadFile(*propsPathname, properties.UTF8)
+	logger.Info("loaded properties", allPropertiesList(props)...)
 	contact := props.MustGetString("contact")
 	node, err := on.NewNode(*address, contact)
-	logger.Info("node created", "address", *address, "contact", contact)
 	if err != nil {
 		panic(fmt.Errorf("unable to create node: %v", err))
 	}
-	bkrChannel, err := computeBkrChannel(props, node)
+	logger.Info("node created", "address", *address, "contact", contact)
+	bkrChannel, err := computeBkrChannel(props, node, *address == contact)
 	if err != nil {
 		panic(fmt.Errorf("unable to create bkr channel: %v", err))
 	}
@@ -37,7 +39,16 @@ func main() {
 	}
 }
 
-func computeBkrChannel(props *properties.Properties, node *on.Node) (*acs.BKRChannel, error) {
+func allPropertiesList(props *properties.Properties) []any {
+	allProps := make([]any, 0, 2*len(props.Map()))
+	for key, val := range props.Map() {
+		allProps = append(allProps, key)
+		allProps = append(allProps, val)
+	}
+	return allProps
+}
+
+func computeBkrChannel(props *properties.Properties, node *on.Node, amContact bool) (*acs.BKRChannel, error) {
 	numNodes := props.MustGetUint("num_nodes")
 	faulty := props.MustGetUint("faulty")
 	dealCode := props.MustGetString("deal_code")[0]
@@ -58,6 +69,11 @@ func computeBkrChannel(props *properties.Properties, node *on.Node) (*acs.BKRCha
 	logger.Info("node joined the network and is waiting for peers", "numNodes", numNodes)
 	node.WaitForPeers(numNodes - 1)
 	logger.Info("network is stable")
+	if amContact {
+		if err := ct.DealSecret(dealSS, ct.RandomScalar(), faulty); err != nil {
+			return nil, fmt.Errorf("unable to deal secret: %v", err)
+		}
+	}
 	abaChannel, err := aba.NewAbaChannel(numNodes, faulty, dealSS, ctBeb, abaBeb, tBrb)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create aba channel: %v", err)

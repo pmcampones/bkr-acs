@@ -12,7 +12,7 @@ import (
 	"pace/utils"
 )
 
-var abaMiddlewareLogger = utils.GetLogger("ABA Middleware", slog.LevelDebug)
+var abaMiddlewareLogger = utils.GetLogger("ABA Middleware", slog.LevelWarn)
 
 type middlewareCode byte
 

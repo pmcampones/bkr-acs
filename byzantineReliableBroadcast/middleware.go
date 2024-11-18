@@ -13,7 +13,7 @@ import (
 	"pace/utils"
 )
 
-var middlewareLogger = utils.GetLogger("BRB Middleware", slog.LevelDebug)
+var middlewareLogger = utils.GetLogger("BRB Middleware", slog.LevelWarn)
 
 type middlewareCode byte
 

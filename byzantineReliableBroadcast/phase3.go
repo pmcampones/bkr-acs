@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-var phase3Logger = utils.GetLogger("BRB Phase 3", slog.LevelDebug)
+var phase3Logger = utils.GetLogger("BRB Phase 3", slog.LevelWarn)
 
 var idLen = unsafe.Sizeof(uuid.UUID{})
 

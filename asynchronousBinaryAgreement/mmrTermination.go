@@ -7,7 +7,7 @@ import (
 	"pace/utils"
 )
 
-var termLocalLogger = utils.GetLogger("Local MMR Termination", slog.LevelDebug)
+var termLocalLogger = utils.GetLogger("Local MMR Termination", slog.LevelWarn)
 
 const bot byte = 2
 

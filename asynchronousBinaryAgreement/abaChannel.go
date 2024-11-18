@@ -10,7 +10,7 @@ import (
 	"pace/utils"
 )
 
-var abaChannelLogger = utils.GetLogger("ABA Channel", slog.LevelDebug)
+var abaChannelLogger = utils.GetLogger("ABA Channel", slog.LevelWarn)
 
 type AbaInstance struct {
 	inner  *abaNetworkedInstance
@@ -60,6 +60,7 @@ func NewAbaChannel(n, f uint, dealSS *on.SSChannel, ctBeb, mBeb *on.BEBChannel, 
 	}
 	go c.invoker()
 	go c.listener()
+	abaChannelLogger.Info("initialized aba channel", "n", n, "f", f)
 	return c, nil
 }
 
@@ -70,6 +71,7 @@ func (c *AbaChannel) NewAbaInstance(instanceId uuid.UUID) *AbaInstance {
 			res <- nil
 			return fmt.Errorf("unable to get aba inner: %w", err)
 		} else {
+			abaChannelLogger.Debug("outputting aba instance", "id", instanceId)
 			res <- instance
 		}
 		return nil
@@ -152,12 +154,13 @@ func (c *AbaChannel) newAbaInstance(id uuid.UUID) *AbaInstance {
 	}
 	c.instances[id] = wrapper
 	go c.handleAsyncResultDelivery(id, wrapper)
+	abaChannelLogger.Debug("created new aba instance", "id", id)
 	return wrapper
 }
 
 func (c *AbaChannel) handleAsyncResultDelivery(id uuid.UUID, wrapper *AbaInstance) {
 	finalDecision := <-wrapper.inner.decisionChan
-	abaChannelLogger.Info("outputing decision for aba instance", "id", id, "decision", finalDecision)
+	abaChannelLogger.Debug("outputting decision for aba instance", "id", id, "decision", finalDecision)
 	wrapper.output <- finalDecision
 	<-wrapper.inner.terminatedChan
 	abaChannelLogger.Info("closing aba instance", "id", id)

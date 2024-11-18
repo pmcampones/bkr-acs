@@ -11,7 +11,7 @@ import (
 	"pace/utils"
 )
 
-var channelLogger = utils.GetLogger("CT Channel", slog.LevelDebug)
+var channelLogger = utils.GetLogger("CT Channel", slog.LevelWarn)
 
 type CoinObserver interface {
 	DeliverCoin(id UUID, toss bool)
@@ -45,6 +45,7 @@ func NewCoinTosserChannel(ssChan *on.SSChannel, bebChan *on.BEBChannel, t uint) 
 	}
 	go c.initializeChannel(ssChan)
 	go c.bebDeliver(deliverChan)
+	channelLogger.Info("initializing channel", "threshold", t)
 	return c, nil
 }
 

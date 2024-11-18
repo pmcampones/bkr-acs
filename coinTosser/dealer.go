@@ -15,7 +15,7 @@ import (
 	"unsafe"
 )
 
-var dealLogger = utils.GetLogger("Deal", slog.LevelDebug)
+var dealLogger = utils.GetLogger("Deal", slog.LevelWarn)
 
 func DealSecret(ssChannel *on.SSChannel, secret group.Scalar, threshold uint) error {
 	dealLogger.Info("dealing secret", "secret", secret, "threshold", threshold)

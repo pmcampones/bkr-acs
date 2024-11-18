@@ -10,7 +10,7 @@ import (
 	"pace/utils"
 )
 
-var bkrLogger = utils.GetLogger("BKR Instance", slog.LevelDebug)
+var bkrLogger = utils.GetLogger("BKR Instance", slog.LevelWarn)
 
 const (
 	accept = 1

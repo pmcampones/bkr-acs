@@ -15,7 +15,7 @@ import (
 	"sync"
 )
 
-var nodeLogger = utils.GetLogger("Network Node", slog.LevelDebug)
+var nodeLogger = utils.GetLogger("Network Node", slog.LevelWarn)
 
 type nodeMessageObserver interface {
 	bebDeliver(msg []byte, sender *ecdsa.PublicKey)

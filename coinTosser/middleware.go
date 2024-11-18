@@ -10,7 +10,7 @@ import (
 	"pace/utils"
 )
 
-var middlewareLogger = utils.GetLogger("CT Middleware", slog.LevelDebug)
+var middlewareLogger = utils.GetLogger("CT Middleware", slog.LevelWarn)
 
 type msg struct {
 	id     uuid.UUID

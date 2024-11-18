@@ -13,7 +13,7 @@ import (
 	"unsafe"
 )
 
-var ctLogger = utils.GetLogger("CT Instance", slog.LevelDebug)
+var ctLogger = utils.GetLogger("CT Instance", slog.LevelWarn)
 
 const dleqDst = "DLEQ"
 

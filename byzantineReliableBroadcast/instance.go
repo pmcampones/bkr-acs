@@ -7,7 +7,7 @@ import (
 	"pace/utils"
 )
 
-var instanceLogger = utils.GetLogger("BRB Instance", slog.LevelDebug)
+var instanceLogger = utils.GetLogger("BRB Instance", slog.LevelWarn)
 
 type brbInstance struct {
 	handler   *brbHandler

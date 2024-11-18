@@ -1,6 +1,7 @@
 package coinTosser
 
 import (
+	"crypto/rand"
 	"github.com/cloudflare/circl/group"
 )
 
@@ -10,6 +11,10 @@ func mulScalar(a, b group.Scalar) group.Scalar {
 
 func NewScalar(n uint64) group.Scalar {
 	return group.Ristretto255.NewScalar().SetUint64(n)
+}
+
+func RandomScalar() group.Scalar {
+	return group.Ristretto255.RandomScalar(rand.Reader)
 }
 
 func sub(a, b group.Scalar) group.Scalar {

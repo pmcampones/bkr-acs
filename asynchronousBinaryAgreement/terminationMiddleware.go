@@ -11,7 +11,7 @@ import (
 	"pace/utils"
 )
 
-var termLogger = utils.GetLogger("ABA Termination Middleware", slog.LevelDebug)
+var termLogger = utils.GetLogger("ABA Termination Middleware", slog.LevelWarn)
 
 type terminationMsg struct {
 	sender   uuid.UUID

@@ -10,7 +10,7 @@ import (
 	"unsafe"
 )
 
-var bkrChannelLogger = utils.GetLogger("BKR Channel", slog.LevelDebug)
+var bkrChannelLogger = utils.GetLogger("BKR Channel", slog.LevelWarn)
 
 type bkrProposalMsg struct {
 	bkrId    uuid.UUID

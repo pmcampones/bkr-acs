@@ -10,7 +10,7 @@ import (
 	"pace/utils"
 )
 
-var peerLogger = utils.GetLogger("Peer", slog.LevelDebug)
+var peerLogger = utils.GetLogger("Peer", slog.LevelWarn)
 
 type listenerCloseError struct {
 	err error

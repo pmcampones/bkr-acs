@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-var proposalLogger = utils.GetLogger("Proposal Acceptor", slog.LevelDebug)
+var proposalLogger = utils.GetLogger("Proposal Acceptor", slog.LevelWarn)
 
 type proposalAcceptor struct {
 	proposer  uuid.UUID
@@ -31,11 +31,10 @@ func newProposalAcceptor(abaId uuid.UUID, proposer uuid.UUID, abaChan *aba.AbaCh
 		inputLock: sync.Mutex{},
 		proposed:  false,
 		inputChan: make(chan []byte, 1),
-
-		output: make(chan mo.Option[[]byte], 1),
+		output:    make(chan mo.Option[[]byte], 1),
 	}
 	go p.waitResponse()
-	proposalLogger.Info("new proposal acceptor created", "instance", abaId)
+	proposalLogger.Info("new proposal acceptor created", "instance", abaId, "proposer", proposer)
 	return p
 }
 
@@ -45,7 +44,7 @@ func (p *proposalAcceptor) submitInput(input []byte) error {
 	if p.input.IsPresent() {
 		return fmt.Errorf("input already submitted")
 	}
-	proposalLogger.Info("submitting input", "input", input)
+	proposalLogger.Info("submitting input", "proposer", p.proposer, "input", string(input))
 	p.input = mo.Some(input)
 	p.inputChan <- input
 	if !p.proposed {
@@ -63,7 +62,7 @@ func (p *proposalAcceptor) rejectProposal() error {
 	if p.input.IsPresent() {
 		return fmt.Errorf("input already submitted")
 	}
-	proposalLogger.Info("rejecting proposal")
+	proposalLogger.Info("rejecting proposal", "proposer", p.proposer)
 	if !p.proposed {
 		p.proposed = true
 		if err := p.aba.Propose(reject); err != nil {
@@ -81,10 +80,10 @@ func (p *proposalAcceptor) hasProposed() bool {
 
 func (p *proposalAcceptor) waitResponse() {
 	res := p.aba.GetOutput()
-	proposalLogger.Info("received decision", "decision", res)
+	proposalLogger.Info("received decision", "proposer", p.proposer, "decision", res)
 	if res == accept {
 		acceptedProposal := <-p.inputChan
-		proposalLogger.Info("accepted proposal", "proposal", acceptedProposal)
+		proposalLogger.Info("accepted proposal", "proposer", p.proposer, "proposal", string(acceptedProposal))
 		p.output <- mo.Some(acceptedProposal)
 	} else {
 		proposalLogger.Info("rejected proposal")

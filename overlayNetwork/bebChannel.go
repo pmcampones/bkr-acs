@@ -6,7 +6,7 @@ import (
 	"pace/utils"
 )
 
-var bebLogger = utils.GetLogger("BEB Channel", slog.LevelDebug)
+var bebLogger = utils.GetLogger("BEB Channel", slog.LevelWarn)
 
 type BEBMsg struct {
 	Content []byte

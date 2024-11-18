@@ -7,7 +7,7 @@ import (
 	"pace/utils"
 )
 
-var phase2Logger = utils.GetLogger("BRB Phase 2", slog.LevelDebug)
+var phase2Logger = utils.GetLogger("BRB Phase 2", slog.LevelWarn)
 
 type brbPhase2Handler struct {
 	data       *brbData

@@ -12,7 +12,7 @@ import (
 	"unsafe"
 )
 
-var abaNetworkedLogger = utils.GetLogger("ABA Networked Instance", slog.LevelDebug)
+var abaNetworkedLogger = utils.GetLogger("ABA Networked Instance", slog.LevelWarn)
 
 type abaNetworkedInstance struct {
 	id             uuid.UUID
