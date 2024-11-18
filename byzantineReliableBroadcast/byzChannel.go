@@ -1,8 +1,8 @@
 package byzantineReliableBroadcast
 
 import (
+	on "bkr-acs/overlayNetwork"
 	"github.com/google/uuid"
-	on "pace/overlayNetwork"
 )
 
 const byzMsg = "I am byzantine and I hate candy :("

@@ -1,18 +1,18 @@
 package main
 
 import (
+	acs "bkr-acs/agreementCommonSubset"
+	aba "bkr-acs/asynchronousBinaryAgreement"
+	brb "bkr-acs/byzantineReliableBroadcast"
+	ct "bkr-acs/coinTosser"
+	on "bkr-acs/overlayNetwork"
+	"bkr-acs/utils"
 	"flag"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/magiconair/properties"
 	"github.com/samber/lo"
 	"log/slog"
-	acs "pace/agreementCommonSubset"
-	aba "pace/asynchronousBinaryAgreement"
-	brb "pace/byzantineReliableBroadcast"
-	ct "pace/coinTosser"
-	on "pace/overlayNetwork"
-	"pace/utils"
 	"slices"
 )
 

@@ -1,13 +1,13 @@
 package coinTosser
 
 import (
+	"bkr-acs/overlayNetwork"
+	"bkr-acs/utils"
 	"bytes"
 	"crypto/ecdsa"
 	"fmt"
 	"github.com/google/uuid"
 	"log/slog"
-	"pace/overlayNetwork"
-	"pace/utils"
 )
 
 var middlewareLogger = utils.GetLogger("CT Middleware", slog.LevelWarn)

@@ -1,6 +1,8 @@
 package byzantineReliableBroadcast
 
 import (
+	on "bkr-acs/overlayNetwork"
+	"bkr-acs/utils"
 	"bufio"
 	"bytes"
 	"crypto/ecdsa"
@@ -9,8 +11,6 @@ import (
 	"github.com/google/uuid"
 	"log/slog"
 	"math/rand"
-	on "pace/overlayNetwork"
-	"pace/utils"
 )
 
 var middlewareLogger = utils.GetLogger("BRB Middleware", slog.LevelWarn)

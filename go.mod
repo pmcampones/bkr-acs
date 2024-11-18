@@ -1,4 +1,4 @@
-module pace
+module bkr-acs
 
 go 1.23.0
 

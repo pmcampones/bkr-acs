@@ -1,6 +1,8 @@
 package asynchronousBinaryAgreement
 
 import (
+	on "bkr-acs/overlayNetwork"
+	"bkr-acs/utils"
 	"bufio"
 	"bytes"
 	"crypto/ecdsa"
@@ -8,8 +10,6 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"log/slog"
-	on "pace/overlayNetwork"
-	"pace/utils"
 )
 
 var abaMiddlewareLogger = utils.GetLogger("ABA Middleware", slog.LevelWarn)

@@ -1,6 +1,7 @@
 package coinTosser
 
 import (
+	"bkr-acs/utils"
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
@@ -8,7 +9,6 @@ import (
 	"github.com/cloudflare/circl/group"
 	ss "github.com/cloudflare/circl/secretsharing"
 	"github.com/samber/lo"
-	"pace/utils"
 )
 
 func shareSecret(threshold uint, nodes uint, secret group.Scalar) []ss.Share {

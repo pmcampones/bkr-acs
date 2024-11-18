@@ -1,10 +1,10 @@
 package coinTosser
 
 import (
+	"bkr-acs/utils"
 	"fmt"
 	"github.com/cloudflare/circl/group"
 	ss "github.com/cloudflare/circl/secretsharing"
-	"pace/utils"
 )
 
 // pointShare is a secret share hidden in a group operation.

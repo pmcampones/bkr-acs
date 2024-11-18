@@ -1,9 +1,9 @@
 package overlayNetwork
 
 import (
+	"bkr-acs/utils"
 	"crypto/ecdsa"
 	"log/slog"
-	"pace/utils"
 )
 
 var bebLogger = utils.GetLogger("BEB Channel", slog.LevelWarn)

@@ -1,6 +1,7 @@
 package coinTosser
 
 import (
+	"bkr-acs/utils"
 	"crypto"
 	"encoding/binary"
 	"fmt"
@@ -9,7 +10,6 @@ import (
 	. "github.com/google/uuid"
 	"log/slog"
 	"math/rand"
-	"pace/utils"
 	"unsafe"
 )
 

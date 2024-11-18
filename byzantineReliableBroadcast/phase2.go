@@ -1,10 +1,10 @@
 package byzantineReliableBroadcast
 
 import (
+	"bkr-acs/utils"
 	"fmt"
 	"github.com/google/uuid"
 	"log/slog"
-	"pace/utils"
 )
 
 var phase2Logger = utils.GetLogger("BRB Phase 2", slog.LevelWarn)

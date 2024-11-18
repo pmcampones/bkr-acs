@@ -1,13 +1,13 @@
 package asynchronousBinaryAgreement
 
 import (
+	"bkr-acs/utils"
 	"crypto/sha256"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"log/slog"
 	"math/rand"
-	"pace/utils"
 	"testing"
 	"time"
 )

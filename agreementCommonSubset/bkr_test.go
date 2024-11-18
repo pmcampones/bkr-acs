@@ -1,15 +1,15 @@
 package agreementCommonSubset
 
 import (
+	aba "bkr-acs/asynchronousBinaryAgreement"
+	brb "bkr-acs/byzantineReliableBroadcast"
+	ct "bkr-acs/coinTosser"
+	on "bkr-acs/overlayNetwork"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"math/rand/v2"
-	aba "pace/asynchronousBinaryAgreement"
-	brb "pace/byzantineReliableBroadcast"
-	ct "pace/coinTosser"
-	on "pace/overlayNetwork"
 	"slices"
 	"testing"
 	"time"

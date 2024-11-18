@@ -1,6 +1,8 @@
 package coinTosser
 
 import (
+	on "bkr-acs/overlayNetwork"
+	"bkr-acs/utils"
 	"bufio"
 	"bytes"
 	"crypto/rand"
@@ -10,8 +12,6 @@ import (
 	ss "github.com/cloudflare/circl/secretsharing"
 	"github.com/samber/lo"
 	"log/slog"
-	on "pace/overlayNetwork"
-	"pace/utils"
 	"unsafe"
 )
 

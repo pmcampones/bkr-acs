@@ -1,11 +1,11 @@
 package byzantineReliableBroadcast
 
 import (
+	on "bkr-acs/overlayNetwork"
 	"bytes"
 	"fmt"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	on "pace/overlayNetwork"
 	"testing"
 )
 

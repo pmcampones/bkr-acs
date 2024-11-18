@@ -1,10 +1,10 @@
 package asynchronousBinaryAgreement
 
 import (
+	brb "bkr-acs/byzantineReliableBroadcast"
+	on "bkr-acs/overlayNetwork"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	brb "pace/byzantineReliableBroadcast"
-	on "pace/overlayNetwork"
 	"testing"
 )
 

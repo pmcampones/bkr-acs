@@ -1,10 +1,10 @@
 package coinTosser
 
 import (
+	on "bkr-acs/overlayNetwork"
 	"fmt"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	on "pace/overlayNetwork"
 	"testing"
 )
 

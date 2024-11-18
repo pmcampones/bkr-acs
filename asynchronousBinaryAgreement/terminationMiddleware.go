@@ -1,14 +1,14 @@
 package asynchronousBinaryAgreement
 
 import (
+	brb "bkr-acs/byzantineReliableBroadcast"
+	"bkr-acs/utils"
 	"bufio"
 	"bytes"
 	"encoding/binary"
 	"fmt"
 	"github.com/google/uuid"
 	"log/slog"
-	brb "pace/byzantineReliableBroadcast"
-	"pace/utils"
 )
 
 var termLogger = utils.GetLogger("ABA Termination Middleware", slog.LevelWarn)

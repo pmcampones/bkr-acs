@@ -1,10 +1,10 @@
 package asynchronousBinaryAgreement
 
 import (
+	"bkr-acs/utils"
 	"fmt"
 	"github.com/google/uuid"
 	"log/slog"
-	"pace/utils"
 )
 
 var roundLogger = utils.GetLogger("MMR Round", slog.LevelWarn)

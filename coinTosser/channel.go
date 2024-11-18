@@ -1,14 +1,14 @@
 package coinTosser
 
 import (
+	on "bkr-acs/overlayNetwork"
+	"bkr-acs/utils"
 	"fmt"
 	"github.com/cloudflare/circl/group"
 	_ "github.com/cloudflare/circl/group"
 	. "github.com/google/uuid"
 	"github.com/samber/mo"
 	"log/slog"
-	on "pace/overlayNetwork"
-	"pace/utils"
 )
 
 var channelLogger = utils.GetLogger("CT Channel", slog.LevelWarn)

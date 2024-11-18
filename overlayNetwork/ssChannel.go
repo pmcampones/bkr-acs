@@ -1,6 +1,7 @@
 package overlayNetwork
 
 import (
+	"bkr-acs/utils"
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
@@ -9,7 +10,6 @@ import (
 	ss "github.com/cloudflare/circl/secretsharing"
 	"github.com/samber/lo"
 	"log/slog"
-	"pace/utils"
 )
 
 var ssLogger = utils.GetLogger("SSChannel", slog.LevelWarn)

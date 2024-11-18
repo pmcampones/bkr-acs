@@ -1,14 +1,14 @@
 package asynchronousBinaryAgreement
 
 import (
+	brb "bkr-acs/byzantineReliableBroadcast"
+	ct "bkr-acs/coinTosser"
+	on "bkr-acs/overlayNetwork"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"math/rand/v2"
-	brb "pace/byzantineReliableBroadcast"
-	ct "pace/coinTosser"
-	on "pace/overlayNetwork"
 	"testing"
 )
 

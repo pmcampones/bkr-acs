@@ -1,13 +1,13 @@
 package asynchronousBinaryAgreement
 
 import (
+	ct "bkr-acs/coinTosser"
+	"bkr-acs/utils"
 	"bytes"
 	"encoding/binary"
 	"fmt"
 	"github.com/google/uuid"
 	"log/slog"
-	ct "pace/coinTosser"
-	"pace/utils"
 	"sync"
 	"unsafe"
 )

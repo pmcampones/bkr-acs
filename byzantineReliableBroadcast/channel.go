@@ -1,11 +1,11 @@
 package byzantineReliableBroadcast
 
 import (
+	on "bkr-acs/overlayNetwork"
+	"bkr-acs/utils"
 	"fmt"
 	. "github.com/google/uuid"
 	"log/slog"
-	on "pace/overlayNetwork"
-	"pace/utils"
 )
 
 var channelLogger = utils.GetLogger("BRB Channel", slog.LevelWarn)

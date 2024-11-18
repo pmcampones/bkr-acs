@@ -1,9 +1,9 @@
 package asynchronousBinaryAgreement
 
 import (
+	on "bkr-acs/overlayNetwork"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	on "pace/overlayNetwork"
 	"testing"
 )
 

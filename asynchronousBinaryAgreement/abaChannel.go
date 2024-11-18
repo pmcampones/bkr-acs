@@ -1,13 +1,13 @@
 package asynchronousBinaryAgreement
 
 import (
+	brb "bkr-acs/byzantineReliableBroadcast"
+	ct "bkr-acs/coinTosser"
+	on "bkr-acs/overlayNetwork"
+	"bkr-acs/utils"
 	"fmt"
 	"github.com/google/uuid"
 	"log/slog"
-	brb "pace/byzantineReliableBroadcast"
-	ct "pace/coinTosser"
-	on "pace/overlayNetwork"
-	"pace/utils"
 )
 
 var abaChannelLogger = utils.GetLogger("ABA Channel", slog.LevelWarn)

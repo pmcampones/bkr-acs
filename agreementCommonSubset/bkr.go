@@ -1,13 +1,13 @@
 package agreementCommonSubset
 
 import (
+	aba "bkr-acs/asynchronousBinaryAgreement"
+	"bkr-acs/utils"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"github.com/samber/mo"
 	"log/slog"
-	aba "pace/asynchronousBinaryAgreement"
-	"pace/utils"
 )
 
 var bkrLogger = utils.GetLogger("BKR Instance", slog.LevelWarn)
