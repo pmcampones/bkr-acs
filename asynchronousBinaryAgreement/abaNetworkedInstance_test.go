@@ -1,7 +1,6 @@
 package asynchronousBinaryAgreement
 
 import (
-	brb "bkr-acs/byzantineReliableBroadcast"
 	ct "bkr-acs/coinTosser"
 	on "bkr-acs/overlayNetwork"
 	"fmt"
@@ -91,8 +90,7 @@ func makeAbaNetworkedInstance(t *testing.T, id uuid.UUID, node *on.Node, ssChan 
 	abaBebChan := on.NewBEBChannel(node, 'c')
 	abamidware := newABAMiddleware(abaBebChan)
 	termBebChan := on.NewBEBChannel(node, 'd')
-	termBrbChan := brb.NewBRBChannel(n, f, termBebChan)
-	termidware := newTerminationMiddleware(termBrbChan)
+	termidware := newTerminationMiddleware(termBebChan)
 	abaInstance := newAbaNetworkedInstance(id, n, f, abamidware, termidware, ctChan)
 	return abaInstance
 }

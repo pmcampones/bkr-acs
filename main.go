@@ -59,7 +59,6 @@ func computeBkrChannel(props *properties.Properties, node *on.Node, amContact bo
 	abaBeb := on.NewBEBChannel(node, abaCode)
 	tCode := props.MustGetString("t_code")[0]
 	tBeb := on.NewBEBChannel(node, tCode)
-	tBrb := brb.NewBRBChannel(numNodes, faulty, tBeb)
 	bkrCode := props.MustGetString("bkr_code")[0]
 	bkrBeb := on.NewBEBChannel(node, bkrCode)
 	bkrBrb := brb.NewBRBChannel(numNodes, faulty, bkrBeb)
@@ -74,7 +73,7 @@ func computeBkrChannel(props *properties.Properties, node *on.Node, amContact bo
 			return nil, fmt.Errorf("unable to deal secret: %v", err)
 		}
 	}
-	abaChannel, err := aba.NewAbaChannel(numNodes, faulty, dealSS, ctBeb, abaBeb, tBrb)
+	abaChannel, err := aba.NewAbaChannel(numNodes, faulty, dealSS, ctBeb, abaBeb, tBeb)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create aba channel: %v", err)
 	}

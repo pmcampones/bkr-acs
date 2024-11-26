@@ -1,7 +1,6 @@
 package asynchronousBinaryAgreement
 
 import (
-	brb "bkr-acs/byzantineReliableBroadcast"
 	on "bkr-acs/overlayNetwork"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -13,9 +12,8 @@ func TestMarshalAndUnmarshalTerminationMessage(t *testing.T) {
 	decision := byte(1)
 	node := on.GetTestNode(t, "localhost:6000", "localhost:6000")
 	bebChannel := on.NewBEBChannel(node, 't')
-	brbChannel := brb.NewBRBChannel(1, 0, bebChannel)
 	on.InitializeNodes(t, []*on.Node{node})
-	m := newTerminationMiddleware(brbChannel)
+	m := newTerminationMiddleware(bebChannel)
 	assert.NoError(t, m.broadcastDecision(abaInstance, decision))
 	tm := <-m.output
 	assert.Equal(t, abaInstance, tm.instance)

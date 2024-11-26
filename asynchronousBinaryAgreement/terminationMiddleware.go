@@ -1,7 +1,7 @@
 package asynchronousBinaryAgreement
 
 import (
-	brb "bkr-acs/byzantineReliableBroadcast"
+	on "bkr-acs/overlayNetwork"
 	"bkr-acs/utils"
 	"bufio"
 	"bytes"
@@ -20,14 +20,14 @@ type terminationMsg struct {
 }
 
 type terminationMiddleware struct {
-	brb       *brb.BRBChannel
+	beb       *on.BEBChannel
 	output    chan *terminationMsg
 	closeChan chan struct{}
 }
 
-func newTerminationMiddleware(brb *brb.BRBChannel) *terminationMiddleware {
+func newTerminationMiddleware(beb *on.BEBChannel) *terminationMiddleware {
 	tg := &terminationMiddleware{
-		brb:       brb,
+		beb:       beb,
 		output:    make(chan *terminationMsg),
 		closeChan: make(chan struct{}),
 	}
@@ -39,8 +39,10 @@ func newTerminationMiddleware(brb *brb.BRBChannel) *terminationMiddleware {
 func (m *terminationMiddleware) brbDeliver() {
 	for {
 		select {
-		case brbMsg := <-m.brb.BrbDeliver:
-			m.processMsg(brbMsg)
+		case brbMsg := <-m.beb.GetBEBChan():
+			if err := m.processMsg(brbMsg); err != nil {
+				termLogger.Warn("unable to process termination message", "error", err)
+			}
 		case <-m.closeChan:
 			termLogger.Info("closing termination gadget")
 			return
@@ -48,13 +50,18 @@ func (m *terminationMiddleware) brbDeliver() {
 	}
 }
 
-func (m *terminationMiddleware) processMsg(brbMsg brb.BRBMsg) {
-	if tm, err := m.parseMsg(brbMsg.Content, brbMsg.Sender); err != nil {
+func (m *terminationMiddleware) processMsg(brbMsg on.BEBMsg) error {
+	senderId, err := utils.PkToUUID(brbMsg.Sender)
+	if err != nil {
+		return fmt.Errorf("unable to convert public key to uuid: %v", err)
+	}
+	if tm, err := m.parseMsg(brbMsg.Content, senderId); err != nil {
 		termLogger.Warn("unable to parse termination message", "error", err)
 	} else {
 		termLogger.Debug("received termination message", "sender", tm.sender, "inner", tm.instance, "decision", tm.decision)
 		go func() { m.output <- tm }()
 	}
+	return nil
 }
 
 func (m *terminationMiddleware) parseMsg(msg []byte, sender uuid.UUID) (*terminationMsg, error) {
@@ -84,7 +91,7 @@ func (m *terminationMiddleware) broadcastDecision(instance uuid.UUID, decision b
 		return fmt.Errorf("unable to write decision to termination message: %v", err)
 	} else if err := writer.Flush(); err != nil {
 		return fmt.Errorf("unable to flush termination message buffer: %v", err)
-	} else if err := m.brb.BRBroadcast(buf.Bytes()); err != nil {
+	} else if err := m.beb.BEBroadcast(buf.Bytes()); err != nil {
 		return fmt.Errorf("unable to broadcast termination message: %v", err)
 	}
 	return nil

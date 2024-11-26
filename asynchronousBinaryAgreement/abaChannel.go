@@ -1,7 +1,6 @@
 package asynchronousBinaryAgreement
 
 import (
-	brb "bkr-acs/byzantineReliableBroadcast"
 	ct "bkr-acs/coinTosser"
 	on "bkr-acs/overlayNetwork"
 	"bkr-acs/utils"
@@ -41,7 +40,7 @@ type AbaChannel struct {
 	invokerClose  chan struct{}
 }
 
-func NewAbaChannel(n, f uint, dealSS *on.SSChannel, ctBeb, mBeb *on.BEBChannel, tBrb *brb.BRBChannel) (*AbaChannel, error) {
+func NewAbaChannel(n, f uint, dealSS *on.SSChannel, ctBeb, mBeb, tBeb *on.BEBChannel) (*AbaChannel, error) {
 	ctChannel, err := ct.NewCoinTosserChannel(dealSS, ctBeb, f)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create coin tosser channel: %w", err)
@@ -52,7 +51,7 @@ func NewAbaChannel(n, f uint, dealSS *on.SSChannel, ctBeb, mBeb *on.BEBChannel, 
 		instances:     make(map[uuid.UUID]*AbaInstance),
 		finished:      make(map[uuid.UUID]bool),
 		ctChannel:     ctChannel,
-		termidware:    newTerminationMiddleware(tBrb),
+		termidware:    newTerminationMiddleware(tBeb),
 		middleware:    newABAMiddleware(mBeb),
 		commands:      make(chan func() error),
 		listenerClose: make(chan struct{}, 1),

@@ -2,7 +2,6 @@ package agreementCommonSubset
 
 import (
 	aba "bkr-acs/asynchronousBinaryAgreement"
-	brb "bkr-acs/byzantineReliableBroadcast"
 	ct "bkr-acs/coinTosser"
 	on "bkr-acs/overlayNetwork"
 	"fmt"
@@ -93,11 +92,10 @@ func getAbachans(t *testing.T, n uint, f uint, nodes []*on.Node) []*aba.AbaChann
 	ctBebs := lo.Map(nodes, func(node *on.Node, _ int) *on.BEBChannel { return on.NewBEBChannel(node, 'c') })
 	mBebs := lo.Map(nodes, func(node *on.Node, _ int) *on.BEBChannel { return on.NewBEBChannel(node, 'm') })
 	tBebs := lo.Map(nodes, func(node *on.Node, _ int) *on.BEBChannel { return on.NewBEBChannel(node, 't') })
-	tBrbs := lo.Map(tBebs, func(beb *on.BEBChannel, _ int) *brb.BRBChannel { return brb.NewBRBChannel(n, f, beb) })
 	on.InitializeNodes(t, nodes)
 	assert.NoError(t, ct.DealSecret(dealSSs[0], ct.NewScalar(42), f))
-	abachans := lo.ZipBy4(dealSSs, ctBebs, mBebs, tBrbs, func(dealSS *on.SSChannel, ctBeb *on.BEBChannel, mBeb *on.BEBChannel, tBrb *brb.BRBChannel) *aba.AbaChannel {
-		abachan, err := aba.NewAbaChannel(n, f, dealSS, ctBeb, mBeb, tBrb)
+	abachans := lo.ZipBy4(dealSSs, ctBebs, mBebs, tBebs, func(dealSS *on.SSChannel, ctBeb, mBeb, tBeb *on.BEBChannel) *aba.AbaChannel {
+		abachan, err := aba.NewAbaChannel(n, f, dealSS, ctBeb, mBeb, tBeb)
 		assert.NoError(t, err)
 		return abachan
 	})
