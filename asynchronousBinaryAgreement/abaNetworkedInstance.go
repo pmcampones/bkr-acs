@@ -133,16 +133,16 @@ func (a *abaNetworkedInstance) submitAux(aux byte, sender uuid.UUID, r uint16) e
 
 func (a *abaNetworkedInstance) submitDecision(decision byte, sender uuid.UUID) error {
 	abaNetworkedLogger.Debug("submitting decision", "instance", a.id, "decision", decision, "sender", sender)
-	finalDec, err := a.instance.submitDecision(decision, sender)
+	err := a.instance.submitDecision(decision, sender)
 	if err != nil {
 		return fmt.Errorf("unable to submit decision: %w", err)
 	}
-	if finalDec != bot {
-		if a.canOutputDecision() {
-			a.decisionChan <- decision
-		}
-		a.terminatedChan <- struct{}{}
-	}
+	//if finalDec != bot {
+	//	if a.canOutputDecision() {
+	//		a.decisionChan <- decision
+	//	}
+	//	a.terminatedChan <- struct{}{}
+	//}
 	return nil
 }
 

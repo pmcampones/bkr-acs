@@ -86,7 +86,7 @@ func (o *mmrOrderedScheduler) listenDecisions(t *testing.T, instance *wrappedMMR
 		decision := <-instance.m.handler.deliverDecision
 		for _, wmmr := range o.instances {
 			go func() {
-				_, err := wmmr.m.submitDecision(decision, sender)
+				err := wmmr.m.submitDecision(decision, sender)
 				assert.NoError(t, err)
 			}()
 		}
@@ -214,7 +214,7 @@ func (u *mmrUnorderedScheduler) listenDecisions(t *testing.T, instance *wrappedM
 			go func() {
 				u.scheduleChan <- func() error {
 					mmrSchedulerLogger.Debug("submitting decision", "decision", decision, "sender", sender)
-					if _, err := wmmr.m.submitDecision(decision, sender); err != nil {
+					if err := wmmr.m.submitDecision(decision, sender); err != nil {
 						return err
 					}
 					return nil

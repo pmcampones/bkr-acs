@@ -149,12 +149,11 @@ func (m *mmr) listenRequests(round *mmrRound, close chan struct{}, rnum uint16) 
 	}
 }
 
-func (m *mmr) submitDecision(decision byte, sender uuid.UUID) (byte, error) {
-	err := m.termGadget.submitDecision(decision, sender)
-	if err != nil {
-		return bot, fmt.Errorf("unable to submit decision: %v", err)
+func (m *mmr) submitDecision(decision byte, sender uuid.UUID) error {
+	if err := m.termGadget.submitDecision(decision, sender); err != nil {
+		return fmt.Errorf("unable to submit decision: %v", err)
 	}
-	return bot, nil
+	return nil
 }
 
 func (m *mmr) reachDecision() {

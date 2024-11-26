@@ -140,9 +140,8 @@ func testShouldDecideMultipleAllProposeSame(t *testing.T, n, correct, f, byzanti
 	byzIds := lo.Map(lo.Range(int(byzantine)), func(_ int, _ int) uuid.UUID { return uuid.New() })
 	for _, byzId := range byzIds {
 		for _, wmmr := range wmmrs {
-			dec, err := wmmr.m.submitDecision(1-proposal, byzId)
+			err := wmmr.m.submitDecision(1-proposal, byzId)
 			assert.NoError(t, err)
-			assert.Equal(t, bot, dec)
 			for r := 0; r < 20; r++ {
 				val := rand.IntN(2)
 				assert.NoError(t, wmmr.m.submitBVal(byte(val), byzId, uint16(r)))
@@ -227,9 +226,8 @@ func testShouldDecideSameDifferentProposals(t *testing.T, n uint, correct uint, 
 	wmmrs := lo.Map(nodes, func(node uuid.UUID, _ int) *wrappedMMR { return s.getChannels(n, f, node) })
 	for _, byzId := range byzIds {
 		for _, wmmr := range wmmrs {
-			dec, err := wmmr.m.submitDecision(byte(rand.IntN(2)), byzId)
+			err := wmmr.m.submitDecision(byte(rand.IntN(2)), byzId)
 			assert.NoError(t, err)
-			assert.Equal(t, bot, dec)
 			for r := 0; r < 10; r++ {
 				val := rand.IntN(2)
 				assert.NoError(t, wmmr.m.submitBVal(byte(val), byzId, uint16(r)))

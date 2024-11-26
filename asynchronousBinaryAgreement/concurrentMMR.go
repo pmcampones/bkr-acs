@@ -94,22 +94,22 @@ func (m *concurrentMMR) submitCoin(coin byte, r uint16) error {
 	return <-errChan
 }
 
-func (m *concurrentMMR) submitDecision(decision byte, sender uuid.UUID) (byte, error) {
+func (m *concurrentMMR) submitDecision(decision byte, sender uuid.UUID) error {
 	if m.isClosed.Load() {
 		concurrentMMRLogger.Info("received decision on closed concurrentMMR")
-		return bot, nil
+		return nil
 	}
 	concurrentMMRLogger.Debug("submitting decision", "decision", decision, "sender", sender)
 	res := make(chan termOutput, 1)
 	m.commands <- func() {
-		result, err := m.handler.submitDecision(decision, sender)
-		res <- termOutput{decision: result, err: err}
+		err := m.handler.submitDecision(decision, sender)
+		res <- termOutput{decision: bot, err: err}
 	}
 	output := <-res
 	if output.err != nil {
-		return bot, fmt.Errorf("unable to submit decision: %v", output.err)
+		return fmt.Errorf("unable to submit decision: %v", output.err)
 	}
-	return output.decision, nil
+	return nil
 }
 
 func (m *concurrentMMR) close() {
