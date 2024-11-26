@@ -2,7 +2,6 @@ package asynchronousBinaryAgreement
 
 import (
 	"bkr-acs/utils"
-	"fmt"
 	"github.com/google/uuid"
 	"log/slog"
 	"sync/atomic"
@@ -100,16 +99,7 @@ func (m *concurrentMMR) submitDecision(decision byte, sender uuid.UUID) error {
 		return nil
 	}
 	concurrentMMRLogger.Debug("submitting decision", "decision", decision, "sender", sender)
-	res := make(chan termOutput, 1)
-	m.commands <- func() {
-		err := m.handler.submitDecision(decision, sender)
-		res <- termOutput{decision: bot, err: err}
-	}
-	output := <-res
-	if output.err != nil {
-		return fmt.Errorf("unable to submit decision: %v", output.err)
-	}
-	return nil
+	return m.handler.submitDecision(decision, sender)
 }
 
 func (m *concurrentMMR) close() {

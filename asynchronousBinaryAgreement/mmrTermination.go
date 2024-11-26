@@ -11,11 +11,6 @@ var termLocalLogger = utils.GetLogger("Local MMR Termination", slog.LevelWarn)
 
 const bot byte = 2
 
-type termOutput struct {
-	decision byte
-	err      error
-}
-
 type mmrTermination struct {
 	received          map[uuid.UUID]bool
 	results           []uint
