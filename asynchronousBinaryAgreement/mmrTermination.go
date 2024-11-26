@@ -55,17 +55,13 @@ func (t *mmrTermination) invoker() {
 	}
 }
 
-func (t *mmrTermination) submitDecision(decision byte, sender uuid.UUID) (byte, error) {
-	output := make(chan termOutput, 1)
+func (t *mmrTermination) submitDecision(decision byte, sender uuid.UUID) error {
+	output := make(chan error, 1)
 	t.commands <- func() {
-		res := termOutput{
-			decision: bot,
-			err:      nil,
-		}
 		if t.received[sender] {
-			res.err = fmt.Errorf("sender %s already submitted a decision", sender)
+			output <- fmt.Errorf("sender %s already submitted a decision", sender)
 		} else if decision >= bot {
-			res.err = fmt.Errorf("invalid decision %d", decision)
+			output <- fmt.Errorf("invalid decision %d", decision)
 		} else {
 			t.received[sender] = true
 			t.results[decision]++
@@ -73,17 +69,15 @@ func (t *mmrTermination) submitDecision(decision byte, sender uuid.UUID) (byte, 
 			if t.results[decision] == t.f+1 {
 				abaLogger.Info("decision reached", "decision", decision)
 				t.deliverDecision <- decision
-				res.decision = decision
 			}
 			if t.results[0]+t.results[1] == t.n-t.f {
 				abaLogger.Info("termination reached", "decision", decision)
 				t.notifyTermination <- struct{}{}
 			}
+			output <- nil
 		}
-		output <- res
 	}
-	res := <-output
-	return res.decision, res.err
+	return <-output
 }
 
 func (t *mmrTermination) close() {

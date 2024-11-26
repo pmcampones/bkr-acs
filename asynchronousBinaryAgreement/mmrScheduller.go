@@ -50,7 +50,7 @@ func (o *mmrOrderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappedM
 	wmmr := o.addInstance(m)
 	go o.listenBVals(o.t, m.handler.deliverBVal, sender)
 	go o.listenAux(o.t, m.handler.deliverAux, sender)
-	go o.listenDecisions(o.t, m.handler.deliverDecision, sender)
+	go o.listenDecisions(o.t, wmmr, sender)
 	go o.listenCoinRequests(o.t, m.handler.coinReq, m)
 	return wmmr
 }
@@ -81,19 +81,17 @@ func (o *mmrOrderedScheduler) listenAux(t *testing.T, auxChan chan roundMsg, sen
 	}()
 }
 
-func (o *mmrOrderedScheduler) listenDecisions(t *testing.T, decisionChan chan byte, sender uuid.UUID) {
+func (o *mmrOrderedScheduler) listenDecisions(t *testing.T, instance *wrappedMMR, sender uuid.UUID) {
 	func() {
-		decision := <-decisionChan
+		decision := <-instance.m.handler.deliverDecision
 		for _, wmmr := range o.instances {
 			go func() {
-				dec, err := wmmr.m.submitDecision(decision, sender)
+				_, err := wmmr.m.submitDecision(decision, sender)
 				assert.NoError(t, err)
-				if dec != bot {
-					wmmr.decision <- dec
-				}
 			}()
 		}
-		dec2 := <-decisionChan
+		instance.decision <- decision
+		dec2 := <-instance.m.handler.deliverDecision
 		t.Errorf("received a decision from the same inner twice: %d", dec2)
 	}()
 }
@@ -173,7 +171,7 @@ func (u *mmrUnorderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappe
 	wmmr := u.addInstance(m)
 	go u.listenBVals(m.handler.deliverBVal, sender)
 	go u.listenAux(m.handler.deliverAux, sender)
-	go u.listenDecisions(u.t, m.handler.deliverDecision, sender)
+	go u.listenDecisions(u.t, wmmr, sender)
 	go u.listenCoinRequests(m.handler.coinReq, m)
 	return wmmr
 }
@@ -208,25 +206,23 @@ func (u *mmrUnorderedScheduler) listenAux(auxChan chan roundMsg, sender uuid.UUI
 	}()
 }
 
-func (u *mmrUnorderedScheduler) listenDecisions(t *testing.T, decisionChan chan byte, sender uuid.UUID) {
+func (u *mmrUnorderedScheduler) listenDecisions(t *testing.T, instance *wrappedMMR, sender uuid.UUID) {
 	func() {
-		decision := <-decisionChan
+		decision := <-instance.m.handler.deliverDecision
 		mmrSchedulerLogger.Info("received inner decision", "decision", decision, "sender", sender)
 		for _, wmmr := range u.instances {
 			go func() {
 				u.scheduleChan <- func() error {
 					mmrSchedulerLogger.Debug("submitting decision", "decision", decision, "sender", sender)
-					if dec, err := wmmr.m.submitDecision(decision, sender); err != nil {
+					if _, err := wmmr.m.submitDecision(decision, sender); err != nil {
 						return err
-					} else if dec != bot {
-						wmmr.decision <- dec
-						mmrSchedulerLogger.Info("delivered final decision")
 					}
 					return nil
 				}
 			}()
+			instance.decision <- decision
 		}
-		dec2 := <-decisionChan
+		dec2 := <-instance.m.handler.deliverDecision
 		t.Errorf("received a decision from the same inner twice: %d", dec2)
 	}()
 }
