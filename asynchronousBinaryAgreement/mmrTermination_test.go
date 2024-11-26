@@ -17,7 +17,9 @@ func TestMMRShouldTerminateWithOwnDecision(t *testing.T) {
 }
 
 func TestMMRShouldNotDecideImmediately(t *testing.T) {
-	tg := newMmrTermination(2, 1)
+	f := uint(1)
+	n := 3*f + 1
+	tg := newMmrTermination(n, f)
 	_, err := tg.submitDecision(byte(0), uuid.New())
 	assert.NoError(t, err)
 	shouldNotTerminateOrDecide(t, tg)

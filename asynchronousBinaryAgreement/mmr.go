@@ -31,6 +31,7 @@ type mmr struct {
 	f               uint
 	deliverBVal     chan roundMsg
 	deliverAux      chan roundMsg
+	reachedDecision chan byte
 	deliverDecision chan byte
 	hasDecided      bool
 	coinReq         chan uint16
@@ -39,17 +40,20 @@ type mmr struct {
 }
 
 func newMMR(n, f uint) *mmr {
-	return &mmr{
+	m := &mmr{
 		n:               n,
 		f:               f,
 		deliverBVal:     make(chan roundMsg, 2*(averageNumRounds+1)),
 		deliverAux:      make(chan roundMsg, averageNumRounds+1),
+		reachedDecision: make(chan byte, 1),
 		deliverDecision: make(chan byte, 1),
 		hasDecided:      false,
 		coinReq:         make(chan uint16, averageNumRounds+1),
 		rounds:          make(map[uint16]*cancelableRound),
 		termGadget:      newMmrTermination(n, f),
 	}
+	go m.reachDecision()
+	return m
 }
 
 func (m *mmr) propose(est byte, r uint16) error {
@@ -90,7 +94,7 @@ func (m *mmr) submitCoin(coin byte, r uint16) error {
 		return fmt.Errorf("unable to submit coin to round %d: %v", r, res.err)
 	} else if res.decided && !m.hasDecided {
 		m.hasDecided = true
-		m.deliverDecision <- res.estimate
+		m.reachedDecision <- res.estimate
 	} else if err := m.propose(res.estimate, r+1); err != nil {
 		return fmt.Errorf("unable to propose to round %d: %v", r+1, err)
 	}
@@ -149,11 +153,19 @@ func (m *mmr) submitDecision(decision byte, sender uuid.UUID) (byte, error) {
 	res, err := m.termGadget.submitDecision(decision, sender)
 	if err != nil {
 		return bot, fmt.Errorf("unable to submit decision: %v", err)
-	} else if res != bot && !m.hasDecided {
-		m.hasDecided = true
-		m.deliverDecision <- res
 	}
 	return res, nil
+}
+
+func (m *mmr) reachDecision() {
+	var decision byte
+	select {
+	case roundDec := <-m.reachedDecision:
+		decision = roundDec
+	case termDec := <-m.termGadget.deliverDecision:
+		decision = termDec
+	}
+	m.deliverDecision <- decision
 }
 
 func (m *mmr) close() {
