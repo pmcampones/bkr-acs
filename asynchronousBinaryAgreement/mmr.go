@@ -48,7 +48,7 @@ func newMMR(n, f uint) *mmr {
 		hasDecided:      false,
 		coinReq:         make(chan uint16, averageNumRounds+1),
 		rounds:          make(map[uint16]*cancelableRound),
-		termGadget:      newMmrTermination(f),
+		termGadget:      newMmrTermination(n, f),
 	}
 }
 

@@ -17,20 +17,26 @@ type termOutput struct {
 }
 
 type mmrTermination struct {
-	received  map[uuid.UUID]bool
-	results   []uint
-	f         uint
-	commands  chan func()
-	closeChan chan struct{}
+	received          map[uuid.UUID]bool
+	results           []uint
+	n                 uint
+	f                 uint
+	deliverDecision   chan byte
+	notifyTermination chan struct{}
+	commands          chan func()
+	closeChan         chan struct{}
 }
 
-func newMmrTermination(f uint) *mmrTermination {
+func newMmrTermination(n uint, f uint) *mmrTermination {
 	t := &mmrTermination{
-		received:  make(map[uuid.UUID]bool),
-		results:   []uint{0, 0},
-		f:         f,
-		commands:  make(chan func()),
-		closeChan: make(chan struct{}, 1),
+		received:          make(map[uuid.UUID]bool),
+		results:           []uint{0, 0},
+		n:                 n,
+		f:                 f,
+		deliverDecision:   make(chan byte, 1),
+		notifyTermination: make(chan struct{}, 1),
+		commands:          make(chan func()),
+		closeChan:         make(chan struct{}, 1),
 	}
 	go t.invoker()
 	termLocalLogger.Info("new mmrTermination created")
@@ -66,7 +72,12 @@ func (t *mmrTermination) submitDecision(decision byte, sender uuid.UUID) (byte, 
 			abaLogger.Debug("submitting decision", "decision", decision, "sender", sender, "received", t.results[decision], "required", t.f+1)
 			if t.results[decision] == t.f+1 {
 				abaLogger.Info("decision reached", "decision", decision)
+				t.deliverDecision <- decision
 				res.decision = decision
+			}
+			if t.results[0]+t.results[1] == t.n-t.f {
+				abaLogger.Info("termination reached", "decision", decision)
+				t.notifyTermination <- struct{}{}
 			}
 		}
 		output <- res
