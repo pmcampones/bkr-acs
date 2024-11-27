@@ -48,8 +48,8 @@ func (o *mmrOrderedScheduler) addInstance(m *concurrentMMR) *wrappedMMR {
 func (o *mmrOrderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappedMMR {
 	m := newConcurrentMMR(n, f)
 	wmmr := o.addInstance(m)
-	go o.listenBVals(o.t, m.handler.deliverBVal, sender)
-	go o.listenAux(o.t, m.handler.deliverAux, sender)
+	go o.listenBVals(o.t, m.handler.deliverEcho, sender)
+	go o.listenAux(o.t, m.handler.deliverVote, sender)
 	go o.listenDecisions(o.t, wmmr, sender)
 	go o.listenCoinRequests(o.t, m.handler.coinReq, m)
 	return wmmr
@@ -61,7 +61,7 @@ func (o *mmrOrderedScheduler) listenBVals(t *testing.T, bValChan chan roundMsg, 
 			bVal := <-bValChan
 			for _, wmmr := range o.instances {
 				go func() {
-					assert.NoError(t, wmmr.m.submitBVal(bVal.val, sender, bVal.r))
+					assert.NoError(t, wmmr.m.submitEcho(bVal.val, sender, bVal.r))
 				}()
 			}
 		}
@@ -74,7 +74,7 @@ func (o *mmrOrderedScheduler) listenAux(t *testing.T, auxChan chan roundMsg, sen
 			aux := <-auxChan
 			for _, wmmr := range o.instances {
 				go func() {
-					assert.NoError(t, wmmr.m.submitAux(aux.val, sender, aux.r))
+					assert.NoError(t, wmmr.m.submitVote(aux.val, sender, aux.r))
 				}()
 			}
 		}
@@ -169,8 +169,8 @@ func (u *mmrUnorderedScheduler) addInstance(m *concurrentMMR) *wrappedMMR {
 func (u *mmrUnorderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappedMMR {
 	m := newConcurrentMMR(n, f)
 	wmmr := u.addInstance(m)
-	go u.listenBVals(m.handler.deliverBVal, sender)
-	go u.listenAux(m.handler.deliverAux, sender)
+	go u.listenBVals(m.handler.deliverEcho, sender)
+	go u.listenAux(m.handler.deliverVote, sender)
 	go u.listenDecisions(u.t, wmmr, sender)
 	go u.listenCoinRequests(m.handler.coinReq, m)
 	return wmmr
@@ -183,7 +183,7 @@ func (u *mmrUnorderedScheduler) listenBVals(bValChan chan roundMsg, sender uuid.
 			for _, wmmr := range u.instances {
 				go func() {
 					u.scheduleChan <- func() error {
-						return wmmr.m.submitBVal(bVal.val, sender, bVal.r)
+						return wmmr.m.submitEcho(bVal.val, sender, bVal.r)
 					}
 				}()
 			}
@@ -198,7 +198,7 @@ func (u *mmrUnorderedScheduler) listenAux(auxChan chan roundMsg, sender uuid.UUI
 			for _, wmmr := range u.instances {
 				go func() {
 					u.scheduleChan <- func() error {
-						return wmmr.m.submitAux(aux.val, sender, aux.r)
+						return wmmr.m.submitVote(aux.val, sender, aux.r)
 					}
 				}()
 			}

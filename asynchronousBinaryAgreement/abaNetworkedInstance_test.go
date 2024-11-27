@@ -36,10 +36,10 @@ func (n *networkedInstanceCommandIssuer) issueReceivedCommands() {
 
 func (n *networkedInstanceCommandIssuer) issueAbaMsgCommand(abamsg *abaMsg) {
 	switch abamsg.kind {
-	case bval:
-		n.aba.submitBVal(abamsg.val, abamsg.sender, abamsg.round)
-	case aux:
-		n.aba.submitAux(abamsg.val, abamsg.sender, abamsg.round)
+	case echo:
+		n.aba.submitEcho(abamsg.val, abamsg.sender, abamsg.round)
+	case vote:
+		n.aba.submitVote(abamsg.val, abamsg.sender, abamsg.round)
 	}
 }
 

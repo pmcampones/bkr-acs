@@ -29,8 +29,8 @@ func (r *cancelableRound) close() {
 type mmr struct {
 	n               uint
 	f               uint
-	deliverBVal     chan roundMsg
-	deliverAux      chan roundMsg
+	deliverEcho     chan roundMsg
+	deliverVote     chan roundMsg
 	reachedDecision chan byte
 	deliverDecision chan byte
 	hasDecided      bool
@@ -43,8 +43,8 @@ func newMMR(n, f uint) *mmr {
 	m := &mmr{
 		n:               n,
 		f:               f,
-		deliverBVal:     make(chan roundMsg, 2*(averageNumRounds+1)),
-		deliverAux:      make(chan roundMsg, averageNumRounds+1),
+		deliverEcho:     make(chan roundMsg, 2*(averageNumRounds+1)),
+		deliverVote:     make(chan roundMsg, averageNumRounds+1),
 		reachedDecision: make(chan byte, 1),
 		deliverDecision: make(chan byte, 1),
 		hasDecided:      false,
@@ -66,22 +66,22 @@ func (m *mmr) propose(est byte, r uint16) error {
 	return nil
 }
 
-func (m *mmr) submitBVal(bVal byte, sender uuid.UUID, r uint16) error {
-	abaLogger.Debug("submitting bVal", "bVal", bVal, "sender", sender, "round", r)
+func (m *mmr) submitEcho(echo byte, sender uuid.UUID, r uint16) error {
+	abaLogger.Debug("submitting echo", "echo", echo, "sender", sender, "round", r)
 	if round, err := m.getRound(r); err != nil {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
-	} else if err := round.round.submitBVal(bVal, sender); err != nil {
-		return fmt.Errorf("unable to submit bVal to round %d: %v", r, err)
+	} else if err := round.round.submitEcho(echo, sender); err != nil {
+		return fmt.Errorf("unable to submit echo to round %d: %v", r, err)
 	}
 	return nil
 }
 
-func (m *mmr) submitAux(aux byte, sender uuid.UUID, r uint16) error {
-	abaLogger.Debug("submitting aux", "aux", aux, "sender", sender, "round", r)
+func (m *mmr) submitVote(vote byte, sender uuid.UUID, r uint16) error {
+	abaLogger.Debug("submitting vote", "vote", vote, "sender", sender, "round", r)
 	if round, err := m.getRound(r); err != nil {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
-	} else if err := round.round.submitAux(aux, sender); err != nil {
-		return fmt.Errorf("unable to submit aux to round %d: %v", r, err)
+	} else if err := round.round.submitVote(vote, sender); err != nil {
+		return fmt.Errorf("unable to submit vote to round %d: %v", r, err)
 	}
 	return nil
 }
@@ -127,15 +127,15 @@ func (m *mmr) newRound(r uint16) (*cancelableRound, error) {
 func (m *mmr) listenRequests(round *mmrRound, close chan struct{}, rnum uint16) {
 	for {
 		select {
-		case bVal := <-round.bValChan:
-			abaLogger.Debug("broadcasting bVal", "bVal", bVal, "round", rnum)
+		case echo := <-round.echoChan:
+			abaLogger.Debug("broadcasting echo", "echo", echo, "round", rnum)
 			go func() {
-				m.deliverBVal <- roundMsg{val: bVal, r: rnum}
+				m.deliverEcho <- roundMsg{val: echo, r: rnum}
 			}()
-		case aux := <-round.auxChan:
-			abaLogger.Debug("broadcasting aux", "aux", aux, "round", rnum)
+		case vote := <-round.voteChan:
+			abaLogger.Debug("broadcasting vote", "vote", vote, "round", rnum)
 			go func() {
-				m.deliverAux <- roundMsg{val: aux, r: rnum}
+				m.deliverVote <- roundMsg{val: vote, r: rnum}
 			}()
 		case <-round.coinReqChan:
 			abaLogger.Debug("coin request", "round", rnum)

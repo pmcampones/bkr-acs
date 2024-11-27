@@ -54,28 +54,28 @@ func (m *concurrentMMR) propose(est byte) error {
 	return <-errChan
 }
 
-func (m *concurrentMMR) submitBVal(bVal byte, sender uuid.UUID, r uint16) error {
+func (m *concurrentMMR) submitEcho(echo byte, sender uuid.UUID, r uint16) error {
 	if m.isClosed.Load() {
-		concurrentMMRLogger.Info("received bVal on closed concurrentMMR")
+		concurrentMMRLogger.Info("received echo on closed concurrentMMR")
 		return nil
 	}
-	concurrentMMRLogger.Debug("scheduling submit bVal", "bVal", bVal, "mmrRound", r, "sender", sender)
+	concurrentMMRLogger.Debug("scheduling submit echo", "echo", echo, "mmrRound", r, "sender", sender)
 	errChan := make(chan error)
 	m.commands <- func() {
-		errChan <- m.handler.submitBVal(bVal, sender, r)
+		errChan <- m.handler.submitEcho(echo, sender, r)
 	}
 	return <-errChan
 }
 
-func (m *concurrentMMR) submitAux(aux byte, sender uuid.UUID, r uint16) error {
+func (m *concurrentMMR) submitVote(vote byte, sender uuid.UUID, r uint16) error {
 	if m.isClosed.Load() {
-		concurrentMMRLogger.Info("received aux on closed concurrentMMR")
+		concurrentMMRLogger.Info("received vote on closed concurrentMMR")
 		return nil
 	}
-	concurrentMMRLogger.Debug("scheduling submit aux", "aux", aux, "mmrRound", r)
+	concurrentMMRLogger.Debug("scheduling submit vote", "vote", vote, "mmrRound", r)
 	errChan := make(chan error)
 	m.commands <- func() {
-		errChan <- m.handler.submitAux(aux, sender, r)
+		errChan <- m.handler.submitVote(vote, sender, r)
 	}
 	return <-errChan
 }
@@ -111,12 +111,12 @@ func (m *concurrentMMR) close() {
 	}()
 }
 
-func (m *concurrentMMR) getBValChan() chan roundMsg {
-	return m.handler.deliverBVal
+func (m *concurrentMMR) getEchoChan() chan roundMsg {
+	return m.handler.deliverEcho
 }
 
-func (m *concurrentMMR) getAuxChan() chan roundMsg {
-	return m.handler.deliverAux
+func (m *concurrentMMR) getVoteChan() chan roundMsg {
+	return m.handler.deliverVote
 }
 
 func (m *concurrentMMR) getDecisionChan() chan byte {

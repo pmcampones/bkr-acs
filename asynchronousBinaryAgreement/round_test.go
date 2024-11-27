@@ -15,36 +15,36 @@ func TestRoundShouldRejectInvalidEstimate(t *testing.T) {
 func TestRoundShouldRejectInvalidBVal(t *testing.T) {
 	someId := uuid.New()
 	r := newMMRRound(1, 0)
-	assert.Error(t, r.submitBVal(bot, someId))
+	assert.Error(t, r.submitEcho(bot, someId))
 }
 
 func TestRoundShouldRejectInvalidAux(t *testing.T) {
 	someId := uuid.New()
 	r := newMMRRound(1, 0)
-	assert.Error(t, r.submitAux(bot, someId))
+	assert.Error(t, r.submitVote(bot, someId))
 }
 
 func TestRoundShouldRejectRepeatedAux(t *testing.T) {
 	sender := uuid.New()
 	r := newMMRRound(1, 0)
-	assert.NoError(t, r.submitAux(0, sender))
-	assert.Error(t, r.submitAux(0, sender))
+	assert.NoError(t, r.submitVote(0, sender))
+	assert.Error(t, r.submitVote(0, sender))
 }
 
 func TestRoundShouldNotRejectDifferentBValSameSender(t *testing.T) {
 	sender := uuid.New()
 	r := newMMRRound(1, 0)
-	assert.NoError(t, r.submitBVal(0, sender))
-	assert.NoError(t, r.submitBVal(1, sender))
+	assert.NoError(t, r.submitEcho(0, sender))
+	assert.NoError(t, r.submitEcho(1, sender))
 }
 
 func TestRoundShouldRejectSameBValSameSender(t *testing.T) {
 	sender := uuid.New()
 	r := newMMRRound(1, 0)
-	assert.NoError(t, r.submitBVal(0, sender))
-	assert.Error(t, r.submitBVal(0, sender))
-	assert.NoError(t, r.submitBVal(1, sender))
-	assert.Error(t, r.submitBVal(1, sender))
+	assert.NoError(t, r.submitEcho(0, sender))
+	assert.Error(t, r.submitEcho(0, sender))
+	assert.NoError(t, r.submitEcho(1, sender))
+	assert.Error(t, r.submitEcho(1, sender))
 }
 
 func TestRoundShouldWaitForCoinRequest(t *testing.T) {
@@ -95,12 +95,12 @@ func followSingleNodeCommonPath(t *testing.T, est byte) *mmrRound {
 	myId := uuid.New()
 	r := newMMRRound(1, 0)
 	assert.NoError(t, r.propose(est))
-	bVal := <-r.bValChan
+	bVal := <-r.echoChan
 	assert.Equal(t, est, bVal)
-	assert.NoError(t, r.submitBVal(bVal, myId))
-	aux := <-r.auxChan
-	assert.Equal(t, est, aux, "aux should be the same as the estimate")
-	assert.NoError(t, r.submitAux(aux, myId))
+	assert.NoError(t, r.submitEcho(bVal, myId))
+	aux := <-r.voteChan
+	assert.Equal(t, est, aux, "vote should be the same as the estimate")
+	assert.NoError(t, r.submitVote(aux, myId))
 	<-r.coinReqChan
 	return r
 }
@@ -237,8 +237,8 @@ func testRoundAllProposeTheSame(t *testing.T, correctNodes, n, f, byzantine int,
 	byzIds := lo.Map(lo.Range(byzantine), func(_ int, _ int) uuid.UUID { return uuid.New() })
 	for _, r := range rounds {
 		for _, byz := range byzIds {
-			assert.NoError(t, r.submitBVal(1-est, byz))
-			assert.NoError(t, r.submitAux(1-est, byz))
+			assert.NoError(t, r.submitEcho(1-est, byz))
+			assert.NoError(t, r.submitVote(1-est, byz))
 		}
 	}
 	for _, r := range rounds {

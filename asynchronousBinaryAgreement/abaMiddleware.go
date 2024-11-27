@@ -17,8 +17,8 @@ var abaMiddlewareLogger = utils.GetLogger("ABA Middleware", slog.LevelWarn)
 type middlewareCode byte
 
 const (
-	bval middlewareCode = 'a' + iota
-	aux
+	echo middlewareCode = 'a' + iota
+	vote
 )
 
 type abaMsg struct {
@@ -94,11 +94,11 @@ func (m *abaMiddleware) parseMsg(msg []byte, sender *ecdsa.PublicKey) (*abaMsg, 
 }
 
 func (m *abaMiddleware) broadcastBVal(instance uuid.UUID, round uint16, val byte) error {
-	return m.broadcastMsg(instance, bval, round, val)
+	return m.broadcastMsg(instance, echo, round, val)
 }
 
 func (m *abaMiddleware) broadcastAux(instance uuid.UUID, round uint16, val byte) error {
-	return m.broadcastMsg(instance, aux, round, val)
+	return m.broadcastMsg(instance, vote, round, val)
 }
 
 func (m *abaMiddleware) broadcastMsg(instance uuid.UUID, kind middlewareCode, round uint16, val byte) error {

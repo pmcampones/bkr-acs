@@ -56,13 +56,13 @@ func (a *abaNetworkedInstance) listener() {
 	abaNetworkedLogger.Info("starting listener aba networked inner", "instance", a.id)
 	for {
 		select {
-		case bVal := <-a.instance.getBValChan():
-			if err := a.abamidware.broadcastBVal(a.id, bVal.r, bVal.val); err != nil {
-				abaNetworkedLogger.Warn("unable to broadcast bVal", "instance", a.id, "round", bVal.r, "error", err)
+		case echo := <-a.instance.getEchoChan():
+			if err := a.abamidware.broadcastBVal(a.id, echo.r, echo.val); err != nil {
+				abaNetworkedLogger.Warn("unable to broadcast echo", "instance", a.id, "round", echo.r, "error", err)
 			}
-		case aux := <-a.instance.getAuxChan():
-			if err := a.abamidware.broadcastAux(a.id, aux.r, aux.val); err != nil {
-				abaNetworkedLogger.Warn("unable to broadcast aux", "instance", a.id, "round", aux.r, "error", err)
+		case vote := <-a.instance.getVoteChan():
+			if err := a.abamidware.broadcastAux(a.id, vote.r, vote.val); err != nil {
+				abaNetworkedLogger.Warn("unable to broadcast vote", "instance", a.id, "round", vote.r, "error", err)
 			}
 		case decision := <-a.instance.getDecisionChan():
 			if a.canOutputDecision() {
@@ -115,18 +115,18 @@ func (a *abaNetworkedInstance) makeCoinSeed(round uint16) ([]byte, error) {
 	return writer.Bytes(), nil
 }
 
-func (a *abaNetworkedInstance) submitBVal(bVal byte, sender uuid.UUID, r uint16) error {
-	abaNetworkedLogger.Debug("submitting bVal", "instance", a.id, "round", r, "bval", bVal)
-	if err := a.instance.submitBVal(bVal, sender, r); err != nil {
-		return fmt.Errorf("unable to submit bVal: %w", err)
+func (a *abaNetworkedInstance) submitEcho(echo byte, sender uuid.UUID, r uint16) error {
+	abaNetworkedLogger.Debug("submitting echo", "instance", a.id, "round", r, "echo", echo)
+	if err := a.instance.submitEcho(echo, sender, r); err != nil {
+		return fmt.Errorf("unable to submit echo: %w", err)
 	}
 	return nil
 }
 
-func (a *abaNetworkedInstance) submitAux(aux byte, sender uuid.UUID, r uint16) error {
-	abaNetworkedLogger.Debug("submitting aux", "instance", a.id, "round", r, "aux", aux)
-	if err := a.instance.submitAux(aux, sender, r); err != nil {
-		return fmt.Errorf("unable to submit aux: %w", err)
+func (a *abaNetworkedInstance) submitVote(vote byte, sender uuid.UUID, r uint16) error {
+	abaNetworkedLogger.Debug("submitting vote", "instance", a.id, "round", r, "vote", vote)
+	if err := a.instance.submitVote(vote, sender, r); err != nil {
+		return fmt.Errorf("unable to submit vote: %w", err)
 	}
 	return nil
 }
@@ -137,12 +137,6 @@ func (a *abaNetworkedInstance) submitDecision(decision byte, sender uuid.UUID) e
 	if err != nil {
 		return fmt.Errorf("unable to submit decision: %w", err)
 	}
-	//if finalDec != bot {
-	//	if a.canOutputDecision() {
-	//		a.decisionChan <- decision
-	//	}
-	//	a.terminatedChan <- struct{}{}
-	//}
 	return nil
 }
 

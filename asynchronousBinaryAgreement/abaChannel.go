@@ -116,18 +116,18 @@ func (c *AbaChannel) processMiddlewareMsg(msg *abaMsg) error {
 		return fmt.Errorf("unable to process aba control message: unable to get aba inner: %w", err)
 	}
 	switch msg.kind {
-	case bval:
+	case echo:
 		go func() {
-			err := wrapper.inner.submitBVal(msg.val, msg.sender, msg.round)
+			err := wrapper.inner.submitEcho(msg.val, msg.sender, msg.round)
 			if err != nil {
 				abaChannelLogger.Warn("unable to submit bVal", "instanceId", msg.instance, "round", msg.round, "error", err)
 			}
 		}()
-	case aux:
+	case vote:
 		go func() {
-			err := wrapper.inner.submitAux(msg.val, msg.sender, msg.round)
+			err := wrapper.inner.submitVote(msg.val, msg.sender, msg.round)
 			if err != nil {
-				abaChannelLogger.Warn("unable to submit aux", "instanceId", msg.instance, "round", msg.round, "error", err)
+				abaChannelLogger.Warn("unable to submit vote", "instanceId", msg.instance, "round", msg.round, "error", err)
 			}
 		}()
 	}

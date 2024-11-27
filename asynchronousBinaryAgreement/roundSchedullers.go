@@ -24,8 +24,8 @@ func newOrderedScheduler() *orderedRoundScheduler {
 
 func (os *orderedRoundScheduler) addRound(t *testing.T, sender uuid.UUID, r *mmrRound) {
 	os.rounds = append(os.rounds, r)
-	go os.processBVals(t, sender, r.bValChan)
-	go os.processAux(t, sender, r.auxChan)
+	go os.processBVals(t, sender, r.echoChan)
+	go os.processAux(t, sender, r.voteChan)
 }
 
 func (os *orderedRoundScheduler) processAux(t *testing.T, sender uuid.UUID, auxChan chan byte) {
@@ -33,7 +33,7 @@ func (os *orderedRoundScheduler) processAux(t *testing.T, sender uuid.UUID, auxC
 		aux := <-auxChan
 		for _, r := range os.rounds {
 			os.commands <- func() {
-				assert.NoError(t, r.submitAux(aux, sender))
+				assert.NoError(t, r.submitVote(aux, sender))
 			}
 		}
 	}()
@@ -44,7 +44,7 @@ func (os *orderedRoundScheduler) processBVals(t *testing.T, sender uuid.UUID, bV
 		bVal := <-bValChan
 		for _, r := range os.rounds {
 			os.commands <- func() {
-				assert.NoError(t, r.submitBVal(bVal, sender))
+				assert.NoError(t, r.submitEcho(bVal, sender))
 			}
 		}
 	}()

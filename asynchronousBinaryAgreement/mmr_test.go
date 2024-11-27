@@ -144,8 +144,8 @@ func testShouldDecideMultipleAllProposeSame(t *testing.T, n, correct, f, byzanti
 			assert.NoError(t, err)
 			for r := 0; r < 20; r++ {
 				val := rand.IntN(2)
-				assert.NoError(t, wmmr.m.submitBVal(byte(val), byzId, uint16(r)))
-				assert.NoError(t, wmmr.m.submitAux(byte(val), byzId, uint16(r)))
+				assert.NoError(t, wmmr.m.submitEcho(byte(val), byzId, uint16(r)))
+				assert.NoError(t, wmmr.m.submitVote(byte(val), byzId, uint16(r)))
 			}
 		}
 	}
@@ -230,8 +230,8 @@ func testShouldDecideSameDifferentProposals(t *testing.T, n uint, correct uint, 
 			assert.NoError(t, err)
 			for r := 0; r < 10; r++ {
 				val := rand.IntN(2)
-				assert.NoError(t, wmmr.m.submitBVal(byte(val), byzId, uint16(r)))
-				assert.NoError(t, wmmr.m.submitAux(byte(val), byzId, uint16(r)))
+				assert.NoError(t, wmmr.m.submitEcho(byte(val), byzId, uint16(r)))
+				assert.NoError(t, wmmr.m.submitVote(byte(val), byzId, uint16(r)))
 			}
 		}
 	}
