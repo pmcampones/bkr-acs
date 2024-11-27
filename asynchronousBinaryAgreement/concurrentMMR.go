@@ -14,15 +14,15 @@ type concurrentMMR struct {
 	mmr
 	commands  chan func()
 	closeChan chan struct{}
-	isClosed  atomic.Bool
+	isClosed  *atomic.Bool
 }
 
-func newConcurrentMMR(n, f uint) *concurrentMMR {
-	m := &concurrentMMR{
+func newConcurrentMMR(n, f uint) concurrentMMR {
+	m := concurrentMMR{
 		mmr:       newMMR(n, f),
 		commands:  make(chan func()),
 		closeChan: make(chan struct{}, 1),
-		isClosed:  atomic.Bool{},
+		isClosed:  &atomic.Bool{},
 	}
 	go m.invoker()
 	return m
