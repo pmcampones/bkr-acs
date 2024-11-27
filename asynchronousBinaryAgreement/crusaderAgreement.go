@@ -13,6 +13,7 @@ type crusaderAgreement struct {
 	n               uint
 	f               uint
 	sentEchoes      []bool
+	voted           bool
 	echoes          []map[uuid.UUID]bool
 	votes           []map[uuid.UUID]bool
 	bcastEchoChan   chan byte
@@ -26,6 +27,7 @@ func newCrusaderAgreement(n, f uint) crusaderAgreement {
 		n:               n,
 		f:               f,
 		sentEchoes:      []bool{false, false},
+		voted:           false,
 		echoes:          []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
 		votes:           []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
 		bcastEchoChan:   make(chan byte, 2),
@@ -60,7 +62,8 @@ func (c *crusaderAgreement) submitEcho(echo byte, sender uuid.UUID) error {
 		c.broadcastEcho(echo)
 	} else if countEcho == int(c.n-c.f) {
 		countOther := len(c.echoes[1-echo])
-		if countOther < int(c.n+c.f) {
+		if countOther < int(c.n+c.f) && !c.voted {
+			c.voted = true
 			c.broadcastVote(echo)
 		} else if !c.deliveredSingle {
 			c.outputDecision <- bot
