@@ -7,17 +7,17 @@ import (
 	"testing"
 )
 
-func TestShouldDecide1IfAllProposeSame(t *testing.T) {
+func TestCAShouldDecide1IfAllProposeSame(t *testing.T) {
 	proposal := byte(1)
-	testShouldDecideIfAllProposeSame(t, proposal)
+	testCAShouldDecideIfAllProposeSame(t, proposal)
 }
 
-func TestShouldDecide0IfAllProposeSame(t *testing.T) {
+func TestCAShouldDecide0IfAllProposeSame(t *testing.T) {
 	proposal := byte(0)
-	testShouldDecideIfAllProposeSame(t, proposal)
+	testCAShouldDecideIfAllProposeSame(t, proposal)
 }
 
-func testShouldDecideIfAllProposeSame(t *testing.T, proposal byte) {
+func testCAShouldDecideIfAllProposeSame(t *testing.T, proposal byte) {
 	f := uint(3)
 	n := 3*f + 1
 	scheduler := newOrderedCAScheduler(t)
