@@ -24,8 +24,8 @@ func newOrderedScheduler() *orderedRoundScheduler {
 
 func (os *orderedRoundScheduler) addRound(t *testing.T, sender uuid.UUID, r *mmrRound) {
 	os.rounds = append(os.rounds, r)
-	go os.processBVals(t, sender, r.echoChan)
-	go os.processAux(t, sender, r.voteChan)
+	go os.processBVals(t, sender, r.getEchoChan())
+	go os.processAux(t, sender, r.getVoteChan())
 }
 
 func (os *orderedRoundScheduler) processAux(t *testing.T, sender uuid.UUID, auxChan chan byte) {

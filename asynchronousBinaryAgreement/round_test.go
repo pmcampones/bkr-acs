@@ -95,10 +95,10 @@ func followSingleNodeCommonPath(t *testing.T, est byte) *mmrRound {
 	myId := uuid.New()
 	r := newMMRRound(1, 0)
 	assert.NoError(t, r.propose(est))
-	bVal := <-r.echoChan
+	bVal := <-r.getEchoChan()
 	assert.Equal(t, est, bVal)
 	assert.NoError(t, r.submitEcho(bVal, myId))
-	aux := <-r.voteChan
+	aux := <-r.getVoteChan()
 	assert.Equal(t, est, aux, "vote should be the same as the estimate")
 	assert.NoError(t, r.submitVote(aux, myId))
 	<-r.coinReqChan

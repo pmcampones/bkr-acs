@@ -127,12 +127,12 @@ func (m *mmr) newRound(r uint16) (*cancelableRound, error) {
 func (m *mmr) listenRequests(round *mmrRound, close chan struct{}, rnum uint16) {
 	for {
 		select {
-		case echo := <-round.echoChan:
+		case echo := <-round.getEchoChan():
 			abaLogger.Debug("broadcasting echo", "echo", echo, "round", rnum)
 			go func() {
 				m.deliverEcho <- roundMsg{val: echo, r: rnum}
 			}()
-		case vote := <-round.voteChan:
+		case vote := <-round.getVoteChan():
 			abaLogger.Debug("broadcasting vote", "vote", vote, "round", rnum)
 			go func() {
 				m.deliverVote <- roundMsg{val: vote, r: rnum}
