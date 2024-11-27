@@ -8,14 +8,14 @@ import (
 
 type orderedCAScheduler struct {
 	t         *testing.T
-	instances []*crusaderAgreement
+	instances []crusaderAgreement
 	commands  chan func()
 }
 
 func newOrderedCAScheduler(t *testing.T) *orderedCAScheduler {
 	s := &orderedCAScheduler{
 		t:         t,
-		instances: make([]*crusaderAgreement, 0),
+		instances: make([]crusaderAgreement, 0),
 		commands:  make(chan func()),
 	}
 	go s.invoker()
@@ -31,13 +31,13 @@ func (s *orderedCAScheduler) invoker() {
 	}
 }
 
-func (s *orderedCAScheduler) addInstance(ca *crusaderAgreement, sender uuid.UUID) {
+func (s *orderedCAScheduler) addInstance(ca crusaderAgreement, sender uuid.UUID) {
 	s.instances = append(s.instances, ca)
 	go s.listenEchoes(ca, sender)
 	go s.listenVotes(ca, sender)
 }
 
-func (s *orderedCAScheduler) listenEchoes(ca *crusaderAgreement, sender uuid.UUID) {
+func (s *orderedCAScheduler) listenEchoes(ca crusaderAgreement, sender uuid.UUID) {
 	for {
 		echo := <-ca.bcastEchoChan
 		for _, instance := range s.instances {
@@ -48,7 +48,7 @@ func (s *orderedCAScheduler) listenEchoes(ca *crusaderAgreement, sender uuid.UUI
 	}
 }
 
-func (s *orderedCAScheduler) listenVotes(ca *crusaderAgreement, sender uuid.UUID) {
+func (s *orderedCAScheduler) listenVotes(ca crusaderAgreement, sender uuid.UUID) {
 	vote := <-ca.bcastVoteChan
 	for _, instance := range s.instances {
 		s.commands <- func() {

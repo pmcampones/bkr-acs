@@ -3,14 +3,13 @@ package asynchronousBinaryAgreement
 import (
 	"bkr-acs/utils"
 	"fmt"
-	"github.com/google/uuid"
 	"log/slog"
 )
 
 var roundLogger = utils.GetLogger("MMR Round", slog.LevelWarn)
 
 type mmrRound struct {
-	ca                 *crusaderAgreement
+	crusaderAgreement
 	coinReqChan        chan struct{}
 	coinReceiveChan    chan byte
 	internalTransition chan roundTransitionResult
@@ -18,7 +17,7 @@ type mmrRound struct {
 
 func newMMRRound(n, f uint) *mmrRound {
 	round := &mmrRound{
-		ca:                 newCrusaderAgreement(n, f),
+		crusaderAgreement:  newCrusaderAgreement(n, f),
 		coinReqChan:        make(chan struct{}, 1),
 		coinReceiveChan:    make(chan byte, 1),
 		internalTransition: make(chan roundTransitionResult, 1),
@@ -31,21 +30,6 @@ func isInputValid(val byte) bool {
 	return val == 0 || val == 1
 }
 
-func (r *mmrRound) propose(est byte) error {
-	roundLogger.Info("proposing estimate", "est", est)
-	return r.ca.propose(est)
-}
-
-func (r *mmrRound) submitEcho(echo byte, sender uuid.UUID) error {
-	roundLogger.Debug("submitting echo", "echo", echo, "sender", sender)
-	return r.ca.submitEcho(echo, sender)
-}
-
-func (r *mmrRound) submitVote(vote byte, sender uuid.UUID) error {
-	roundLogger.Debug("submitting vote", "vote", vote, "sender", sender)
-	return r.ca.submitVote(vote, sender)
-}
-
 type roundTransitionResult struct {
 	estimate byte
 	decided  bool
@@ -54,7 +38,7 @@ type roundTransitionResult struct {
 
 func (r *mmrRound) execRound() {
 	roundLogger.Info("executing round")
-	dec := <-r.ca.outputDecision
+	dec := <-r.crusaderAgreement.outputDecision
 	roundLogger.Info("round decided", "dec", dec)
 	roundLogger.Info("requesting coin")
 	r.coinReqChan <- struct{}{}
@@ -77,12 +61,4 @@ func (r *mmrRound) submitCoin(coin byte) roundTransitionResult {
 	}
 	r.coinReceiveChan <- coin
 	return <-r.internalTransition
-}
-
-func (r *mmrRound) getEchoChan() chan byte {
-	return r.ca.bcastEchoChan
-}
-
-func (r *mmrRound) getVoteChan() chan byte {
-	return r.ca.bcastVoteChan
 }

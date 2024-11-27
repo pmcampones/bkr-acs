@@ -21,10 +21,10 @@ func testShouldDecideIfAllProposeSame(t *testing.T, proposal byte) {
 	f := uint(3)
 	n := 3*f + 1
 	scheduler := newOrderedCAScheduler(t)
-	instances := lo.Map(lo.Range(int(n)), func(_ int, _ int) *crusaderAgreement {
+	instances := lo.Map(lo.Range(int(n)), func(_ int, _ int) crusaderAgreement {
 		return newCrusaderAgreement(n, f)
 	})
-	senders := lo.Map(instances, func(_ *crusaderAgreement, _ int) uuid.UUID {
+	senders := lo.Map(instances, func(_ crusaderAgreement, _ int) uuid.UUID {
 		return uuid.New()
 	})
 	for _, tuple := range lo.Zip2(instances, senders) {
@@ -34,7 +34,7 @@ func testShouldDecideIfAllProposeSame(t *testing.T, proposal byte) {
 	for _, instance := range instances {
 		assert.NoError(t, instance.propose(proposal))
 	}
-	decisions := lo.Map(instances, func(instance *crusaderAgreement, _ int) byte {
+	decisions := lo.Map(instances, func(instance crusaderAgreement, _ int) byte {
 		return <-instance.outputDecision
 	})
 	assert.True(t, lo.EveryBy(decisions, func(decision byte) bool {

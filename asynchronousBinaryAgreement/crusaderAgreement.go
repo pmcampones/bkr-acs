@@ -21,8 +21,8 @@ type crusaderAgreement struct {
 	deliveredSingle bool
 }
 
-func newCrusaderAgreement(n, f uint) *crusaderAgreement {
-	return &crusaderAgreement{
+func newCrusaderAgreement(n, f uint) crusaderAgreement {
+	return crusaderAgreement{
 		n:               n,
 		f:               f,
 		sentEchoes:      []bool{false, false},

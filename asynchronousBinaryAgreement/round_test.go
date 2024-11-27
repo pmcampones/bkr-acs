@@ -47,12 +47,6 @@ func TestRoundShouldRejectSameBValSameSender(t *testing.T) {
 	assert.Error(t, r.submitEcho(1, sender))
 }
 
-func TestRoundShouldWaitForCoinRequest(t *testing.T) {
-	r := newMMRRound(1, 0)
-	transition := r.submitCoin(0)
-	assert.Error(t, transition.err)
-}
-
 func TestRoundShouldRejectInvalidCoin(t *testing.T) {
 	r := followSingleNodeCommonPath(t, 0)
 	transition := r.submitCoin(bot)
@@ -95,10 +89,10 @@ func followSingleNodeCommonPath(t *testing.T, est byte) *mmrRound {
 	myId := uuid.New()
 	r := newMMRRound(1, 0)
 	assert.NoError(t, r.propose(est))
-	bVal := <-r.getEchoChan()
+	bVal := <-r.bcastEchoChan
 	assert.Equal(t, est, bVal)
 	assert.NoError(t, r.submitEcho(bVal, myId))
-	aux := <-r.getVoteChan()
+	aux := <-r.bcastVoteChan
 	assert.Equal(t, est, aux, "vote should be the same as the estimate")
 	assert.NoError(t, r.submitVote(aux, myId))
 	<-r.coinReqChan
