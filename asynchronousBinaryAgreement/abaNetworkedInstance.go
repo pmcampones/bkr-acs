@@ -56,20 +56,20 @@ func (a *abaNetworkedInstance) listener() {
 	abaNetworkedLogger.Info("starting listener aba networked inner", "instance", a.id)
 	for {
 		select {
-		case echo := <-a.instance.getEchoChan():
+		case echo := <-a.instance.deliverEcho:
 			if err := a.abamidware.broadcastBVal(a.id, echo.r, echo.val); err != nil {
 				abaNetworkedLogger.Warn("unable to broadcast echo", "instance", a.id, "round", echo.r, "error", err)
 			}
-		case vote := <-a.instance.getVoteChan():
+		case vote := <-a.instance.deliverVote:
 			if err := a.abamidware.broadcastAux(a.id, vote.r, vote.val); err != nil {
 				abaNetworkedLogger.Warn("unable to broadcast vote", "instance", a.id, "round", vote.r, "error", err)
 			}
-		case decision := <-a.instance.getDecisionChan():
+		case decision := <-a.instance.deliverDecision:
 			if a.canOutputDecision() {
 				abaNetworkedLogger.Info("outputting decision", "instance", a.id, "decision", decision)
 				a.outputDecision(decision)
 			}
-		case coinReq := <-a.instance.getCoinReqChan():
+		case coinReq := <-a.instance.coinReq:
 			go func() {
 				coin, err := a.getCoin(coinReq)
 				if err != nil {

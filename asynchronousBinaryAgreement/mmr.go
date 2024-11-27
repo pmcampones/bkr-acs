@@ -39,8 +39,8 @@ type mmr struct {
 	termGadget      *mmrTermination
 }
 
-func newMMR(n, f uint) *mmr {
-	m := &mmr{
+func newMMR(n, f uint) mmr {
+	m := mmr{
 		n:               n,
 		f:               f,
 		deliverEcho:     make(chan roundMsg, 2*(averageNumRounds+1)),
