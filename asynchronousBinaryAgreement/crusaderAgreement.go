@@ -10,30 +10,30 @@ import (
 var crusaderLogger = utils.GetLogger("Crusader Agreement", slog.LevelWarn)
 
 type crusaderAgreement struct {
-	n               uint
-	f               uint
-	sentEchoes      []bool
-	voted           bool
-	echoes          []map[uuid.UUID]bool
-	votes           []map[uuid.UUID]bool
-	bcastEchoChan   chan byte
-	bcastVoteChan   chan byte
-	outputDecision  chan byte
-	deliveredSingle bool
+	n              uint
+	f              uint
+	sentEchoes     []bool
+	voted          bool
+	echoes         []map[uuid.UUID]bool
+	votes          []map[uuid.UUID]bool
+	bcastEchoChan  chan byte
+	bcastVoteChan  chan byte
+	outputDecision chan byte
+	delivered      bool
 }
 
 func newCrusaderAgreement(n, f uint) crusaderAgreement {
 	return crusaderAgreement{
-		n:               n,
-		f:               f,
-		sentEchoes:      []bool{false, false},
-		voted:           false,
-		echoes:          []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
-		votes:           []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
-		bcastEchoChan:   make(chan byte, 2),
-		bcastVoteChan:   make(chan byte, 1),
-		outputDecision:  make(chan byte, 2),
-		deliveredSingle: false,
+		n:              n,
+		f:              f,
+		sentEchoes:     []bool{false, false},
+		voted:          false,
+		echoes:         []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
+		votes:          []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
+		bcastEchoChan:  make(chan byte, 2),
+		bcastVoteChan:  make(chan byte, 1),
+		outputDecision: make(chan byte, 1),
+		delivered:      false,
 	}
 }
 
@@ -63,9 +63,8 @@ func (c *crusaderAgreement) submitEcho(echo byte, sender uuid.UUID) error {
 	} else if countEcho == int(c.n-c.f) {
 		countOther := len(c.echoes[1-echo])
 		if countOther < int(c.n+c.f) && !c.voted {
-			c.voted = true
 			c.broadcastVote(echo)
-		} else if !c.deliveredSingle {
+		} else if !c.delivered {
 			c.outputDecision <- bot
 		}
 	}
@@ -81,7 +80,7 @@ func (c *crusaderAgreement) submitVote(vote byte, sender uuid.UUID) error {
 	crusaderLogger.Debug("submitting vote", "vote", vote, "sender", sender)
 	c.votes[vote][sender] = true
 	countVotes := len(c.votes[vote])
-	if countVotes == int(c.n-c.f) && !c.deliveredSingle {
+	if countVotes == int(c.n-c.f) && !c.delivered {
 		c.outputDecision <- vote
 	}
 	return nil
@@ -95,5 +94,6 @@ func (c *crusaderAgreement) broadcastEcho(echo byte) {
 
 func (c *crusaderAgreement) broadcastVote(vote byte) {
 	roundLogger.Info("submitting vote", "vote", vote)
+	c.voted = true
 	c.bcastVoteChan <- vote
 }
