@@ -15,8 +15,8 @@ import (
 var abaNetworkedLogger = utils.GetLogger("ABA Networked Instance", slog.LevelWarn)
 
 type abaNetworkedInstance struct {
-	id             uuid.UUID
-	instance       *concurrentMMR
+	id uuid.UUID
+	concurrentMMR
 	decisionChan   chan byte
 	terminatedChan chan struct{}
 	hasDelivered   bool
@@ -30,7 +30,7 @@ type abaNetworkedInstance struct {
 func newAbaNetworkedInstance(id uuid.UUID, n, f uint, abamidware *abaMiddleware, termidware *terminationMiddleware, ctChan *ct.CTChannel) *abaNetworkedInstance {
 	a := &abaNetworkedInstance{
 		id:             id,
-		instance:       newConcurrentMMR(n, f),
+		concurrentMMR:  newConcurrentMMR(n, f),
 		decisionChan:   make(chan byte, 1),
 		terminatedChan: make(chan struct{}, 1),
 		hasDelivered:   false,
@@ -44,37 +44,29 @@ func newAbaNetworkedInstance(id uuid.UUID, n, f uint, abamidware *abaMiddleware,
 	return a
 }
 
-func (a *abaNetworkedInstance) propose(est byte) error {
-	abaNetworkedLogger.Info("proposing initial estimate", "instance", a.id, "est", est)
-	if err := a.instance.propose(est); err != nil {
-		return fmt.Errorf("unable to propose initial estimate: %w", err)
-	}
-	return nil
-}
-
 func (a *abaNetworkedInstance) listener() {
 	abaNetworkedLogger.Info("starting listener aba networked inner", "instance", a.id)
 	for {
 		select {
-		case echo := <-a.instance.deliverEcho:
+		case echo := <-a.deliverEcho:
 			if err := a.abamidware.broadcastBVal(a.id, echo.r, echo.val); err != nil {
 				abaNetworkedLogger.Warn("unable to broadcast echo", "instance", a.id, "round", echo.r, "error", err)
 			}
-		case vote := <-a.instance.deliverVote:
+		case vote := <-a.deliverVote:
 			if err := a.abamidware.broadcastAux(a.id, vote.r, vote.val); err != nil {
 				abaNetworkedLogger.Warn("unable to broadcast vote", "instance", a.id, "round", vote.r, "error", err)
 			}
-		case decision := <-a.instance.deliverDecision:
+		case decision := <-a.deliverDecision:
 			if a.canOutputDecision() {
 				abaNetworkedLogger.Info("outputting decision", "instance", a.id, "decision", decision)
 				a.outputDecision(decision)
 			}
-		case coinReq := <-a.instance.coinReq:
+		case coinReq := <-a.coinReq:
 			go func() {
 				coin, err := a.getCoin(coinReq)
 				if err != nil {
 					abaNetworkedLogger.Warn("unable to get coin", "instance", a.id, "round", coinReq, "error", err)
-				} else if err := a.instance.submitCoin(coin, coinReq); err != nil {
+				} else if err := a.submitCoin(coin, coinReq); err != nil {
 					abaNetworkedLogger.Warn("unable to submit coin", "instance", a.id, "round", coinReq, "error", err)
 				}
 			}()
@@ -115,31 +107,6 @@ func (a *abaNetworkedInstance) makeCoinSeed(round uint16) ([]byte, error) {
 	return writer.Bytes(), nil
 }
 
-func (a *abaNetworkedInstance) submitEcho(echo byte, sender uuid.UUID, r uint16) error {
-	abaNetworkedLogger.Debug("submitting echo", "instance", a.id, "round", r, "echo", echo)
-	if err := a.instance.submitEcho(echo, sender, r); err != nil {
-		return fmt.Errorf("unable to submit echo: %w", err)
-	}
-	return nil
-}
-
-func (a *abaNetworkedInstance) submitVote(vote byte, sender uuid.UUID, r uint16) error {
-	abaNetworkedLogger.Debug("submitting vote", "instance", a.id, "round", r, "vote", vote)
-	if err := a.instance.submitVote(vote, sender, r); err != nil {
-		return fmt.Errorf("unable to submit vote: %w", err)
-	}
-	return nil
-}
-
-func (a *abaNetworkedInstance) submitDecision(decision byte, sender uuid.UUID) error {
-	abaNetworkedLogger.Debug("submitting decision", "instance", a.id, "decision", decision, "sender", sender)
-	err := a.instance.submitDecision(decision, sender)
-	if err != nil {
-		return fmt.Errorf("unable to submit decision: %w", err)
-	}
-	return nil
-}
-
 func (a *abaNetworkedInstance) canOutputDecision() bool {
 	a.deliveryLock.Lock()
 	defer a.deliveryLock.Unlock()
@@ -158,9 +125,7 @@ func (a *abaNetworkedInstance) outputDecision(decision byte) {
 }
 
 func (a *abaNetworkedInstance) close() {
-	if a.instance != nil {
-		a.instance.close()
-		abaNetworkedLogger.Debug("signaling close listener", "instance", a.id)
-		a.listenerClose <- struct{}{}
-	}
+	a.concurrentMMR.close()
+	abaNetworkedLogger.Debug("signaling close listener", "instance", a.id)
+	a.listenerClose <- struct{}{}
 }

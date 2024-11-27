@@ -47,11 +47,11 @@ func (o *mmrOrderedScheduler) addInstance(m *concurrentMMR) *wrappedMMR {
 
 func (o *mmrOrderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappedMMR {
 	m := newConcurrentMMR(n, f)
-	wmmr := o.addInstance(m)
+	wmmr := o.addInstance(&m)
 	go o.listenBVals(o.t, m.deliverEcho, sender)
 	go o.listenAux(o.t, m.deliverVote, sender)
 	go o.listenDecisions(o.t, wmmr, sender)
-	go o.listenCoinRequests(o.t, m.coinReq, m)
+	go o.listenCoinRequests(o.t, m.coinReq, &m)
 	return wmmr
 }
 
@@ -168,11 +168,11 @@ func (u *mmrUnorderedScheduler) addInstance(m *concurrentMMR) *wrappedMMR {
 
 func (u *mmrUnorderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappedMMR {
 	m := newConcurrentMMR(n, f)
-	wmmr := u.addInstance(m)
+	wmmr := u.addInstance(&m)
 	go u.listenBVals(m.deliverEcho, sender)
 	go u.listenAux(m.deliverVote, sender)
 	go u.listenDecisions(u.t, wmmr, sender)
-	go u.listenCoinRequests(m.coinReq, m)
+	go u.listenCoinRequests(m.coinReq, &m)
 	return wmmr
 }
 
