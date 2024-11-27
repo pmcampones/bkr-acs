@@ -48,33 +48,47 @@ func (o *mmrOrderedScheduler) addInstance(m *concurrentMMR) *wrappedMMR {
 func (o *mmrOrderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappedMMR {
 	m := newConcurrentMMR(n, f)
 	wmmr := o.addInstance(&m)
-	go o.listenBVals(o.t, m.deliverEcho, sender)
-	go o.listenAux(o.t, m.deliverVote, sender)
+	go o.listenEchoes(o.t, m.deliverEcho, sender)
+	go o.listenVotes(o.t, m.deliverVote, sender)
+	go o.listenBinds(o.t, m.deliverBind, sender)
 	go o.listenDecisions(o.t, wmmr, sender)
 	go o.listenCoinRequests(o.t, m.coinReq, &m)
 	return wmmr
 }
 
-func (o *mmrOrderedScheduler) listenBVals(t *testing.T, bValChan chan roundMsg, sender uuid.UUID) {
+func (o *mmrOrderedScheduler) listenEchoes(t *testing.T, echoChan chan roundMsg, sender uuid.UUID) {
 	func() {
 		for {
-			bVal := <-bValChan
+			echo := <-echoChan
 			for _, wmmr := range o.instances {
 				go func() {
-					assert.NoError(t, wmmr.m.submitEcho(bVal.val, sender, bVal.r))
+					assert.NoError(t, wmmr.m.submitEcho(echo.val, sender, echo.r))
 				}()
 			}
 		}
 	}()
 }
 
-func (o *mmrOrderedScheduler) listenAux(t *testing.T, auxChan chan roundMsg, sender uuid.UUID) {
+func (o *mmrOrderedScheduler) listenVotes(t *testing.T, voteChan chan roundMsg, sender uuid.UUID) {
 	func() {
 		for {
-			aux := <-auxChan
+			vote := <-voteChan
 			for _, wmmr := range o.instances {
 				go func() {
-					assert.NoError(t, wmmr.m.submitVote(aux.val, sender, aux.r))
+					assert.NoError(t, wmmr.m.submitVote(vote.val, sender, vote.r))
+				}()
+			}
+		}
+	}()
+}
+
+func (o *mmrOrderedScheduler) listenBinds(t *testing.T, bindChan chan roundMsg, sender uuid.UUID) {
+	func() {
+		for {
+			bind := <-bindChan
+			for _, wmmr := range o.instances {
+				go func() {
+					assert.NoError(t, wmmr.m.submitBind(bind.val, sender, bind.r))
 				}()
 			}
 		}
@@ -169,21 +183,22 @@ func (u *mmrUnorderedScheduler) addInstance(m *concurrentMMR) *wrappedMMR {
 func (u *mmrUnorderedScheduler) getChannels(n, f uint, sender uuid.UUID) *wrappedMMR {
 	m := newConcurrentMMR(n, f)
 	wmmr := u.addInstance(&m)
-	go u.listenBVals(m.deliverEcho, sender)
-	go u.listenAux(m.deliverVote, sender)
+	go u.listenEchoes(m.deliverEcho, sender)
+	go u.listenVotes(m.deliverVote, sender)
+	go u.listenBinds(m.deliverBind, sender)
 	go u.listenDecisions(u.t, wmmr, sender)
 	go u.listenCoinRequests(m.coinReq, &m)
 	return wmmr
 }
 
-func (u *mmrUnorderedScheduler) listenBVals(bValChan chan roundMsg, sender uuid.UUID) {
+func (u *mmrUnorderedScheduler) listenEchoes(echoChan chan roundMsg, sender uuid.UUID) {
 	func() {
 		for {
-			bVal := <-bValChan
+			echo := <-echoChan
 			for _, wmmr := range u.instances {
 				go func() {
 					u.scheduleChan <- func() error {
-						return wmmr.m.submitEcho(bVal.val, sender, bVal.r)
+						return wmmr.m.submitEcho(echo.val, sender, echo.r)
 					}
 				}()
 			}
@@ -191,14 +206,29 @@ func (u *mmrUnorderedScheduler) listenBVals(bValChan chan roundMsg, sender uuid.
 	}()
 }
 
-func (u *mmrUnorderedScheduler) listenAux(auxChan chan roundMsg, sender uuid.UUID) {
+func (u *mmrUnorderedScheduler) listenVotes(voteChan chan roundMsg, sender uuid.UUID) {
 	func() {
 		for {
-			aux := <-auxChan
+			vote := <-voteChan
 			for _, wmmr := range u.instances {
 				go func() {
 					u.scheduleChan <- func() error {
-						return wmmr.m.submitVote(aux.val, sender, aux.r)
+						return wmmr.m.submitVote(vote.val, sender, vote.r)
+					}
+				}()
+			}
+		}
+	}()
+}
+
+func (u *mmrUnorderedScheduler) listenBinds(bindChan chan roundMsg, sender uuid.UUID) {
+	func() {
+		for {
+			bind := <-bindChan
+			for _, wmmr := range u.instances {
+				go func() {
+					u.scheduleChan <- func() error {
+						return wmmr.m.submitBind(bind.val, sender, bind.r)
 					}
 				}()
 			}

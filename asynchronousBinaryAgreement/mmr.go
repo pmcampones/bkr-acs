@@ -7,7 +7,7 @@ import (
 	"log/slog"
 )
 
-var abaLogger = utils.GetLogger("MMR Instance", slog.LevelWarn)
+var abaLogger = utils.GetLogger("MMR Instance", slog.LevelDebug)
 
 const firstRound = 0
 const averageNumRounds = 2
@@ -31,6 +31,7 @@ type mmr struct {
 	f               uint
 	deliverEcho     chan roundMsg
 	deliverVote     chan roundMsg
+	deliverBind     chan roundMsg
 	reachedDecision chan byte
 	deliverDecision chan byte
 	hasDecided      bool
@@ -45,6 +46,7 @@ func newMMR(n, f uint) mmr {
 		f:               f,
 		deliverEcho:     make(chan roundMsg, 2*(averageNumRounds+1)),
 		deliverVote:     make(chan roundMsg, averageNumRounds+1),
+		deliverBind:     make(chan roundMsg, averageNumRounds+1),
 		reachedDecision: make(chan byte, 1),
 		deliverDecision: make(chan byte, 1),
 		hasDecided:      false,
@@ -82,6 +84,16 @@ func (m *mmr) submitVote(vote byte, sender uuid.UUID, r uint16) error {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
 	} else if err := round.round.submitVote(vote, sender); err != nil {
 		return fmt.Errorf("unable to submit vote to round %d: %v", r, err)
+	}
+	return nil
+}
+
+func (m *mmr) submitBind(bind byte, sender uuid.UUID, r uint16) error {
+	abaLogger.Debug("submitting bind", "bind", bind, "sender", sender, "round", r)
+	if round, err := m.getRound(r); err != nil {
+		return fmt.Errorf("unable to get round %d: %v", r, err)
+	} else if err := round.round.submitBind(bind, sender); err != nil {
+		return fmt.Errorf("unable to submit bind to round %d: %v", r, err)
 	}
 	return nil
 }
@@ -136,6 +148,11 @@ func (m *mmr) listenRequests(round *mmrRound, close chan struct{}, rnum uint16) 
 			abaLogger.Debug("broadcasting vote", "vote", vote, "round", rnum)
 			go func() {
 				m.deliverVote <- roundMsg{val: vote, r: rnum}
+			}()
+		case bind := <-round.bcastBindChan:
+			abaLogger.Debug("broadcasting bind", "bind", bind, "round", rnum)
+			go func() {
+				m.deliverBind <- roundMsg{val: bind, r: rnum}
 			}()
 		case <-round.coinReqChan:
 			abaLogger.Debug("coin request", "round", rnum)
