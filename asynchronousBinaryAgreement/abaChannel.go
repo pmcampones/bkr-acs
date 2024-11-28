@@ -130,6 +130,13 @@ func (c *AbaChannel) processMiddlewareMsg(msg *abaMsg) error {
 				abaChannelLogger.Warn("unable to submit vote", "instanceId", msg.instance, "round", msg.round, "error", err)
 			}
 		}()
+	case bind:
+		go func() {
+			err := wrapper.inner.submitBind(msg.val, msg.sender, msg.round)
+			if err != nil {
+				abaChannelLogger.Warn("unable to submit bind", "instanceId", msg.instance, "round", msg.round, "error", err)
+			}
+		}()
 	}
 	return nil
 }
