@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"log/slog"
-	"sync"
 	"unsafe"
 )
 
@@ -20,7 +19,6 @@ type abaNetworkedInstance struct {
 	decisionChan   chan byte
 	terminatedChan chan struct{}
 	hasDelivered   bool
-	deliveryLock   *sync.Mutex
 	abamidware     *abaMiddleware
 	termidware     *terminationMiddleware
 	ctChan         *ct.CTChannel
@@ -34,7 +32,6 @@ func newAbaNetworkedInstance(id uuid.UUID, n, f uint, abamidware *abaMiddleware,
 		decisionChan:   make(chan byte, 1),
 		terminatedChan: make(chan struct{}, 1),
 		hasDelivered:   false,
-		deliveryLock:   &sync.Mutex{},
 		abamidware:     abamidware,
 		termidware:     termidware,
 		ctChan:         ctChan,
@@ -61,10 +58,8 @@ func (a *abaNetworkedInstance) listener() {
 				abaNetworkedLogger.Warn("unable to broadcast bind", "instance", a.id, "round", bind.r, "error", err)
 			}
 		case decision := <-a.deliverDecision:
-			if a.canOutputDecision() {
-				abaNetworkedLogger.Info("outputting decision", "instance", a.id, "decision", decision)
-				a.outputDecision(decision)
-			}
+			abaNetworkedLogger.Info("outputting decision", "instance", a.id, "decision", decision)
+			a.outputDecision(decision)
 		case coinReq := <-a.coinReq:
 			go func() {
 				coin, err := a.getCoin(coinReq)
@@ -109,16 +104,6 @@ func (a *abaNetworkedInstance) makeCoinSeed(round uint16) ([]byte, error) {
 		return nil, fmt.Errorf("unable to write round to coin seed: %w", err)
 	}
 	return writer.Bytes(), nil
-}
-
-func (a *abaNetworkedInstance) canOutputDecision() bool {
-	a.deliveryLock.Lock()
-	defer a.deliveryLock.Unlock()
-	if !a.hasDelivered {
-		a.hasDelivered = true
-		return true
-	}
-	return false
 }
 
 func (a *abaNetworkedInstance) outputDecision(decision byte) {

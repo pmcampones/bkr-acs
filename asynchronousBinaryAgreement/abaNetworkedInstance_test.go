@@ -94,5 +94,5 @@ func makeAbaNetworkedInstance(t *testing.T, id uuid.UUID, node *on.Node, ssChan 
 	termBebChan := on.NewBEBChannel(node, 'd')
 	termidware := newTerminationMiddleware(termBebChan)
 	abaInstance := newAbaNetworkedInstance(id, n, f, abamidware, termidware, ctChan)
-	return abaInstance
+	return &abaInstance
 }
