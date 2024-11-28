@@ -20,21 +20,21 @@ type abaNetworkedInstance struct {
 	decisionChan   chan byte
 	terminatedChan chan struct{}
 	hasDelivered   bool
-	deliveryLock   sync.Mutex
+	deliveryLock   *sync.Mutex
 	abamidware     *abaMiddleware
 	termidware     *terminationMiddleware
 	ctChan         *ct.CTChannel
 	listenerClose  chan struct{}
 }
 
-func newAbaNetworkedInstance(id uuid.UUID, n, f uint, abamidware *abaMiddleware, termidware *terminationMiddleware, ctChan *ct.CTChannel) *abaNetworkedInstance {
-	a := &abaNetworkedInstance{
+func newAbaNetworkedInstance(id uuid.UUID, n, f uint, abamidware *abaMiddleware, termidware *terminationMiddleware, ctChan *ct.CTChannel) abaNetworkedInstance {
+	a := abaNetworkedInstance{
 		id:             id,
 		concurrentMMR:  newConcurrentMMR(n, f),
 		decisionChan:   make(chan byte, 1),
 		terminatedChan: make(chan struct{}, 1),
 		hasDelivered:   false,
-		deliveryLock:   sync.Mutex{},
+		deliveryLock:   &sync.Mutex{},
 		abamidware:     abamidware,
 		termidware:     termidware,
 		ctChan:         ctChan,

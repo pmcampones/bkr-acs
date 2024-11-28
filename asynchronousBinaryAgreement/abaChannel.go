@@ -12,12 +12,12 @@ import (
 var abaChannelLogger = utils.GetLogger("ABA Channel", slog.LevelWarn)
 
 type AbaInstance struct {
-	inner  *abaNetworkedInstance
+	abaNetworkedInstance
 	output chan byte
 }
 
 func (a *AbaInstance) Propose(est byte) error {
-	if err := a.inner.propose(est); err != nil {
+	if err := a.propose(est); err != nil {
 		return fmt.Errorf("unable to propose initial estimate: %w", err)
 	}
 	return nil
@@ -97,12 +97,12 @@ func (c *AbaChannel) listener() {
 }
 
 func (c *AbaChannel) processTermMsg(term *terminationMsg) error {
-	instance, err := c.getInstance(term.instance)
+	aba, err := c.getInstance(term.instance)
 	if err != nil {
 		return fmt.Errorf("unable to process termination message: unable to get aba inner: %w", err)
 	}
 	go func() {
-		err := instance.inner.submitDecision(term.decision, term.sender)
+		err := aba.submitDecision(term.decision, term.sender)
 		if err != nil {
 			abaChannelLogger.Warn("unable to submit decision", "instanceId", term.instance, "decision", term.decision, "error", err)
 		}
@@ -111,28 +111,28 @@ func (c *AbaChannel) processTermMsg(term *terminationMsg) error {
 }
 
 func (c *AbaChannel) processMiddlewareMsg(msg *abaMsg) error {
-	wrapper, err := c.getInstance(msg.instance)
+	aba, err := c.getInstance(msg.instance)
 	if err != nil {
 		return fmt.Errorf("unable to process aba control message: unable to get aba inner: %w", err)
 	}
 	switch msg.kind {
 	case echo:
 		go func() {
-			err := wrapper.inner.submitEcho(msg.val, msg.sender, msg.round)
+			err := aba.submitEcho(msg.val, msg.sender, msg.round)
 			if err != nil {
 				abaChannelLogger.Warn("unable to submit bVal", "instanceId", msg.instance, "round", msg.round, "error", err)
 			}
 		}()
 	case vote:
 		go func() {
-			err := wrapper.inner.submitVote(msg.val, msg.sender, msg.round)
+			err := aba.submitVote(msg.val, msg.sender, msg.round)
 			if err != nil {
 				abaChannelLogger.Warn("unable to submit vote", "instanceId", msg.instance, "round", msg.round, "error", err)
 			}
 		}()
 	case bind:
 		go func() {
-			err := wrapper.inner.submitBind(msg.val, msg.sender, msg.round)
+			err := aba.submitBind(msg.val, msg.sender, msg.round)
 			if err != nil {
 				abaChannelLogger.Warn("unable to submit bind", "instanceId", msg.instance, "round", msg.round, "error", err)
 			}
@@ -155,8 +155,8 @@ func (c *AbaChannel) getInstance(id uuid.UUID) (*AbaInstance, error) {
 func (c *AbaChannel) newAbaInstance(id uuid.UUID) *AbaInstance {
 	abaNetworked := newAbaNetworkedInstance(id, c.n, c.f, c.middleware, c.termidware, c.ctChannel)
 	wrapper := &AbaInstance{
-		inner:  abaNetworked,
-		output: make(chan byte, 1),
+		abaNetworkedInstance: abaNetworked,
+		output:               make(chan byte, 1),
 	}
 	c.instances[id] = wrapper
 	go c.handleAsyncResultDelivery(id, wrapper)
@@ -164,11 +164,11 @@ func (c *AbaChannel) newAbaInstance(id uuid.UUID) *AbaInstance {
 	return wrapper
 }
 
-func (c *AbaChannel) handleAsyncResultDelivery(id uuid.UUID, wrapper *AbaInstance) {
-	finalDecision := <-wrapper.inner.decisionChan
+func (c *AbaChannel) handleAsyncResultDelivery(id uuid.UUID, aba *AbaInstance) {
+	finalDecision := <-aba.decisionChan
 	abaChannelLogger.Debug("outputting decision for aba instance", "id", id, "decision", finalDecision)
-	wrapper.output <- finalDecision
-	<-wrapper.inner.terminatedChan
+	aba.output <- finalDecision
+	<-aba.terminatedChan
 	abaChannelLogger.Info("closing aba instance", "id", id)
 	c.commands <- func() error {
 		return c.closeWrappedInstance(id)
@@ -183,7 +183,7 @@ func (c *AbaChannel) closeWrappedInstance(id uuid.UUID) error {
 	} else {
 		c.finished[id] = true
 		c.instances[id] = nil
-		instance.inner.close()
+		instance.close()
 	}
 	return nil
 }
