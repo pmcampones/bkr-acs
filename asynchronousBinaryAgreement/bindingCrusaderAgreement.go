@@ -7,7 +7,7 @@ import (
 	"log/slog"
 )
 
-var bindingCrusaderLogger = utils.GetLogger("Binding Crusader Agreement", slog.LevelDebug)
+var bindingCrusaderLogger = utils.GetLogger("Binding Crusader Agreement", slog.LevelWarn)
 
 type bindingCrusaderAgreement struct {
 	n              uint

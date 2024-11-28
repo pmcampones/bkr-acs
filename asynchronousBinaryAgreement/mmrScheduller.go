@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-var mmrSchedulerLogger = utils.GetLogger("MMR Test Scheduler", slog.LevelDebug)
+var mmrSchedulerLogger = utils.GetLogger("MMR Test Scheduler", slog.LevelWarn)
 
 type wrappedMMR struct {
 	m        *concurrentMMR
