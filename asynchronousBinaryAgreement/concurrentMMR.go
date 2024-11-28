@@ -4,7 +4,6 @@ import (
 	"bkr-acs/utils"
 	"github.com/google/uuid"
 	"log/slog"
-	"sync/atomic"
 	"time"
 )
 
@@ -14,7 +13,6 @@ type concurrentMMR struct {
 	mmr
 	commands  chan func()
 	closeChan chan struct{}
-	isClosed  *atomic.Bool
 }
 
 func newConcurrentMMR(n, f uint) concurrentMMR {
@@ -22,7 +20,6 @@ func newConcurrentMMR(n, f uint) concurrentMMR {
 		mmr:       newMMR(n, f),
 		commands:  make(chan func()),
 		closeChan: make(chan struct{}, 1),
-		isClosed:  &atomic.Bool{},
 	}
 	go m.invoker()
 	return m
@@ -42,10 +39,6 @@ func (m *concurrentMMR) invoker() {
 }
 
 func (m *concurrentMMR) propose(est byte) error {
-	if m.isClosed.Load() {
-		concurrentMMRLogger.Info("received proposal on closed concurrentMMR")
-		return nil
-	}
 	concurrentMMRLogger.Info("scheduling initial proposal estimate", "est", est)
 	errChan := make(chan error)
 	m.commands <- func() {
@@ -55,10 +48,6 @@ func (m *concurrentMMR) propose(est byte) error {
 }
 
 func (m *concurrentMMR) submitEcho(echo byte, sender uuid.UUID, r uint16) error {
-	if m.isClosed.Load() {
-		concurrentMMRLogger.Info("received echo on closed concurrentMMR")
-		return nil
-	}
 	concurrentMMRLogger.Debug("scheduling submit echo", "echo", echo, "mmrRound", r, "sender", sender)
 	errChan := make(chan error)
 	m.commands <- func() {
@@ -68,10 +57,6 @@ func (m *concurrentMMR) submitEcho(echo byte, sender uuid.UUID, r uint16) error 
 }
 
 func (m *concurrentMMR) submitVote(vote byte, sender uuid.UUID, r uint16) error {
-	if m.isClosed.Load() {
-		concurrentMMRLogger.Info("received vote on closed concurrentMMR")
-		return nil
-	}
 	concurrentMMRLogger.Debug("scheduling submit vote", "vote", vote, "mmrRound", r)
 	errChan := make(chan error)
 	m.commands <- func() {
@@ -80,11 +65,16 @@ func (m *concurrentMMR) submitVote(vote byte, sender uuid.UUID, r uint16) error 
 	return <-errChan
 }
 
-func (m *concurrentMMR) submitCoin(coin byte, r uint16) error {
-	if m.isClosed.Load() {
-		abaLogger.Info("received coin on closed concurrentMMR")
-		return nil
+func (m *concurrentMMR) submitBind(bind byte, sender uuid.UUID, r uint16) error {
+	concurrentMMRLogger.Debug("scheduling submit bind", "bind", bind, "mmrRound", r)
+	errChan := make(chan error)
+	m.commands <- func() {
+		errChan <- m.mmr.submitBind(bind, sender, r)
 	}
+	return <-errChan
+}
+
+func (m *concurrentMMR) submitCoin(coin byte, r uint16) error {
 	concurrentMMRLogger.Debug("scheduling submit coin", "coin", coin, "mmrRound", r)
 	errChan := make(chan error)
 	m.commands <- func() {
@@ -94,16 +84,11 @@ func (m *concurrentMMR) submitCoin(coin byte, r uint16) error {
 }
 
 func (m *concurrentMMR) submitDecision(decision byte, sender uuid.UUID) error {
-	if m.isClosed.Load() {
-		concurrentMMRLogger.Info("received decision on closed concurrentMMR")
-		return nil
-	}
 	concurrentMMRLogger.Debug("submitting decision", "decision", decision, "sender", sender)
 	return m.mmr.submitDecision(decision, sender)
 }
 
 func (m *concurrentMMR) close() {
-	m.isClosed.Store(true)
 	concurrentMMRLogger.Info("signaling close concurrentMMR")
 	go func() {
 		time.Sleep(10 * time.Second)
