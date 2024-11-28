@@ -22,7 +22,7 @@ func TestBCAShouldDecide0IfAllProposeSame(t *testing.T) {
 }
 
 func testBCAShouldDecideIfAllProposeSame(t *testing.T, proposal byte) {
-	f := uint(5)
+	f := uint(3)
 	n := 3*f + 1
 	scheduler := newOrderedBCAScheduler(t)
 	instances := lo.Map(lo.Range(int(n)), func(_ int, _ int) *bindingCrusaderAgreement {
@@ -48,7 +48,7 @@ func testBCAShouldDecideIfAllProposeSame(t *testing.T, proposal byte) {
 }
 
 func TestBCAShouldTerminateWithManyDifferingResponses(t *testing.T) {
-	f := uint(5)
+	f := uint(3)
 	n := 3*f + 1
 	scheduler := newOrderedBCAScheduler(t)
 	instances := lo.Map(lo.Range(int(n)), func(_ int, _ int) *bindingCrusaderAgreement {

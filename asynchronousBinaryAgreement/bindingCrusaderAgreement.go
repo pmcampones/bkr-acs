@@ -13,7 +13,6 @@ type bindingCrusaderAgreement struct {
 	n              uint
 	f              uint
 	sentEchoes     []bool
-	voted          bool
 	bound          bool
 	echoes         []map[uuid.UUID]bool
 	votes          []map[uuid.UUID]bool
@@ -34,7 +33,6 @@ func newBindingCrusaderAgreement(n, f uint) bindingCrusaderAgreement {
 		n:              n,
 		f:              f,
 		sentEchoes:     []bool{false, false},
-		voted:          false,
 		bound:          false,
 		echoes:         []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
 		votes:          []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
@@ -49,6 +47,7 @@ func newBindingCrusaderAgreement(n, f uint) bindingCrusaderAgreement {
 		botChan:        make(chan struct{}, 1),
 		valChan:        make(chan byte, 1),
 	}
+	bindingCrusaderLogger.Info("created new binding crusader agreement", "n", n, "f", f)
 	go c.tryToOutputBot()
 	go c.waitForDecision()
 	return c
@@ -79,7 +78,7 @@ func (c *bindingCrusaderAgreement) submitEcho(echo byte, sender uuid.UUID) error
 		c.broadcastEcho(echo)
 	} else if countEcho == int(c.n-c.f) {
 		countOther := len(c.echoes[1-echo])
-		if countOther < int(c.n+c.f) /*&& !c.voted*/ {
+		if countOther < int(c.n-c.f) {
 			c.broadcastVote(echo)
 		} else if countOther >= int(c.n-c.f) && !c.bound {
 			c.broadcastBind(bot)
@@ -148,7 +147,6 @@ func (c *bindingCrusaderAgreement) broadcastEcho(echo byte) {
 
 func (c *bindingCrusaderAgreement) broadcastVote(vote byte) {
 	bindingCrusaderLogger.Info("broadcasting vote", "vote", vote)
-	c.voted = true
 	c.bcastVoteChan <- vote
 }
 
