@@ -1,9 +1,13 @@
 package asynchronousBinaryAgreement
 
 import (
+	"bkr-acs/utils"
 	"fmt"
 	"github.com/google/uuid"
+	"log/slog"
 )
+
+var bindingCrusaderLogger = utils.GetLogger("Binding Crusader Agreement", slog.LevelDebug)
 
 type bindingCrusaderAgreement struct {
 	n              uint
@@ -34,7 +38,7 @@ func newBindingCrusaderAgreement(n, f uint) bindingCrusaderAgreement {
 		bound:          false,
 		echoes:         []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
 		votes:          []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
-		binds:          []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
+		binds:          []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
 		bcastEchoChan:  make(chan byte, 2),
 		bcastVoteChan:  make(chan byte, 1),
 		bcastBindChan:  make(chan byte, 1),
@@ -51,11 +55,11 @@ func newBindingCrusaderAgreement(n, f uint) bindingCrusaderAgreement {
 }
 
 func (c *bindingCrusaderAgreement) propose(est byte) error {
-	crusaderLogger.Info("proposing estimate", "est", est)
+	bindingCrusaderLogger.Info("proposing estimate", "est", est)
 	if !isInputValid(est) {
 		return fmt.Errorf("invalid input %d", est)
 	} else if c.sentEchoes[est] {
-		crusaderLogger.Debug("already sent echo", "est", est)
+		bindingCrusaderLogger.Debug("already sent echo", "est", est)
 	} else {
 		c.broadcastEcho(est)
 	}
@@ -68,18 +72,17 @@ func (c *bindingCrusaderAgreement) submitEcho(echo byte, sender uuid.UUID) error
 	} else if c.echoes[echo][sender] {
 		return fmt.Errorf("duplicate echo from %s", sender)
 	}
-	crusaderLogger.Debug("submitting echo", "echo", echo, "sender", sender)
 	c.echoes[echo][sender] = true
+	bindingCrusaderLogger.Debug("submitting echo", "echo", echo, "id", sender, "echoes 0", len(c.echoes[0]), "echoes 1", len(c.echoes[1]))
 	countEcho := len(c.echoes[echo])
 	if countEcho == int(c.f+1) && !c.sentEchoes[echo] {
 		c.broadcastEcho(echo)
 	} else if countEcho == int(c.n-c.f) {
 		countOther := len(c.echoes[1-echo])
-		if countOther < int(c.n+c.f) && !c.voted {
+		if countOther < int(c.n+c.f) /*&& !c.voted*/ {
 			c.broadcastVote(echo)
-		} else if !c.bound {
-			c.broadcastBind(echo)
-		} else if countOther >= int(c.n-c.f) {
+		} else if countOther >= int(c.n-c.f) && !c.bound {
+			c.broadcastBind(bot)
 			c.bothChan <- struct{}{}
 		}
 	}
@@ -92,8 +95,8 @@ func (c *bindingCrusaderAgreement) submitVote(vote byte, sender uuid.UUID) error
 	} else if c.votes[0][sender] || c.votes[1][sender] {
 		return fmt.Errorf("duplicate vote from %s", sender)
 	}
-	crusaderLogger.Debug("submitting vote", "vote", vote, "sender", sender)
 	c.votes[vote][sender] = true
+	bindingCrusaderLogger.Debug("submitting vote", "vote", vote, "id", sender, "votes 0", len(c.votes[0]), "votes 1", len(c.votes[1]))
 	countVotes := len(c.votes[vote])
 	if countVotes == int(c.n-c.f) && !c.bound {
 		c.broadcastBind(vote)
@@ -102,28 +105,26 @@ func (c *bindingCrusaderAgreement) submitVote(vote byte, sender uuid.UUID) error
 }
 
 func (c *bindingCrusaderAgreement) submitBind(bind byte, sender uuid.UUID) error {
-	if !isInputValid(bind) {
+	if bind > bot || bind < 0 {
 		return fmt.Errorf("invalid input %d", bind)
-	} else if c.binds[0][sender] || c.binds[1][sender] {
+	} else if c.binds[0][sender] || c.binds[1][sender] || c.binds[bot][sender] {
 		return fmt.Errorf("duplicate bind from %s", sender)
 	}
-	crusaderLogger.Debug("submitting bind", "bind", bind, "sender", sender)
 	c.binds[bind][sender] = true
-	if !c.delivered {
-		if len(c.binds[bind]) == int(c.n-c.f) {
-			c.delivered = true
-			c.valChan <- bind
-		} else if len(c.binds[0])+len(c.binds[1]) == int(c.n-c.f) {
-			c.delivered = true
-			c.boundBotChan <- struct{}{}
-		}
+	bindingCrusaderLogger.Debug("submitting bind", "bind", bind, "id", sender, "binds 0", len(c.binds[0]), "binds 1", len(c.binds[1]), "binds bot", len(c.binds[bot]))
+	if bind != bot && len(c.binds[bind]) == int(c.n-c.f) {
+		c.valChan <- bind
+	} else if len(c.binds[0])+len(c.binds[1])+len(c.binds[bot]) == int(c.n-c.f) {
+		c.boundBotChan <- struct{}{}
 	}
 	return nil
 }
 
 func (c *bindingCrusaderAgreement) tryToOutputBot() {
 	<-c.bothChan
+	bindingCrusaderLogger.Info("both values are candidate for delivery")
 	<-c.boundBotChan
+	bindingCrusaderLogger.Info("received several differing bind values")
 	c.botChan <- struct{}{}
 }
 
@@ -140,19 +141,19 @@ func (c *bindingCrusaderAgreement) waitForDecision() {
 }
 
 func (c *bindingCrusaderAgreement) broadcastEcho(echo byte) {
-	crusaderLogger.Info("broadcasting echo", "echo", echo)
+	bindingCrusaderLogger.Info("broadcasting echo", "echo", echo)
 	c.sentEchoes[echo] = true
 	c.bcastEchoChan <- echo
 }
 
 func (c *bindingCrusaderAgreement) broadcastVote(vote byte) {
-	roundLogger.Info("submitting vote", "vote", vote)
+	bindingCrusaderLogger.Info("broadcasting vote", "vote", vote)
 	c.voted = true
 	c.bcastVoteChan <- vote
 }
 
 func (c *bindingCrusaderAgreement) broadcastBind(bind byte) {
-	roundLogger.Info("submitting bind", "bind", bind)
+	bindingCrusaderLogger.Info("broadcasting bind", "bind", bind)
 	c.bound = true
 	c.bcastBindChan <- bind
 }
