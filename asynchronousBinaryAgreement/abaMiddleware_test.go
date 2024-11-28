@@ -15,7 +15,7 @@ func TestShouldMarshalAndUnmarshalBval(t *testing.T) {
 	bebChannel := on.NewBEBChannel(node, 'a')
 	on.InitializeNodes(t, []*on.Node{node})
 	m := newABAMiddleware(bebChannel)
-	assert.NoError(t, m.broadcastBVal(abaInstance, round, val))
+	assert.NoError(t, m.broadcastEcho(abaInstance, round, val))
 	amsg := <-m.output
 	assert.Equal(t, echo, amsg.kind)
 	assert.Equal(t, abaInstance, amsg.instance)
@@ -34,7 +34,7 @@ func TestShouldMarshalAndUnmarshalAux(t *testing.T) {
 	bebChannel := on.NewBEBChannel(node, 'a')
 	on.InitializeNodes(t, []*on.Node{node})
 	m := newABAMiddleware(bebChannel)
-	assert.NoError(t, m.broadcastAux(abaInstance, round, val))
+	assert.NoError(t, m.broadcastVote(abaInstance, round, val))
 	amsg := <-m.output
 	assert.Equal(t, vote, amsg.kind)
 	assert.Equal(t, abaInstance, amsg.instance)

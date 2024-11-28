@@ -19,6 +19,7 @@ type middlewareCode byte
 const (
 	echo middlewareCode = 'a' + iota
 	vote
+	bind
 )
 
 type abaMsg struct {
@@ -93,12 +94,16 @@ func (m *abaMiddleware) parseMsg(msg []byte, sender *ecdsa.PublicKey) (*abaMsg, 
 	return tm, nil
 }
 
-func (m *abaMiddleware) broadcastBVal(instance uuid.UUID, round uint16, val byte) error {
+func (m *abaMiddleware) broadcastEcho(instance uuid.UUID, round uint16, val byte) error {
 	return m.broadcastMsg(instance, echo, round, val)
 }
 
-func (m *abaMiddleware) broadcastAux(instance uuid.UUID, round uint16, val byte) error {
+func (m *abaMiddleware) broadcastVote(instance uuid.UUID, round uint16, val byte) error {
 	return m.broadcastMsg(instance, vote, round, val)
+}
+
+func (m *abaMiddleware) broadcastBind(instance uuid.UUID, round uint16, val byte) error {
+	return m.broadcastMsg(instance, bind, round, val)
 }
 
 func (m *abaMiddleware) broadcastMsg(instance uuid.UUID, kind middlewareCode, round uint16, val byte) error {

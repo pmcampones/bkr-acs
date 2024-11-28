@@ -49,12 +49,16 @@ func (a *abaNetworkedInstance) listener() {
 	for {
 		select {
 		case echo := <-a.deliverEcho:
-			if err := a.abamidware.broadcastBVal(a.id, echo.r, echo.val); err != nil {
+			if err := a.abamidware.broadcastEcho(a.id, echo.r, echo.val); err != nil {
 				abaNetworkedLogger.Warn("unable to broadcast echo", "instance", a.id, "round", echo.r, "error", err)
 			}
 		case vote := <-a.deliverVote:
-			if err := a.abamidware.broadcastAux(a.id, vote.r, vote.val); err != nil {
+			if err := a.abamidware.broadcastVote(a.id, vote.r, vote.val); err != nil {
 				abaNetworkedLogger.Warn("unable to broadcast vote", "instance", a.id, "round", vote.r, "error", err)
+			}
+		case bind := <-a.deliverBind:
+			if err := a.abamidware.broadcastBind(a.id, bind.r, bind.val); err != nil {
+				abaNetworkedLogger.Warn("unable to broadcast bind", "instance", a.id, "round", bind.r, "error", err)
 			}
 		case decision := <-a.deliverDecision:
 			if a.canOutputDecision() {

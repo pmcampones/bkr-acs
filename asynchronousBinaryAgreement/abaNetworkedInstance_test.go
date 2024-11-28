@@ -40,6 +40,8 @@ func (n *networkedInstanceCommandIssuer) issueAbaMsgCommand(abamsg *abaMsg) {
 		n.aba.submitEcho(abamsg.val, abamsg.sender, abamsg.round)
 	case vote:
 		n.aba.submitVote(abamsg.val, abamsg.sender, abamsg.round)
+	case bind:
+		n.aba.submitBind(abamsg.val, abamsg.sender, abamsg.round)
 	}
 }
 
