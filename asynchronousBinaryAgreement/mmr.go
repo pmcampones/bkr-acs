@@ -9,7 +9,6 @@ import (
 
 var abaLogger = utils.GetLogger("MMR Instance", slog.LevelWarn)
 
-const firstRound = 0
 const averageNumRounds = 2
 
 type abaRound interface {

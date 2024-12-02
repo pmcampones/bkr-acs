@@ -8,21 +8,19 @@ import (
 
 var roundLogger = utils.GetLogger("MMR Round", slog.LevelWarn)
 
-type mmrRound struct {
+type firstRound struct {
 	bindingCrusaderAgreement
-	//externallyValidBCA
 	coinReqChan        chan struct{}
 	coinReceiveChan    chan byte
 	internalTransition chan roundTransitionResult
 }
 
-func newMMRRound(n, f uint) *mmrRound {
-	round := &mmrRound{
+func newMMRRound(n, f uint) *firstRound {
+	round := &firstRound{
 		bindingCrusaderAgreement: newBindingCrusaderAgreement(n, f),
-		//externallyValidBCA:          newExternallyValidBCA(n, f),
-		coinReqChan:        make(chan struct{}, 1),
-		coinReceiveChan:    make(chan byte, 1),
-		internalTransition: make(chan roundTransitionResult, 1),
+		coinReqChan:              make(chan struct{}, 1),
+		coinReceiveChan:          make(chan byte, 1),
+		internalTransition:       make(chan roundTransitionResult, 1),
 	}
 	go round.execRound()
 	return round
@@ -38,9 +36,8 @@ type roundTransitionResult struct {
 	err      error
 }
 
-func (r *mmrRound) execRound() {
+func (r *firstRound) execRound() {
 	roundLogger.Info("executing round")
-	//dec := <-r.externallyValidBCA.outputDecision
 	dec := <-r.bindingCrusaderAgreement.outputDecision
 	roundLogger.Info("round decided", "dec", dec)
 	roundLogger.Info("requesting coin")
@@ -58,7 +55,7 @@ func (r *mmrRound) execRound() {
 	}
 }
 
-func (r *mmrRound) submitCoin(coin byte) roundTransitionResult {
+func (r *firstRound) submitCoin(coin byte) roundTransitionResult {
 	if !isInputValid(coin) {
 		return roundTransitionResult{err: fmt.Errorf("invalid input %d", coin)}
 	}
@@ -66,18 +63,18 @@ func (r *mmrRound) submitCoin(coin byte) roundTransitionResult {
 	return <-r.internalTransition
 }
 
-func (r *mmrRound) getBcastEchoChan() chan byte {
+func (r *firstRound) getBcastEchoChan() chan byte {
 	return r.bcastEchoChan
 }
 
-func (r *mmrRound) getBcastVoteChan() chan byte {
+func (r *firstRound) getBcastVoteChan() chan byte {
 	return r.bcastVoteChan
 }
 
-func (r *mmrRound) getBcastBindChan() chan byte {
+func (r *firstRound) getBcastBindChan() chan byte {
 	return r.bcastBindChan
 }
 
-func (r *mmrRound) getCoinReqChan() chan struct{} {
+func (r *firstRound) getCoinReqChan() chan struct{} {
 	return r.coinReqChan
 }

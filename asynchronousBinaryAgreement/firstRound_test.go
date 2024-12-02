@@ -85,7 +85,7 @@ func TestRoundShouldNotDecideOwnEstimate1Coin0(t *testing.T) {
 	assert.False(t, transition.decided)
 }
 
-func followSingleNodeCommonPath(t *testing.T, est byte) *mmrRound {
+func followSingleNodeCommonPath(t *testing.T, est byte) *firstRound {
 	myId := uuid.New()
 	r := newMMRRound(1, 0)
 	assert.NoError(t, r.propose(est))
@@ -253,9 +253,9 @@ func testRoundAllProposeTheSame(t *testing.T, correctNodes, n, f, byzantine int,
 	}
 }
 
-func instantiateCorrect(t *testing.T, maxNodes, numNodes, f int) []*mmrRound {
+func instantiateCorrect(t *testing.T, maxNodes, numNodes, f int) []*firstRound {
 	s := newOrderedScheduler()
-	rounds := lo.Map(lo.Range(numNodes), func(_ int, _ int) *mmrRound { return newMMRRound(uint(maxNodes), uint(f)) })
+	rounds := lo.Map(lo.Range(numNodes), func(_ int, _ int) *firstRound { return newMMRRound(uint(maxNodes), uint(f)) })
 	for _, r := range rounds {
 		s.addRound(t, uuid.New(), r)
 	}
