@@ -65,3 +65,19 @@ func (r *mmrRound) submitCoin(coin byte) roundTransitionResult {
 	r.coinReceiveChan <- coin
 	return <-r.internalTransition
 }
+
+func (r *mmrRound) getBcastEchoChan() chan byte {
+	return r.bcastEchoChan
+}
+
+func (r *mmrRound) getBcastVoteChan() chan byte {
+	return r.bcastVoteChan
+}
+
+func (r *mmrRound) getBcastBindChan() chan byte {
+	return r.bcastBindChan
+}
+
+func (r *mmrRound) getCoinReqChan() chan struct{} {
+	return r.coinReqChan
+}

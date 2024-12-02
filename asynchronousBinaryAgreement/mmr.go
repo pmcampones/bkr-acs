@@ -12,13 +12,25 @@ var abaLogger = utils.GetLogger("MMR Instance", slog.LevelWarn)
 const firstRound = 0
 const averageNumRounds = 2
 
+type abaRound interface {
+	propose(byte) error
+	submitEcho(byte, uuid.UUID) error
+	submitVote(byte, uuid.UUID) error
+	submitBind(byte, uuid.UUID) error
+	submitCoin(byte) roundTransitionResult
+	getBcastEchoChan() chan byte
+	getBcastVoteChan() chan byte
+	getBcastBindChan() chan byte
+	getCoinReqChan() chan struct{}
+}
+
 type roundMsg struct {
 	val byte
 	r   uint16
 }
 
 type cancelableRound struct {
-	round     *mmrRound
+	abaRound
 	closeChan chan struct{}
 }
 
@@ -62,7 +74,7 @@ func (m *mmr) propose(est byte, r uint16) error {
 	abaLogger.Debug("proposing estimate", "est", est, "round", r)
 	if round, err := m.getRound(r); err != nil {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
-	} else if err := round.round.propose(est); err != nil {
+	} else if err := round.propose(est); err != nil {
 		return fmt.Errorf("unable to propose to round %d: %v", r, err)
 	}
 	return nil
@@ -72,7 +84,7 @@ func (m *mmr) submitEcho(echo byte, sender uuid.UUID, r uint16) error {
 	abaLogger.Debug("submitting echo", "echo", echo, "sender", sender, "round", r)
 	if round, err := m.getRound(r); err != nil {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
-	} else if err := round.round.submitEcho(echo, sender); err != nil {
+	} else if err := round.submitEcho(echo, sender); err != nil {
 		return fmt.Errorf("unable to submit echo to round %d: %v", r, err)
 	}
 	return nil
@@ -82,7 +94,7 @@ func (m *mmr) submitVote(vote byte, sender uuid.UUID, r uint16) error {
 	abaLogger.Debug("submitting vote", "vote", vote, "sender", sender, "round", r)
 	if round, err := m.getRound(r); err != nil {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
-	} else if err := round.round.submitVote(vote, sender); err != nil {
+	} else if err := round.submitVote(vote, sender); err != nil {
 		return fmt.Errorf("unable to submit vote to round %d: %v", r, err)
 	}
 	return nil
@@ -92,7 +104,7 @@ func (m *mmr) submitBind(bind byte, sender uuid.UUID, r uint16) error {
 	abaLogger.Debug("submitting bind", "bind", bind, "sender", sender, "round", r)
 	if round, err := m.getRound(r); err != nil {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
-	} else if err := round.round.submitBind(bind, sender); err != nil {
+	} else if err := round.submitBind(bind, sender); err != nil {
 		return fmt.Errorf("unable to submit bind to round %d: %v", r, err)
 	}
 	return nil
@@ -102,7 +114,7 @@ func (m *mmr) submitCoin(coin byte, r uint16) error {
 	abaLogger.Debug("submitting coin", "coin", coin, "mmrRound", r)
 	if round, err := m.getRound(r); err != nil {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
-	} else if res := round.round.submitCoin(coin); res.err != nil {
+	} else if res := round.submitCoin(coin); res.err != nil {
 		return fmt.Errorf("unable to submit coin to round %d: %v", r, res.err)
 	} else if res.decided && !m.hasDecided {
 		m.hasDecided = true
@@ -131,30 +143,30 @@ func (m *mmr) newRound(r uint16) (*cancelableRound, error) {
 	closeChan := make(chan struct{}, 1)
 	go m.listenRequests(round, closeChan, r)
 	return &cancelableRound{
-		round:     round,
+		abaRound:  round,
 		closeChan: closeChan,
 	}, nil
 }
 
-func (m *mmr) listenRequests(round *mmrRound, close chan struct{}, rnum uint16) {
+func (m *mmr) listenRequests(round abaRound, close chan struct{}, rnum uint16) {
 	for {
 		select {
-		case echo := <-round.bcastEchoChan:
+		case echo := <-round.getBcastEchoChan():
 			abaLogger.Debug("broadcasting echo", "echo", echo, "round", rnum)
 			go func() {
 				m.deliverEcho <- roundMsg{val: echo, r: rnum}
 			}()
-		case vote := <-round.bcastVoteChan:
+		case vote := <-round.getBcastVoteChan():
 			abaLogger.Debug("broadcasting vote", "vote", vote, "round", rnum)
 			go func() {
 				m.deliverVote <- roundMsg{val: vote, r: rnum}
 			}()
-		case bind := <-round.bcastBindChan:
+		case bind := <-round.getBcastBindChan():
 			abaLogger.Debug("broadcasting bind", "bind", bind, "round", rnum)
 			go func() {
 				m.deliverBind <- roundMsg{val: bind, r: rnum}
 			}()
-		case <-round.coinReqChan:
+		case <-round.getCoinReqChan():
 			abaLogger.Debug("coin request", "round", rnum)
 			go func() {
 				m.coinReq <- rnum
