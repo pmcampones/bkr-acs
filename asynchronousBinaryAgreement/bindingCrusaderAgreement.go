@@ -10,42 +10,44 @@ import (
 var bindingCrusaderLogger = utils.GetLogger("Binding Crusader Agreement", slog.LevelWarn)
 
 type bindingCrusaderAgreement struct {
-	n              uint
-	f              uint
-	sentEchoes     []bool
-	bound          bool
-	echoes         []map[uuid.UUID]bool
-	votes          []map[uuid.UUID]bool
-	binds          []map[uuid.UUID]bool
-	bcastEchoChan  chan byte
-	bcastVoteChan  chan byte
-	bcastBindChan  chan byte
-	outputDecision chan byte
-	delivered      bool
-	bothChan       chan struct{}
-	boundBotChan   chan struct{}
-	botChan        chan struct{}
-	valChan        chan byte
+	n                       uint
+	f                       uint
+	sentEchoes              []bool
+	bound                   bool
+	echoes                  []map[uuid.UUID]bool
+	votes                   []map[uuid.UUID]bool
+	binds                   []map[uuid.UUID]bool
+	bcastEchoChan           chan byte
+	bcastVoteChan           chan byte
+	bcastBindChan           chan byte
+	outputDecision          chan byte
+	delivered               bool
+	outputExternalValidChan chan byte
+	bothChan                chan struct{}
+	boundBotChan            chan struct{}
+	botChan                 chan struct{}
+	valChan                 chan byte
 }
 
 func newBindingCrusaderAgreement(n, f uint) bindingCrusaderAgreement {
 	c := bindingCrusaderAgreement{
-		n:              n,
-		f:              f,
-		sentEchoes:     []bool{false, false},
-		bound:          false,
-		echoes:         []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
-		votes:          []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
-		binds:          []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
-		bcastEchoChan:  make(chan byte, 2),
-		bcastVoteChan:  make(chan byte, 1),
-		bcastBindChan:  make(chan byte, 1),
-		outputDecision: make(chan byte, 1),
-		delivered:      false,
-		bothChan:       make(chan struct{}, 1),
-		boundBotChan:   make(chan struct{}, 1),
-		botChan:        make(chan struct{}, 1),
-		valChan:        make(chan byte, 1),
+		n:                       n,
+		f:                       f,
+		sentEchoes:              []bool{false, false},
+		bound:                   false,
+		echoes:                  []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
+		votes:                   []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
+		binds:                   []map[uuid.UUID]bool{make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n), make(map[uuid.UUID]bool, n)},
+		bcastEchoChan:           make(chan byte, 2),
+		bcastVoteChan:           make(chan byte, 1),
+		bcastBindChan:           make(chan byte, 1),
+		outputDecision:          make(chan byte, 1),
+		outputExternalValidChan: make(chan byte, 2),
+		delivered:               false,
+		bothChan:                make(chan struct{}, 1),
+		boundBotChan:            make(chan struct{}, 1),
+		botChan:                 make(chan struct{}, 1),
+		valChan:                 make(chan byte, 1),
 	}
 	bindingCrusaderLogger.Info("created new binding crusader agreement", "n", n, "f", f)
 	go c.tryToOutputBot()
@@ -77,6 +79,7 @@ func (c *bindingCrusaderAgreement) submitEcho(echo byte, sender uuid.UUID) error
 	if countEcho == int(c.f+1) && !c.sentEchoes[echo] {
 		c.broadcastEcho(echo)
 	} else if countEcho == int(c.n-c.f) {
+		c.outputExternalValidChan <- echo
 		countOther := len(c.echoes[1-echo])
 		if countOther < int(c.n-c.f) {
 			c.broadcastVote(echo)
