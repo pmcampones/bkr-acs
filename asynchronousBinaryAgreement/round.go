@@ -17,6 +17,7 @@ type bca interface {
 	getBcastVoteChan() chan byte
 	getBcastBindChan() chan byte
 	getOutputDecision() chan byte
+	getOutputExternalValidChan() chan byte
 }
 
 var roundLogger = utils.GetLogger("MMR Round", slog.LevelWarn)

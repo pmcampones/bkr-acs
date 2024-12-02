@@ -180,3 +180,7 @@ func (c bindingCrusaderAgreement) getBcastVoteChan() chan byte {
 func (c bindingCrusaderAgreement) getBcastBindChan() chan byte {
 	return c.bcastBindChan
 }
+
+func (c bindingCrusaderAgreement) getOutputExternalValidChan() chan byte {
+	return c.outputExternalValidChan
+}
