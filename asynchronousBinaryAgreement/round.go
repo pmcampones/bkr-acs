@@ -9,7 +9,8 @@ import (
 var roundLogger = utils.GetLogger("MMR Round", slog.LevelWarn)
 
 type mmrRound struct {
-	bindingCrusaderAgreement
+	//bindingCrusaderAgreement
+	simpleBCA
 	coinReqChan        chan struct{}
 	coinReceiveChan    chan byte
 	internalTransition chan roundTransitionResult
@@ -17,10 +18,11 @@ type mmrRound struct {
 
 func newMMRRound(n, f uint) *mmrRound {
 	round := &mmrRound{
-		bindingCrusaderAgreement: newBindingCrusaderAgreement(n, f),
-		coinReqChan:              make(chan struct{}, 1),
-		coinReceiveChan:          make(chan byte, 1),
-		internalTransition:       make(chan roundTransitionResult, 1),
+		//bindingCrusaderAgreement: newBindingCrusaderAgreement(n, f),
+		simpleBCA:          newSimpleBCA(n, f),
+		coinReqChan:        make(chan struct{}, 1),
+		coinReceiveChan:    make(chan byte, 1),
+		internalTransition: make(chan roundTransitionResult, 1),
 	}
 	go round.execRound()
 	return round
@@ -38,7 +40,8 @@ type roundTransitionResult struct {
 
 func (r *mmrRound) execRound() {
 	roundLogger.Info("executing round")
-	dec := <-r.bindingCrusaderAgreement.outputDecision
+	dec := <-r.simpleBCA.outputDecision
+	//dec := <-r.bindingCrusaderAgreement.outputDecision
 	roundLogger.Info("round decided", "dec", dec)
 	roundLogger.Info("requesting coin")
 	r.coinReqChan <- struct{}{}
