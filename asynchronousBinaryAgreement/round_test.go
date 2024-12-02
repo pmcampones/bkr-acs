@@ -89,12 +89,15 @@ func followSingleNodeCommonPath(t *testing.T, est byte) *mmrRound {
 	myId := uuid.New()
 	r := newMMRRound(1, 0)
 	assert.NoError(t, r.propose(est))
-	bVal := <-r.bcastEchoChan
-	assert.Equal(t, est, bVal)
-	assert.NoError(t, r.submitEcho(bVal, myId))
-	aux := <-r.bcastVoteChan
-	assert.Equal(t, est, aux, "vote should be the same as the estimate")
-	assert.NoError(t, r.submitVote(aux, myId))
+	echo := <-r.bcastEchoChan
+	assert.Equal(t, est, echo)
+	assert.NoError(t, r.submitEcho(echo, myId))
+	vote := <-r.bcastVoteChan
+	assert.Equal(t, est, vote, "vote should be the same as the estimate")
+	assert.NoError(t, r.submitVote(vote, myId))
+	bind := <-r.bcastBindChan
+	assert.Equal(t, est, bind, "bind should be the same as the estimate")
+	assert.NoError(t, r.submitBind(bind, myId))
 	<-r.coinReqChan
 	return r
 }
@@ -233,6 +236,7 @@ func testRoundAllProposeTheSame(t *testing.T, correctNodes, n, f, byzantine int,
 		for _, byz := range byzIds {
 			assert.NoError(t, r.submitEcho(1-est, byz))
 			assert.NoError(t, r.submitVote(1-est, byz))
+			assert.NoError(t, r.submitBind(1-est, byz))
 		}
 	}
 	for _, r := range rounds {

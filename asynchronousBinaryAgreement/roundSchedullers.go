@@ -26,28 +26,34 @@ func (os *orderedRoundScheduler) addRound(t *testing.T, sender uuid.UUID, r *mmr
 	os.rounds = append(os.rounds, r)
 	go os.processEchoes(t, sender, r.bcastEchoChan)
 	go os.processVotes(t, sender, r.bcastVoteChan)
+	go os.processBinds(t, sender, r.bcastBindChan)
 }
 
-func (os *orderedRoundScheduler) processVotes(t *testing.T, sender uuid.UUID, auxChan chan byte) {
-	func() {
-		aux := <-auxChan
-		for _, r := range os.rounds {
-			os.commands <- func() {
-				assert.NoError(t, r.submitVote(aux, sender))
-			}
+func (os *orderedRoundScheduler) processEchoes(t *testing.T, sender uuid.UUID, echoChan chan byte) {
+	echo := <-echoChan
+	for _, r := range os.rounds {
+		os.commands <- func() {
+			assert.NoError(t, r.submitEcho(echo, sender))
 		}
-	}()
+	}
 }
 
-func (os *orderedRoundScheduler) processEchoes(t *testing.T, sender uuid.UUID, bValChan chan byte) {
-	func() {
-		bVal := <-bValChan
-		for _, r := range os.rounds {
-			os.commands <- func() {
-				assert.NoError(t, r.submitEcho(bVal, sender))
-			}
+func (os *orderedRoundScheduler) processVotes(t *testing.T, sender uuid.UUID, voteChan chan byte) {
+	vote := <-voteChan
+	for _, r := range os.rounds {
+		os.commands <- func() {
+			assert.NoError(t, r.submitVote(vote, sender))
 		}
-	}()
+	}
+}
+
+func (os *orderedRoundScheduler) processBinds(t *testing.T, sender uuid.UUID, bindChan chan byte) {
+	bind := <-bindChan
+	for _, r := range os.rounds {
+		os.commands <- func() {
+			assert.NoError(t, r.submitBind(bind, sender))
+		}
+	}
 }
 
 func (os *orderedRoundScheduler) invoker() {
