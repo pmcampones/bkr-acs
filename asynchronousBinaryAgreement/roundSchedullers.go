@@ -24,9 +24,9 @@ func newOrderedScheduler() *orderedRoundScheduler {
 
 func (os *orderedRoundScheduler) addRound(t *testing.T, sender uuid.UUID, r *mmrRound) {
 	os.rounds = append(os.rounds, r)
-	go os.processEchoes(t, sender, r.bcastEchoChan)
-	go os.processVotes(t, sender, r.bcastVoteChan)
-	go os.processBinds(t, sender, r.bcastBindChan)
+	go os.processEchoes(t, sender, r.getBcastEchoChan())
+	go os.processVotes(t, sender, r.getBcastVoteChan())
+	go os.processBinds(t, sender, r.getBcastBindChan())
 }
 
 func (os *orderedRoundScheduler) processEchoes(t *testing.T, sender uuid.UUID, echoChan chan byte) {

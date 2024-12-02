@@ -55,9 +55,11 @@ func newBindingCrusaderAgreement(n, f uint) bindingCrusaderAgreement {
 	return c
 }
 
-func (c *bindingCrusaderAgreement) propose(est byte) error {
+func (c bindingCrusaderAgreement) propose(est, prevCoin byte) error {
 	bindingCrusaderLogger.Info("proposing estimate", "est", est)
-	if !isInputValid(est) {
+	if prevCoin != bot {
+		return fmt.Errorf("invalid coin for non externally valid crusader agreement %d", prevCoin)
+	} else if !isInputValid(est) {
 		return fmt.Errorf("invalid input %d", est)
 	} else if c.sentEchoes[est] {
 		bindingCrusaderLogger.Debug("already sent echo", "est", est)
@@ -67,7 +69,11 @@ func (c *bindingCrusaderAgreement) propose(est byte) error {
 	return nil
 }
 
-func (c *bindingCrusaderAgreement) submitEcho(echo byte, sender uuid.UUID) error {
+func (c bindingCrusaderAgreement) submitExternallyValid(_ byte) {
+	// Do nothing. Only exists to satisfy the interface
+}
+
+func (c bindingCrusaderAgreement) submitEcho(echo byte, sender uuid.UUID) error {
 	if !isInputValid(echo) {
 		return fmt.Errorf("invalid input %d", echo)
 	} else if c.echoes[echo][sender] {
@@ -91,7 +97,7 @@ func (c *bindingCrusaderAgreement) submitEcho(echo byte, sender uuid.UUID) error
 	return nil
 }
 
-func (c *bindingCrusaderAgreement) submitVote(vote byte, sender uuid.UUID) error {
+func (c bindingCrusaderAgreement) submitVote(vote byte, sender uuid.UUID) error {
 	if !isInputValid(vote) {
 		return fmt.Errorf("invalid input %d", vote)
 	} else if c.votes[0][sender] || c.votes[1][sender] {
@@ -106,7 +112,7 @@ func (c *bindingCrusaderAgreement) submitVote(vote byte, sender uuid.UUID) error
 	return nil
 }
 
-func (c *bindingCrusaderAgreement) submitBind(bind byte, sender uuid.UUID) error {
+func (c bindingCrusaderAgreement) submitBind(bind byte, sender uuid.UUID) error {
 	if bind > bot || bind < 0 {
 		return fmt.Errorf("invalid input %d", bind)
 	} else if c.binds[0][sender] || c.binds[1][sender] || c.binds[bot][sender] {
@@ -122,7 +128,7 @@ func (c *bindingCrusaderAgreement) submitBind(bind byte, sender uuid.UUID) error
 	return nil
 }
 
-func (c *bindingCrusaderAgreement) tryToOutputBot() {
+func (c bindingCrusaderAgreement) tryToOutputBot() {
 	<-c.bothChan
 	bindingCrusaderLogger.Info("both values are candidate for delivery")
 	<-c.boundBotChan
@@ -130,7 +136,7 @@ func (c *bindingCrusaderAgreement) tryToOutputBot() {
 	c.botChan <- struct{}{}
 }
 
-func (c *bindingCrusaderAgreement) waitForDecision() {
+func (c bindingCrusaderAgreement) waitForDecision() {
 	var decision byte
 	select {
 	case <-c.botChan:
@@ -142,19 +148,35 @@ func (c *bindingCrusaderAgreement) waitForDecision() {
 	c.outputDecision <- decision
 }
 
-func (c *bindingCrusaderAgreement) broadcastEcho(echo byte) {
+func (c bindingCrusaderAgreement) broadcastEcho(echo byte) {
 	bindingCrusaderLogger.Info("broadcasting echo", "echo", echo)
 	c.sentEchoes[echo] = true
 	c.bcastEchoChan <- echo
 }
 
-func (c *bindingCrusaderAgreement) broadcastVote(vote byte) {
+func (c bindingCrusaderAgreement) broadcastVote(vote byte) {
 	bindingCrusaderLogger.Info("broadcasting vote", "vote", vote)
 	c.bcastVoteChan <- vote
 }
 
-func (c *bindingCrusaderAgreement) broadcastBind(bind byte) {
+func (c bindingCrusaderAgreement) broadcastBind(bind byte) {
 	bindingCrusaderLogger.Info("broadcasting bind", "bind", bind)
 	c.bound = true
 	c.bcastBindChan <- bind
+}
+
+func (c bindingCrusaderAgreement) getOutputDecision() chan byte {
+	return c.outputDecision
+}
+
+func (c bindingCrusaderAgreement) getBcastEchoChan() chan byte {
+	return c.bcastEchoChan
+}
+
+func (c bindingCrusaderAgreement) getBcastVoteChan() chan byte {
+	return c.bcastVoteChan
+}
+
+func (c bindingCrusaderAgreement) getBcastBindChan() chan byte {
+	return c.bcastBindChan
 }

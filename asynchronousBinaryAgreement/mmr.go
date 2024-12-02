@@ -62,7 +62,7 @@ func (m *mmr) propose(est byte, r uint16) error {
 	abaLogger.Debug("proposing estimate", "est", est, "round", r)
 	if round, err := m.getRound(r); err != nil {
 		return fmt.Errorf("unable to get round %d: %v", r, err)
-	} else if err := round.round.propose(est); err != nil {
+	} else if err := round.round.propose(est, bot); err != nil {
 		return fmt.Errorf("unable to propose to round %d: %v", r, err)
 	}
 	return nil
@@ -139,17 +139,17 @@ func (m *mmr) newRound(r uint16) (*cancelableRound, error) {
 func (m *mmr) listenRequests(round *mmrRound, close chan struct{}, rnum uint16) {
 	for {
 		select {
-		case echo := <-round.bcastEchoChan:
+		case echo := <-round.getBcastEchoChan():
 			abaLogger.Debug("broadcasting echo", "echo", echo, "round", rnum)
 			go func() {
 				m.deliverEcho <- roundMsg{val: echo, r: rnum}
 			}()
-		case vote := <-round.bcastVoteChan:
+		case vote := <-round.getBcastVoteChan():
 			abaLogger.Debug("broadcasting vote", "vote", vote, "round", rnum)
 			go func() {
 				m.deliverVote <- roundMsg{val: vote, r: rnum}
 			}()
-		case bind := <-round.bcastBindChan:
+		case bind := <-round.getBcastBindChan():
 			abaLogger.Debug("broadcasting bind", "bind", bind, "round", rnum)
 			go func() {
 				m.deliverBind <- roundMsg{val: bind, r: rnum}

@@ -3,13 +3,26 @@ package asynchronousBinaryAgreement
 import (
 	"bkr-acs/utils"
 	"fmt"
+	"github.com/google/uuid"
 	"log/slog"
 )
+
+type bca interface {
+	propose(est byte, prevCoin byte) error
+	submitExternallyValid(byte)
+	submitEcho(echo byte, sender uuid.UUID) error
+	submitVote(vote byte, sender uuid.UUID) error
+	submitBind(bind byte, sender uuid.UUID) error
+	getBcastEchoChan() chan byte
+	getBcastVoteChan() chan byte
+	getBcastBindChan() chan byte
+	getOutputDecision() chan byte
+}
 
 var roundLogger = utils.GetLogger("MMR Round", slog.LevelWarn)
 
 type mmrRound struct {
-	bindingCrusaderAgreement
+	bca
 	//externallyValidBCA
 	coinReqChan        chan struct{}
 	coinReceiveChan    chan byte
@@ -18,7 +31,7 @@ type mmrRound struct {
 
 func newMMRRound(n, f uint) *mmrRound {
 	round := &mmrRound{
-		bindingCrusaderAgreement: newBindingCrusaderAgreement(n, f),
+		bca: newBindingCrusaderAgreement(n, f),
 		//externallyValidBCA:          newExternallyValidBCA(n, f),
 		coinReqChan:        make(chan struct{}, 1),
 		coinReceiveChan:    make(chan byte, 1),
@@ -41,7 +54,7 @@ type roundTransitionResult struct {
 func (r *mmrRound) execRound() {
 	roundLogger.Info("executing round")
 	//dec := <-r.externallyValidBCA.outputDecision
-	dec := <-r.bindingCrusaderAgreement.outputDecision
+	dec := <-r.bca.getOutputDecision()
 	roundLogger.Info("round decided", "dec", dec)
 	roundLogger.Info("requesting coin")
 	r.coinReqChan <- struct{}{}

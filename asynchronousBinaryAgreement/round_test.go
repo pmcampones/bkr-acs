@@ -9,7 +9,7 @@ import (
 
 func TestRoundShouldRejectInvalidEstimate(t *testing.T) {
 	r := newMMRRound(1, 0)
-	assert.Error(t, r.propose(bot))
+	assert.Error(t, r.propose(bot, bot))
 }
 
 func TestRoundShouldRejectInvalidBVal(t *testing.T) {
@@ -88,14 +88,14 @@ func TestRoundShouldNotDecideOwnEstimate1Coin0(t *testing.T) {
 func followSingleNodeCommonPath(t *testing.T, est byte) *mmrRound {
 	myId := uuid.New()
 	r := newMMRRound(1, 0)
-	assert.NoError(t, r.propose(est))
-	echo := <-r.bcastEchoChan
+	assert.NoError(t, r.propose(est, bot))
+	echo := <-r.getBcastEchoChan()
 	assert.Equal(t, est, echo)
 	assert.NoError(t, r.submitEcho(echo, myId))
-	vote := <-r.bcastVoteChan
+	vote := <-r.getBcastVoteChan()
 	assert.Equal(t, est, vote, "vote should be the same as the estimate")
 	assert.NoError(t, r.submitVote(vote, myId))
-	bind := <-r.bcastBindChan
+	bind := <-r.getBcastBindChan()
 	assert.Equal(t, est, bind, "bind should be the same as the estimate")
 	assert.NoError(t, r.submitBind(bind, myId))
 	<-r.coinReqChan
@@ -240,7 +240,7 @@ func testRoundAllProposeTheSame(t *testing.T, correctNodes, n, f, byzantine int,
 		}
 	}
 	for _, r := range rounds {
-		assert.NoError(t, r.propose(est))
+		assert.NoError(t, r.propose(est, bot))
 	}
 	for _, r := range rounds {
 		<-r.coinReqChan

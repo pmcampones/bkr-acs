@@ -37,7 +37,7 @@ func testBCAShouldDecideIfAllProposeSame(t *testing.T, proposal byte) {
 		scheduler.addInstance(instance, sender)
 	}
 	for _, instance := range instances {
-		assert.NoError(t, instance.propose(proposal))
+		assert.NoError(t, instance.propose(proposal, bot))
 	}
 	decisions := lo.Map(instances, func(instance *bindingCrusaderAgreement, _ int) byte {
 		return <-instance.outputDecision
@@ -67,7 +67,7 @@ func TestBCAShouldTerminateWithManyDifferingResponses(t *testing.T) {
 	})
 	for _, tuple := range lo.Zip2(instances, proposals) {
 		instance, proposal := tuple.Unpack()
-		assert.NoError(t, instance.propose(proposal))
+		assert.NoError(t, instance.propose(proposal, bot))
 	}
 	decisions := lo.Map(instances, func(instance *bindingCrusaderAgreement, _ int) byte {
 		return <-instance.outputDecision

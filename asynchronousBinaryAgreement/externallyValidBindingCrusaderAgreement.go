@@ -63,11 +63,6 @@ func newExternallyValidBCA(n, f uint) externallyValidBCA {
 	return s
 }
 
-func (e *externallyValidBCA) submitExternallyValid(val byte) {
-	simpleBCALogger.Info("submitting externally valid value", "val", val)
-	e.inputExternalValidChan <- val
-}
-
 func (e *externallyValidBCA) propose(est, prevCoin byte) error {
 	if est > bot || est < 0 {
 		return fmt.Errorf("invald input %d, allowed: [0, 1, %d (⟂)]", est, bot)
@@ -87,6 +82,11 @@ func (e *externallyValidBCA) propose(est, prevCoin byte) error {
 		e.prevCoinChan <- prevCoin
 	}
 	return nil
+}
+
+func (e *externallyValidBCA) submitExternallyValid(val byte) {
+	simpleBCALogger.Info("submitting externally valid value", "val", val)
+	e.inputExternalValidChan <- val
 }
 
 // We have decided est in the previous round and know that this value will be decided by all correct processes
