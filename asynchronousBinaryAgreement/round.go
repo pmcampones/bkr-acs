@@ -30,8 +30,21 @@ type mmrRound struct {
 	internalTransition chan roundTransitionResult
 }
 
-func newMMRRound(n, f uint) mmrRound {
+func newFirstRound(n, f uint) mmrRound {
 	ca := newBindingCrusaderAgreement(n, f)
+	round := mmrRound{
+		bca: &ca,
+		//externallyValidBCA:          newExternallyValidBCA(n, f),
+		coinReqChan:        make(chan struct{}, 1),
+		coinReceiveChan:    make(chan byte, 1),
+		internalTransition: make(chan roundTransitionResult, 1),
+	}
+	go round.execRound()
+	return round
+}
+
+func newMMRRound(n, f uint) mmrRound {
+	ca := newExternallyValidBCA(n, f)
 	round := mmrRound{
 		bca: &ca,
 		//externallyValidBCA:          newExternallyValidBCA(n, f),

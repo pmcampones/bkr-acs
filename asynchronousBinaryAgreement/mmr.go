@@ -56,14 +56,15 @@ func newMMR(n, f uint) mmr {
 		rounds:                 make(map[uint16]*cancelableRound),
 		termGadget:             newMmrTermination(n, f),
 	}
+	m.initFirstRound()
 	go m.reachDecision()
 	return m
 }
 
-func (m *mmr) propose(est byte, r uint16) error {
+func (m *mmr) propose(est, prevCoin byte, r uint16) error {
 	abaLogger.Debug("proposing estimate", "est", est, "round", r)
 	round := m.getRound(r)
-	if err := round.propose(est, bot); err != nil {
+	if err := round.propose(est, prevCoin); err != nil {
 		return fmt.Errorf("unable to propose to round %d: %v", r, err)
 	}
 	return nil
@@ -104,7 +105,7 @@ func (m *mmr) submitCoin(coin byte, r uint16) error {
 	} else if res.decided && !m.hasDecided {
 		m.hasDecided = true
 		m.reachedDecision <- res.estimate
-	} else if err := m.propose(res.estimate, r+1); err != nil {
+	} else if err := m.propose(res.estimate, coin, r+1); err != nil {
 		return fmt.Errorf("unable to propose to round %d: %v", r+1, err)
 	}
 	return nil
@@ -131,6 +132,16 @@ func (m *mmr) newRound(r uint16) *cancelableRound {
 	closeChan := make(chan struct{}, 1)
 	go m.listenRequests(&round, closeChan, r)
 	return &cancelableRound{
+		mmrRound:  round,
+		closeChan: closeChan,
+	}
+}
+
+func (m *mmr) initFirstRound() {
+	round := newFirstRound(m.n, m.f)
+	closeChan := make(chan struct{}, 1)
+	go m.listenRequests(&round, closeChan, firstRound)
+	m.rounds[firstRound] = &cancelableRound{
 		mmrRound:  round,
 		closeChan: closeChan,
 	}

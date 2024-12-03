@@ -8,32 +8,32 @@ import (
 )
 
 func TestRoundShouldRejectInvalidEstimate(t *testing.T) {
-	r := newMMRRound(1, 0)
+	r := newFirstRound(1, 0)
 	assert.Error(t, r.propose(bot, bot))
 }
 
 func TestRoundShouldRejectInvalidBVal(t *testing.T) {
 	someId := uuid.New()
-	r := newMMRRound(1, 0)
+	r := newFirstRound(1, 0)
 	assert.Error(t, r.submitEcho(bot, someId))
 }
 
 func TestRoundShouldRejectInvalidAux(t *testing.T) {
 	someId := uuid.New()
-	r := newMMRRound(1, 0)
+	r := newFirstRound(1, 0)
 	assert.Error(t, r.submitVote(bot, someId))
 }
 
 func TestRoundShouldRejectRepeatedAux(t *testing.T) {
 	sender := uuid.New()
-	r := newMMRRound(1, 0)
+	r := newFirstRound(1, 0)
 	assert.NoError(t, r.submitVote(0, sender))
 	assert.Error(t, r.submitVote(0, sender))
 }
 
 func TestRoundShouldNotRejectDifferentBValSameSender(t *testing.T) {
 	sender := uuid.New()
-	r := newMMRRound(1, 0)
+	r := newFirstRound(1, 0)
 	assert.NoError(t, r.submitEcho(0, sender))
 	assert.NoError(t, r.submitEcho(1, sender))
 }
@@ -87,7 +87,7 @@ func TestRoundShouldNotDecideOwnEstimate1Coin0(t *testing.T) {
 
 func followSingleNodeCommonPath(t *testing.T, est byte) *mmrRound {
 	myId := uuid.New()
-	r := newMMRRound(1, 0)
+	r := newFirstRound(1, 0)
 	assert.NoError(t, r.propose(est, bot))
 	echo := <-r.getBcastEchoChan()
 	assert.Equal(t, est, echo)
@@ -256,7 +256,7 @@ func testRoundAllProposeTheSame(t *testing.T, correctNodes, n, f, byzantine int,
 func instantiateCorrect(t *testing.T, maxNodes, numNodes, f int) []*mmrRound {
 	s := newOrderedScheduler()
 	rounds := lo.Map(lo.Range(numNodes), func(_ int, _ int) *mmrRound {
-		r := newMMRRound(uint(maxNodes), uint(f))
+		r := newFirstRound(uint(maxNodes), uint(f))
 		return &r
 	})
 	for _, r := range rounds {

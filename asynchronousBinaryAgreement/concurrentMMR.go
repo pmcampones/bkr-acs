@@ -45,7 +45,7 @@ func (m *concurrentMMR) propose(est byte) error {
 	concurrentMMRLogger.Info("scheduling initial proposal estimate", "est", est)
 	errChan := make(chan error)
 	m.commands <- func() {
-		errChan <- m.mmr.propose(est, firstRound)
+		errChan <- m.mmr.propose(est, bot, firstRound)
 	}
 	return <-errChan
 }

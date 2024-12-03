@@ -7,7 +7,7 @@ import (
 	"log/slog"
 )
 
-var externallyValidBCALogger = utils.GetLogger("Externally Valid Binding Crusader Agreement", slog.LevelDebug)
+var externallyValidBCALogger = utils.GetLogger("Externally Valid Binding Crusader Agreement", slog.LevelWarn)
 
 type externallyValidBCA struct {
 	n                       uint
