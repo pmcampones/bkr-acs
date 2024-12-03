@@ -31,8 +31,9 @@ type mmrRound struct {
 }
 
 func newMMRRound(n, f uint) *mmrRound {
+	ca := newBindingCrusaderAgreement(n, f)
 	round := &mmrRound{
-		bca: newBindingCrusaderAgreement(n, f),
+		bca: &ca,
 		//externallyValidBCA:          newExternallyValidBCA(n, f),
 		coinReqChan:        make(chan struct{}, 1),
 		coinReceiveChan:    make(chan byte, 1),
