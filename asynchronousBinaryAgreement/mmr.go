@@ -128,7 +128,7 @@ func (m *mmr) getRound(rNum uint16) *cancelableRound {
 }
 
 func (m *mmr) newRound(r uint16) *cancelableRound {
-	round := newMMRRound(m.n, m.f)
+	round := newRound(m.n, m.f)
 	closeChan := make(chan struct{}, 1)
 	go m.listenRequests(&round, closeChan, r)
 	return &cancelableRound{

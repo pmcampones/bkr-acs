@@ -25,11 +25,11 @@ func testBCAShouldDecideIfAllProposeSame(t *testing.T, proposal byte) {
 	f := uint(3)
 	n := 3*f + 1
 	scheduler := newOrderedBCAScheduler(t)
-	instances := lo.Map(lo.Range(int(n)), func(_ int, _ int) *bindingCrusaderAgreement {
-		instance := newBindingCrusaderAgreement(n, f)
+	instances := lo.Map(lo.Range(int(n)), func(_ int, _ int) *ivbca {
+		instance := newBCA(n, f)
 		return &instance
 	})
-	senders := lo.Map(instances, func(_ *bindingCrusaderAgreement, _ int) uuid.UUID {
+	senders := lo.Map(instances, func(_ *ivbca, _ int) uuid.UUID {
 		return uuid.New()
 	})
 	for _, tuple := range lo.Zip2(instances, senders) {
@@ -39,7 +39,7 @@ func testBCAShouldDecideIfAllProposeSame(t *testing.T, proposal byte) {
 	for _, instance := range instances {
 		assert.NoError(t, instance.propose(proposal, bot))
 	}
-	decisions := lo.Map(instances, func(instance *bindingCrusaderAgreement, _ int) byte {
+	decisions := lo.Map(instances, func(instance *ivbca, _ int) byte {
 		return <-instance.outputDecision
 	})
 	assert.True(t, lo.EveryBy(decisions, func(decision byte) bool {
@@ -51,25 +51,25 @@ func TestBCAShouldTerminateWithManyDifferingResponses(t *testing.T) {
 	f := uint(3)
 	n := 3*f + 1
 	scheduler := newOrderedBCAScheduler(t)
-	instances := lo.Map(lo.Range(int(n)), func(_ int, _ int) *bindingCrusaderAgreement {
-		instance := newBindingCrusaderAgreement(n, f)
+	instances := lo.Map(lo.Range(int(n)), func(_ int, _ int) *ivbca {
+		instance := newBCA(n, f)
 		return &instance
 	})
-	senders := lo.Map(instances, func(_ *bindingCrusaderAgreement, _ int) uuid.UUID {
+	senders := lo.Map(instances, func(_ *ivbca, _ int) uuid.UUID {
 		return uuid.New()
 	})
 	for _, tuple := range lo.Zip2(instances, senders) {
 		instance, sender := tuple.Unpack()
 		scheduler.addInstance(instance, sender)
 	}
-	proposals := lo.Map(instances, func(_ *bindingCrusaderAgreement, _ int) byte {
+	proposals := lo.Map(instances, func(_ *ivbca, _ int) byte {
 		return byte(rand.IntN(2))
 	})
 	for _, tuple := range lo.Zip2(instances, proposals) {
 		instance, proposal := tuple.Unpack()
 		assert.NoError(t, instance.propose(proposal, bot))
 	}
-	decisions := lo.Map(instances, func(instance *bindingCrusaderAgreement, _ int) byte {
+	decisions := lo.Map(instances, func(instance *ivbca, _ int) byte {
 		return <-instance.outputDecision
 	})
 	fmt.Println(decisions)
@@ -79,7 +79,7 @@ type orderedBCAScheduler struct {
 	t         *testing.T
 	n         uint
 	f         uint
-	instances []*bindingCrusaderAgreement
+	instances []*ivbca
 	commands  chan func()
 }
 
@@ -88,7 +88,7 @@ var bcaSchedulerLogger = utils.GetLogger("BCA Scheduler", slog.LevelDebug)
 func newOrderedBCAScheduler(t *testing.T) *orderedBCAScheduler {
 	s := &orderedBCAScheduler{
 		t:         t,
-		instances: make([]*bindingCrusaderAgreement, 0),
+		instances: make([]*ivbca, 0),
 		commands:  make(chan func()),
 	}
 	go s.invoker()
@@ -104,7 +104,7 @@ func (s *orderedBCAScheduler) invoker() {
 	}
 }
 
-func (s *orderedBCAScheduler) addInstance(ca *bindingCrusaderAgreement, sender uuid.UUID) {
+func (s *orderedBCAScheduler) addInstance(ca *ivbca, sender uuid.UUID) {
 	s.instances = append(s.instances, ca)
 	bcaSchedulerLogger.Info("added instance", "id", sender)
 	go s.listenEchoes(ca, sender)
@@ -112,7 +112,7 @@ func (s *orderedBCAScheduler) addInstance(ca *bindingCrusaderAgreement, sender u
 	go s.listenBinds(ca, sender)
 }
 
-func (s *orderedBCAScheduler) listenEchoes(ca *bindingCrusaderAgreement, sender uuid.UUID) {
+func (s *orderedBCAScheduler) listenEchoes(ca *ivbca, sender uuid.UUID) {
 	for {
 		echo := <-ca.bcastEchoChan
 		bcaSchedulerLogger.Info("received echo", "echo", echo, "id", sender)
@@ -125,7 +125,7 @@ func (s *orderedBCAScheduler) listenEchoes(ca *bindingCrusaderAgreement, sender 
 	}
 }
 
-func (s *orderedBCAScheduler) listenVotes(ca *bindingCrusaderAgreement, sender uuid.UUID) {
+func (s *orderedBCAScheduler) listenVotes(ca *ivbca, sender uuid.UUID) {
 	vote := <-ca.bcastVoteChan
 	bcaSchedulerLogger.Info("received vote", "vote", vote, "id", sender)
 	for _, instance := range s.instances {
@@ -137,7 +137,7 @@ func (s *orderedBCAScheduler) listenVotes(ca *bindingCrusaderAgreement, sender u
 	s.t.Errorf("instance voted twice: id %v; first vote %d; second vote %d", sender, vote, vote2)
 }
 
-func (s *orderedBCAScheduler) listenBinds(ca *bindingCrusaderAgreement, sender uuid.UUID) {
+func (s *orderedBCAScheduler) listenBinds(ca *ivbca, sender uuid.UUID) {
 	bind := <-ca.bcastBindChan
 	bcaSchedulerLogger.Info("received bind", "bind", bind, "id", sender)
 	for _, instance := range s.instances {

@@ -40,7 +40,7 @@ func TestRoundShouldNotRejectDifferentBValSameSender(t *testing.T) {
 
 func TestRoundShouldRejectSameBValSameSender(t *testing.T) {
 	sender := uuid.New()
-	r := newMMRRound(1, 0)
+	r := newRound(1, 0)
 	assert.NoError(t, r.submitEcho(0, sender))
 	assert.Error(t, r.submitEcho(0, sender))
 	assert.NoError(t, r.submitEcho(1, sender))

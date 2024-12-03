@@ -7,9 +7,11 @@ import (
 	"log/slog"
 )
 
-var simpleBCALogger = utils.GetLogger("Alternative Binding Crusader Agreement", slog.LevelWarn)
+var bcaLogger = utils.GetLogger("Alternative Binding Crusader Agreement", slog.LevelWarn)
 
-type simpleBCA struct {
+// Default Binding Crusader Agreement satisfying the (internal) Validity property
+// Validity: If all correct processes propose v, no correct process decides differently from v.
+type ivbca struct {
 	n                       uint
 	f                       uint
 	sentEchoes              []bool
@@ -29,8 +31,8 @@ type simpleBCA struct {
 	unblockChan             chan struct{}
 }
 
-func newSimpleBCA(n, f uint) simpleBCA {
-	s := simpleBCA{
+func newBCA(n, f uint) ivbca {
+	s := ivbca{
 		n:                       n,
 		f:                       f,
 		sentEchoes:              []bool{false, false},
@@ -55,7 +57,7 @@ func newSimpleBCA(n, f uint) simpleBCA {
 	return s
 }
 
-func (s *simpleBCA) propose(est, prevCoin byte) error {
+func (s *ivbca) propose(est, prevCoin byte) error {
 	if !isInputValid(est) {
 		return fmt.Errorf("invald input %d", est)
 	} else if prevCoin != bot {
@@ -66,11 +68,11 @@ func (s *simpleBCA) propose(est, prevCoin byte) error {
 	return nil
 }
 
-func (s *simpleBCA) submitExternallyValid(_ byte) {
+func (s *ivbca) submitExternallyValid(_ byte) {
 	// do nothing
 }
 
-func (s *simpleBCA) submitEcho(echo byte, sender uuid.UUID) error {
+func (s *ivbca) submitEcho(echo byte, sender uuid.UUID) error {
 	if !isInputValid(echo) {
 		return fmt.Errorf("invald input %d", echo)
 	} else if s.echoes[echo][sender] {
@@ -78,7 +80,7 @@ func (s *simpleBCA) submitEcho(echo byte, sender uuid.UUID) error {
 	}
 	s.echoes[echo][sender] = true
 	countEcho := len(s.echoes[echo])
-	simpleBCALogger.Debug("submitting echo", "echo", echo, "sender", sender, "echoes 0", len(s.echoes[0]), "echoes 1", len(s.echoes[1]))
+	bcaLogger.Debug("submitting echo", "echo", echo, "sender", sender, "echoes 0", len(s.echoes[0]), "echoes 1", len(s.echoes[1]))
 	if countEcho == int(s.f+1) && !s.sentEchoes[echo] {
 		s.broadcastEcho(echo)
 	}
@@ -89,28 +91,28 @@ func (s *simpleBCA) submitEcho(echo byte, sender uuid.UUID) error {
 	return nil
 }
 
-func (s *simpleBCA) submitVote(vote byte, sender uuid.UUID) error {
+func (s *ivbca) submitVote(vote byte, sender uuid.UUID) error {
 	if !isInputValid(vote) {
 		return fmt.Errorf("invald input %d", echo)
 	} else if s.voted[0][sender] || s.voted[1][sender] {
 		return fmt.Errorf("sender already voted")
 	}
 	s.voted[vote][sender] = true
-	simpleBCALogger.Debug("submitting vote", "vote", vote, "sender", sender, "votes 0", len(s.voted[0]), "votes 1", len(s.voted[1]))
+	bcaLogger.Debug("submitting vote", "vote", vote, "sender", sender, "votes 0", len(s.voted[0]), "votes 1", len(s.voted[1]))
 	if len(s.voted[vote]) == int(s.n-s.f) && len(s.voted[1-vote]) < int(s.n-s.f) {
 		s.bindValChan <- vote
 	}
 	return nil
 }
 
-func (s *simpleBCA) submitBind(bind byte, sender uuid.UUID) error {
+func (s *ivbca) submitBind(bind byte, sender uuid.UUID) error {
 	if bind > bot || bind < 0 {
 		return fmt.Errorf("invald input %d", bind)
 	} else if s.bound[0][sender] || s.bound[1][sender] || s.bound[bot][sender] {
 		return fmt.Errorf("sender already bound a value")
 	}
 	s.bound[bind][sender] = true
-	simpleBCALogger.Debug("submitting bind", "bind", bind, "sender", sender, "binds 0", len(s.bound[0]), "binds 1", len(s.bound[1]), "binds bot", len(s.bound[bot]))
+	bcaLogger.Debug("submitting bind", "bind", bind, "sender", sender, "binds 0", len(s.bound[0]), "binds 1", len(s.bound[1]), "binds bot", len(s.bound[bot]))
 	if len(s.bound[bind]) == int(s.n-s.f) {
 		s.terminateValChan <- bind
 	} else if len(s.bound[0])+len(s.bound[1])+len(s.bound[bot]) == int(s.n-s.f) {
@@ -119,21 +121,21 @@ func (s *simpleBCA) submitBind(bind byte, sender uuid.UUID) error {
 	return nil
 }
 
-func (s *simpleBCA) waitToVote() {
+func (s *ivbca) waitToVote() {
 	first := <-s.approveValChan
-	simpleBCALogger.Info("voting on value", "first", first)
+	bcaLogger.Info("voting on value", "first", first)
 	s.bcastVoteChan <- first
 	select {
 	case <-s.approveValChan:
-		simpleBCALogger.Info("both values are valid")
+		bcaLogger.Info("both values are valid")
 		s.bindBotChan <- struct{}{}
 		s.terminateBotChan <- struct{}{}
 	case <-s.unblockChan:
-		simpleBCALogger.Info("stop waiting for the second value to receive enough echoes")
+		bcaLogger.Info("stop waiting for the second value to receive enough echoes")
 	}
 }
 
-func (s *simpleBCA) waitToBind() {
+func (s *ivbca) waitToBind() {
 	var bindVal byte
 	select {
 	case <-s.bindBotChan:
@@ -141,11 +143,11 @@ func (s *simpleBCA) waitToBind() {
 	case v := <-s.bindValChan:
 		bindVal = v
 	}
-	simpleBCALogger.Info("binding value", "bindVal", bindVal)
+	bcaLogger.Info("binding value", "bindVal", bindVal)
 	s.bcastBindChan <- bindVal
 }
 
-func (s *simpleBCA) waitToDecide() {
+func (s *ivbca) waitToDecide() {
 	var decision byte
 	select {
 	case decision = <-s.terminateValChan:
@@ -156,33 +158,33 @@ func (s *simpleBCA) waitToDecide() {
 			decision = bot
 		}
 	}
-	simpleBCALogger.Info("decided", "decision", decision)
+	bcaLogger.Info("decided", "decision", decision)
 	s.outputDecision <- decision
 	s.unblockChan <- struct{}{}
 }
 
-func (s *simpleBCA) broadcastEcho(echo byte) {
-	simpleBCALogger.Info("broadcasting echo", "echo", echo)
+func (s *ivbca) broadcastEcho(echo byte) {
+	bcaLogger.Info("broadcasting echo", "echo", echo)
 	s.sentEchoes[echo] = true
 	s.bcastEchoChan <- echo
 }
 
-func (s *simpleBCA) getOutputDecision() chan byte {
+func (s *ivbca) getOutputDecision() chan byte {
 	return s.outputDecision
 }
 
-func (s *simpleBCA) getBcastEchoChan() chan byte {
+func (s *ivbca) getBcastEchoChan() chan byte {
 	return s.bcastEchoChan
 }
 
-func (s *simpleBCA) getBcastVoteChan() chan byte {
+func (s *ivbca) getBcastVoteChan() chan byte {
 	return s.bcastVoteChan
 }
 
-func (s *simpleBCA) getBcastBindChan() chan byte {
+func (s *ivbca) getBcastBindChan() chan byte {
 	return s.bcastBindChan
 }
 
-func (s *simpleBCA) getOutputExternalValidChan() chan byte {
+func (s *ivbca) getOutputExternalValidChan() chan byte {
 	return s.outputExternalValidChan
 }

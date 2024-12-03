@@ -31,10 +31,9 @@ type mmrRound struct {
 }
 
 func newFirstRound(n, f uint) mmrRound {
-	ca := newSimpleBCA(n, f)
+	ca := newBCA(n, f)
 	round := mmrRound{
-		bca: &ca,
-		//externallyValidBCA:          newExternallyValidBCA(n, f),
+		bca:                &ca,
 		coinReqChan:        make(chan struct{}, 1),
 		coinReceiveChan:    make(chan byte, 1),
 		internalTransition: make(chan roundTransitionResult, 1),
@@ -43,11 +42,10 @@ func newFirstRound(n, f uint) mmrRound {
 	return round
 }
 
-func newMMRRound(n, f uint) mmrRound {
-	ca := newExternallyValidBCA(n, f)
+func newRound(n, f uint) mmrRound {
+	ca := newEVBCA(n, f)
 	round := mmrRound{
-		bca: &ca,
-		//externallyValidBCA:          newExternallyValidBCA(n, f),
+		bca:                &ca,
 		coinReqChan:        make(chan struct{}, 1),
 		coinReceiveChan:    make(chan byte, 1),
 		internalTransition: make(chan roundTransitionResult, 1),

@@ -7,9 +7,12 @@ import (
 	"log/slog"
 )
 
-var externallyValidBCALogger = utils.GetLogger("Externally Valid Binding Crusader Agreement", slog.LevelWarn)
+var evbcaLogger = utils.GetLogger("Externally Valid Binding Crusader Agreement", slog.LevelWarn)
 
-type externallyValidBCA struct {
+// Binding Crusader Agreement satisfying the External Validity property
+// External Validity: If v is externally valid and 1-v is not externally valid, then no correct process decides differently from v.
+// A value v is externally valid if (1) a correct process has proposed v or (2) if it was externally valid in the previous round and no party delivered 1-v.
+type evbca struct {
 	n                       uint
 	f                       uint
 	sentEchoes              []bool
@@ -34,8 +37,8 @@ type externallyValidBCA struct {
 	closeChan               chan struct{}
 }
 
-func newExternallyValidBCA(n, f uint) externallyValidBCA {
-	e := externallyValidBCA{
+func newEVBCA(n, f uint) evbca {
+	e := evbca{
 		n:                       n,
 		f:                       f,
 		sentEchoes:              []bool{false, false},
@@ -63,7 +66,7 @@ func newExternallyValidBCA(n, f uint) externallyValidBCA {
 	return e
 }
 
-func (e externallyValidBCA) propose(est, prevCoin byte) error {
+func (e evbca) propose(est, prevCoin byte) error {
 	if est > bot || est < 0 {
 		return fmt.Errorf("invald input %d, allowed: [0, 1, %d (⟂)]", est, bot)
 	} else if !isInputValid(prevCoin) {
@@ -73,9 +76,9 @@ func (e externallyValidBCA) propose(est, prevCoin byte) error {
 	} else if est == bot {
 		e.voteOnCoin(prevCoin)
 	} else { // est != {prevCoin, bot}
-		externallyValidBCALogger.Info("estimate differs from previous coin. Following normal route")
+		evbcaLogger.Info("estimate differs from previous coin. Following normal route")
 		if e.sentEchoes[est] {
-			externallyValidBCALogger.Debug("already sent echo", "est", est)
+			evbcaLogger.Debug("already sent echo", "est", est)
 		} else {
 			e.broadcastEcho(est)
 		}
@@ -84,30 +87,30 @@ func (e externallyValidBCA) propose(est, prevCoin byte) error {
 	return nil
 }
 
-func (e externallyValidBCA) submitExternallyValid(val byte) {
-	externallyValidBCALogger.Info("submitting externally valid value", "val", val)
+func (e evbca) submitExternallyValid(val byte) {
+	evbcaLogger.Info("submitting externally valid value", "val", val)
 	e.inputExternalValidChan <- val
 }
 
 // We have decided est in the previous round and know that this value will be decided by all correct processes
 // Broadcasting bind to end the round ASAP
 // Broadcasting vote because some correct processes may have decided bot on the previous round, and we need their bind.
-func (e externallyValidBCA) fastForward(est byte) {
-	externallyValidBCALogger.Info("estimate equals previous coin. Fast forwarding to vote and bind", "est", est)
+func (e evbca) fastForward(est byte) {
+	evbcaLogger.Info("estimate equals previous coin. Fast forwarding to vote and bind", "est", est)
 	e.sentEchoes[est] = true
 	e.approveValChan <- est
 	e.bindValChan <- est
 }
 
 // I have no intuitive idea why we are running this
-func (e externallyValidBCA) voteOnCoin(prevCoin byte) {
-	externallyValidBCALogger.Info("estimate is bot. Fast forwarding to vote on coin", "prevCoin", prevCoin)
+func (e evbca) voteOnCoin(prevCoin byte) {
+	evbcaLogger.Info("estimate is bot. Fast forwarding to vote on coin", "prevCoin", prevCoin)
 	e.sentEchoes[prevCoin] = true
 	e.sentEchoes[1-prevCoin] = true
 	e.approveValChan <- prevCoin
 }
 
-func (e externallyValidBCA) submitEcho(echo byte, sender uuid.UUID) error {
+func (e evbca) submitEcho(echo byte, sender uuid.UUID) error {
 	if !isInputValid(echo) {
 		return fmt.Errorf("invald input %d", echo)
 	} else if e.echoes[echo][sender] {
@@ -115,7 +118,7 @@ func (e externallyValidBCA) submitEcho(echo byte, sender uuid.UUID) error {
 	}
 	e.echoes[echo][sender] = true
 	countEcho := len(e.echoes[echo])
-	externallyValidBCALogger.Debug("submitting echo", "echo", echo, "sender", sender, "echoes 0", len(e.echoes[0]), "echoes 1", len(e.echoes[1]))
+	evbcaLogger.Debug("submitting echo", "echo", echo, "sender", sender, "echoes 0", len(e.echoes[0]), "echoes 1", len(e.echoes[1]))
 	if countEcho == int(e.f+1) && !e.sentEchoes[echo] {
 		e.broadcastEcho(echo)
 	}
@@ -125,28 +128,28 @@ func (e externallyValidBCA) submitEcho(echo byte, sender uuid.UUID) error {
 	return nil
 }
 
-func (e externallyValidBCA) submitVote(vote byte, sender uuid.UUID) error {
+func (e evbca) submitVote(vote byte, sender uuid.UUID) error {
 	if !isInputValid(vote) {
 		return fmt.Errorf("invald input %d", echo)
 	} else if e.votes[0][sender] || e.votes[1][sender] {
 		return fmt.Errorf("sender already votes")
 	}
 	e.votes[vote][sender] = true
-	externallyValidBCALogger.Debug("submitting vote", "vote", vote, "sender", sender, "votes 0", len(e.votes[0]), "votes 1", len(e.votes[1]))
+	evbcaLogger.Debug("submitting vote", "vote", vote, "sender", sender, "votes 0", len(e.votes[0]), "votes 1", len(e.votes[1]))
 	if len(e.votes[vote]) == int(e.n-e.f) && len(e.votes[1-vote]) < int(e.n-e.f) {
 		e.bindValChan <- vote
 	}
 	return nil
 }
 
-func (e externallyValidBCA) submitBind(bind byte, sender uuid.UUID) error {
+func (e evbca) submitBind(bind byte, sender uuid.UUID) error {
 	if !isInputValid(bind) {
 		return fmt.Errorf("invald input %d", echo)
 	} else if e.binds[0][sender] || e.binds[1][sender] || e.binds[bot][sender] {
 		return fmt.Errorf("sender already binds a value")
 	}
 	e.binds[bind][sender] = true
-	externallyValidBCALogger.Debug("submitting bind", "bind", bind, "sender", sender, "binds 0", len(e.binds[0]), "binds 1", len(e.binds[1]), "binds bot", len(e.binds[bot]))
+	evbcaLogger.Debug("submitting bind", "bind", bind, "sender", sender, "binds 0", len(e.binds[0]), "binds 1", len(e.binds[1]), "binds bot", len(e.binds[bot]))
 	if len(e.binds[bind]) == int(e.n-e.f) {
 		e.terminateValChan <- bind
 	} else if len(e.binds[0])+len(e.binds[1])+len(e.binds[bot]) == int(e.n-e.f) {
@@ -155,25 +158,25 @@ func (e externallyValidBCA) submitBind(bind byte, sender uuid.UUID) error {
 	return nil
 }
 
-func (e externallyValidBCA) waitForPrevCoin() {
+func (e evbca) waitForPrevCoin() {
 	externalValid := bot
 	prevCoin := <-e.prevCoinChan
-	externallyValidBCALogger.Info("received previous coin", "prevCoin", prevCoin)
+	evbcaLogger.Info("received previous coin", "prevCoin", prevCoin)
 	for prevCoin != externalValid {
 		select {
 		case externalValid = <-e.inputExternalValidChan:
 		case <-e.unblockChan:
 		}
 	}
-	externallyValidBCALogger.Info("externally valid value is equal to coin", "val", externalValid)
+	evbcaLogger.Info("externally valid value is equal to coin", "val", externalValid)
 	e.approveValChan <- externalValid
 }
 
-func (e externallyValidBCA) waitToVote() {
+func (e evbca) waitToVote() {
 	approvedVals := []bool{false, false}
 	first := <-e.approveValChan
 	e.outputExternalValidChan <- first
-	externallyValidBCALogger.Info("voting on value", "first", first)
+	evbcaLogger.Info("voting on value", "first", first)
 	e.bcastVoteChan <- first
 	approvedVals[first] = true
 	for !approvedVals[1-first] {
@@ -181,17 +184,17 @@ func (e externallyValidBCA) waitToVote() {
 		case val := <-e.approveValChan:
 			approvedVals[val] = true
 		case <-e.closeChan:
-			externallyValidBCALogger.Info("stop waiting for the second value to receive enough echoes")
+			evbcaLogger.Info("stop waiting for the second value to receive enough echoes")
 			return
 		}
 	}
-	externallyValidBCALogger.Info("both values are valid")
+	evbcaLogger.Info("both values are valid")
 	e.outputExternalValidChan <- 1 - first
 	e.bindBotChan <- struct{}{}
 	e.terminateBotChan <- struct{}{}
 }
 
-func (e externallyValidBCA) waitToBind() {
+func (e evbca) waitToBind() {
 	var bindVal byte
 	select {
 	case <-e.bindBotChan:
@@ -199,11 +202,11 @@ func (e externallyValidBCA) waitToBind() {
 	case v := <-e.bindValChan:
 		bindVal = v
 	}
-	externallyValidBCALogger.Info("binding value", "bindVal", bindVal)
+	evbcaLogger.Info("binding value", "bindVal", bindVal)
 	e.bcastBindChan <- bindVal
 }
 
-func (e externallyValidBCA) waitToDecide() {
+func (e evbca) waitToDecide() {
 	var decision byte
 	select {
 	case decision = <-e.terminateValChan:
@@ -214,49 +217,49 @@ func (e externallyValidBCA) waitToDecide() {
 			decision = bot
 		}
 	}
-	externallyValidBCALogger.Info("decided", "decision", decision)
+	evbcaLogger.Info("decided", "decision", decision)
 	e.outputDecision <- decision
 	e.unblockChan <- struct{}{}
 }
 
-func (e externallyValidBCA) broadcastEcho(echo byte) {
-	externallyValidBCALogger.Info("broadcasting echo", "echo", echo)
+func (e evbca) broadcastEcho(echo byte) {
+	evbcaLogger.Info("broadcasting echo", "echo", echo)
 	e.sentEchoes[echo] = true
 	e.bcastEchoChan <- echo
 }
 
-func (e externallyValidBCA) broadcastVote(vote byte) {
-	bindingCrusaderLogger.Info("broadcasting vote", "vote", vote)
+func (e evbca) broadcastVote(vote byte) {
+	evbcaLogger.Info("broadcasting vote", "vote", vote)
 	e.voted = true
 	e.bcastVoteChan <- vote
 }
 
-func (e externallyValidBCA) broadcastBind(bind byte) {
-	bindingCrusaderLogger.Info("broadcasting bind", "bind", bind)
+func (e evbca) broadcastBind(bind byte) {
+	evbcaLogger.Info("broadcasting bind", "bind", bind)
 	e.bound = true
 	e.bcastBindChan <- bind
 }
 
-func (e externallyValidBCA) getOutputDecision() chan byte {
+func (e evbca) getOutputDecision() chan byte {
 	return e.outputDecision
 }
 
-func (e externallyValidBCA) getBcastEchoChan() chan byte {
+func (e evbca) getBcastEchoChan() chan byte {
 	return e.bcastEchoChan
 }
 
-func (e externallyValidBCA) getBcastVoteChan() chan byte {
+func (e evbca) getBcastVoteChan() chan byte {
 	return e.bcastVoteChan
 }
 
-func (e externallyValidBCA) getBcastBindChan() chan byte {
+func (e evbca) getBcastBindChan() chan byte {
 	return e.bcastBindChan
 }
 
-func (e externallyValidBCA) getOutputExternalValidChan() chan byte {
+func (e evbca) getOutputExternalValidChan() chan byte {
 	return e.outputExternalValidChan
 }
 
-func (e externallyValidBCA) close() {
+func (e evbca) close() {
 	e.closeChan <- struct{}{}
 }
