@@ -7,14 +7,14 @@ import (
 )
 
 type orderedRoundScheduler struct {
-	rounds    []*mmrRound
+	rounds    []*firstRound
 	commands  chan func()
 	closeChan chan struct{}
 }
 
 func newOrderedScheduler() *orderedRoundScheduler {
 	os := &orderedRoundScheduler{
-		rounds:    make([]*mmrRound, 0),
+		rounds:    make([]*firstRound, 0),
 		commands:  make(chan func()),
 		closeChan: make(chan struct{}, 1),
 	}
@@ -22,7 +22,7 @@ func newOrderedScheduler() *orderedRoundScheduler {
 	return os
 }
 
-func (os *orderedRoundScheduler) addRound(t *testing.T, sender uuid.UUID, r *mmrRound) {
+func (os *orderedRoundScheduler) addRound(t *testing.T, sender uuid.UUID, r *firstRound) {
 	os.rounds = append(os.rounds, r)
 	go os.processEchoes(t, sender, r.getBcastEchoChan())
 	go os.processVotes(t, sender, r.getBcastVoteChan())
