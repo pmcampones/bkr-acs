@@ -93,7 +93,7 @@ func getAbachans(t *testing.T, n uint, f uint, nodes []*on.Node) []*aba.AbaChann
 	mBebs := lo.Map(nodes, func(node *on.Node, _ int) *on.BEBChannel { return on.NewBEBChannel(node, 'm') })
 	tBebs := lo.Map(nodes, func(node *on.Node, _ int) *on.BEBChannel { return on.NewBEBChannel(node, 't') })
 	on.InitializeNodes(t, nodes)
-	assert.NoError(t, ct.DealSecret(dealSSs[0], ct.NewScalar(42), f))
+	assert.NoError(t, ct.DealSecret(dealSSs[0], ct.NewScalar(42), 2*f))
 	abachans := lo.ZipBy4(dealSSs, ctBebs, mBebs, tBebs, func(dealSS *on.SSChannel, ctBeb, mBeb, tBeb *on.BEBChannel) *aba.AbaChannel {
 		abachan, err := aba.NewAbaChannel(n, f, dealSS, ctBeb, mBeb, tBeb)
 		assert.NoError(t, err)

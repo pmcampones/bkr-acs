@@ -74,7 +74,7 @@ func testNetworkedInstancesShouldDecide(t *testing.T, n, f uint) {
 		newNetworkedInstanceCommandIssuer(abaInstance)
 		return abaInstance
 	})
-	assert.NoError(t, ct.DealSecret(ssChans[0], ct.NewScalar(42), f))
+	assert.NoError(t, ct.DealSecret(ssChans[0], ct.NewScalar(42), 2*f))
 	proposals := lo.Map(lo.Range(int(n)), func(_ int, i int) byte { return byte(rand.IntN(2)) })
 	for _, tuple := range lo.Zip2(abaInstances, proposals) {
 		abaInstance, proposal := tuple.Unpack()

@@ -35,7 +35,7 @@ func testAbaChannelShouldDecideMultiple(t *testing.T, n, f uint) {
 	mBebs := lo.Map(nodes, func(node *on.Node, _ int) *on.BEBChannel { return on.NewBEBChannel(node, 'm') })
 	tBebs := lo.Map(nodes, func(node *on.Node, _ int) *on.BEBChannel { return on.NewBEBChannel(node, 't') })
 	on.InitializeNodes(t, nodes)
-	assert.NoError(t, ct.DealSecret(dealSSs[0], ct.NewScalar(42), f))
+	assert.NoError(t, ct.DealSecret(dealSSs[0], ct.NewScalar(42), 2*f))
 	abachans := lo.ZipBy4(dealSSs, ctBebs, mBebs, tBebs, func(dealSS *on.SSChannel, ctBeb, mBeb, tBeb *on.BEBChannel) *AbaChannel {
 		abachan, err := NewAbaChannel(n, f, dealSS, ctBeb, mBeb, tBeb)
 		assert.NoError(t, err)

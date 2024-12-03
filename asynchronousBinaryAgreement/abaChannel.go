@@ -41,7 +41,7 @@ type AbaChannel struct {
 }
 
 func NewAbaChannel(n, f uint, dealSS *on.SSChannel, ctBeb, mBeb, tBeb *on.BEBChannel) (*AbaChannel, error) {
-	ctChannel, err := ct.NewCoinTosserChannel(dealSS, ctBeb, f)
+	ctChannel, err := ct.NewCoinTosserChannel(dealSS, ctBeb, 2*f)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create coin tosser channel: %w", err)
 	}

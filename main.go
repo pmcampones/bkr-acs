@@ -69,7 +69,7 @@ func computeBkrChannel(props *properties.Properties, node *on.Node, amContact bo
 	node.WaitForPeers(numNodes - 1)
 	logger.Info("network is stable")
 	if amContact {
-		if err := ct.DealSecret(dealSS, ct.RandomScalar(), faulty); err != nil {
+		if err := ct.DealSecret(dealSS, ct.RandomScalar(), 2*faulty); err != nil {
 			return nil, fmt.Errorf("unable to deal secret: %v", err)
 		}
 	}
