@@ -16,22 +16,24 @@ Each node in the system will propose a value using BRB and whether this value be
 
 This key idea is used in recent asynchronous Byzantine Fault Tolerant (BFT) State Machine Replication (SMR) systems such as [HoneyBadgerBFT](https://dl.acm.org/doi/10.1145/2976749.2978399), [BEAT](https://dl.acm.org/doi/10.1145/3243734.3243812), and [PACE](https://dl.acm.org/doi/10.1145/3548606.3559348).
 
-Another common approach to achieving atomic broadcast in an asynchronous network is to use Multi-valued Validated Byzantine Agreement ([MVBA](https://eprint.iacr.org/2001/006)), which does not require computing ACS, however, the most efficient BFT algorithms under using this approach compute ACS as an optimization to batch several values in the atomic broadcast.
-MVBA reduces the agreement of a value to several parallel instances of Byzantine Consistent Broadcast (BCB) and sequential instances of ABA.
-
-Again, several recent BFT algorithms follow this paradigm, such as [SINTRA](https://ieeexplore.ieee.org/document/1028897), [Dumbo](https://dl.acm.org/doi/10.1145/3372297.3417262), and [Dumbo-NG](https://dl.acm.org/doi/10.1145/3548606.3559379).
-
 ### Asynchronous Binary Agreement (ABA)
 
 In the [ABA](https://www.sciencedirect.com/science/article/pii/089054018790054X) primitive, each node proposes a binary value and the output is a binary value that is proposed by at least one correct node.
 The implementation of ABA follows the algorithm from Mostéfaoui, Moumen, and Raynal ([MMR](https://dl.acm.org/doi/10.1145/2785953)).
 
+Instead of faithfully following the aforementioned algorithm, we reduce ABA to Binding Crusader Agreement ([BCA](https://dl.acm.org/doi/10.1145/3519270.3538426)) and a coin toss.
+Additionally we use an optimization presented in the BCA paper to reduce the number of communication rounds by reusing information from different ABA rounds (External Validity property).
+
 ### Coin Tossing
 
 Efficient ABA algorithms, such as MMR, require a distributed coin tossing primitive. We follow the algorithm of [Cachin, Kursawe, and Shoup](https://dl.acm.org/doi/10.1145/343477.343531) to implement this primitive.
+In particular, our implementation uses a *2t*-unpredictable strong coin.
 
 The elliptic curves used in the coin tossing algorithm are [Ristretto255](https://ristretto.group/).
 The [CIRCL](https://github.com/cloudflare/circl) library was used compute the group operations and the [discrete log equivalence proofs](https://link.springer.com/chapter/10.1007/3-540-48071-4_7).
+
+During the setup phase, we assume the leader is honest. 
+A more secure implementation would require a [distributed key generation protocol for high threshold values](https://www.usenix.org/conference/usenixsecurity23/presentation/das).
 
 ### Usage
 
