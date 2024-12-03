@@ -51,7 +51,7 @@ func PkToUUID(pk *ecdsa.PublicKey) (UUID, error) {
 func GetLogger(prefix string, level slog.Level) *slog.Logger {
 	coloredHandler := tint.NewHandler(os.Stdout, &tint.Options{
 		Level:      level,
-		TimeFormat: time.Kitchen,
+		TimeFormat: time.StampNano,
 	})
 	prefixedHandler := NewPrefixedHandler(prefix, coloredHandler)
 	return slog.New(prefixedHandler)

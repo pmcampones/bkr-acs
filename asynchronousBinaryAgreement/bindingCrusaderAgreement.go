@@ -7,7 +7,7 @@ import (
 	"log/slog"
 )
 
-var bindingCrusaderLogger = utils.GetLogger("Binding Crusader Agreement", slog.LevelWarn)
+var bindingCrusaderLogger = utils.GetLogger("Binding Crusader Agreement", slog.LevelDebug)
 
 type bindingCrusaderAgreement struct {
 	n                       uint
@@ -145,6 +145,7 @@ func (c *bindingCrusaderAgreement) waitForDecision() {
 	case decision = <-c.valChan:
 		break
 	}
+	bindingCrusaderLogger.Info("delivering decision", "decision", decision)
 	c.outputDecision <- decision
 }
 
