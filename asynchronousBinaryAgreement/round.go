@@ -30,9 +30,9 @@ type mmrRound struct {
 }
 
 func newFirstRound(n, f uint) mmrRound {
-	ca := newBCA(n, f)
+	ivbca := newBCA(n, f)
 	round := mmrRound{
-		bca:                &ca,
+		bca:                &ivbca,
 		coinReqChan:        make(chan struct{}, 1),
 		coinReceiveChan:    make(chan byte, 1),
 		internalTransition: make(chan roundTransitionResult, 1),
@@ -42,9 +42,9 @@ func newFirstRound(n, f uint) mmrRound {
 }
 
 func newRound(n, f uint) mmrRound {
-	ca := newEVBCA(n, f)
+	evbca := newEVBCA(n, f)
 	round := mmrRound{
-		bca:                &ca,
+		bca:                &evbca,
 		coinReqChan:        make(chan struct{}, 1),
 		coinReceiveChan:    make(chan byte, 1),
 		internalTransition: make(chan roundTransitionResult, 1),
