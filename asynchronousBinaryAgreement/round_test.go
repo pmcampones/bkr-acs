@@ -99,7 +99,7 @@ func followSingleNodeCommonPath(t *testing.T, est byte) *mmrRound {
 	assert.Equal(t, est, bind, "bind should be the same as the estimate")
 	assert.NoError(t, r.submitBind(bind, myId))
 	<-r.coinReqChan
-	return r
+	return &r
 }
 
 func TestRoundShouldAllDecide0Coin0NoFaults(t *testing.T) {
@@ -255,7 +255,10 @@ func testRoundAllProposeTheSame(t *testing.T, correctNodes, n, f, byzantine int,
 
 func instantiateCorrect(t *testing.T, maxNodes, numNodes, f int) []*mmrRound {
 	s := newOrderedScheduler()
-	rounds := lo.Map(lo.Range(numNodes), func(_ int, _ int) *mmrRound { return newMMRRound(uint(maxNodes), uint(f)) })
+	rounds := lo.Map(lo.Range(numNodes), func(_ int, _ int) *mmrRound {
+		r := newMMRRound(uint(maxNodes), uint(f))
+		return &r
+	})
 	for _, r := range rounds {
 		s.addRound(t, uuid.New(), r)
 	}

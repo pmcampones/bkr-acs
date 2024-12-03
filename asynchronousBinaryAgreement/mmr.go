@@ -18,7 +18,7 @@ type roundMsg struct {
 }
 
 type cancelableRound struct {
-	round     *mmrRound
+	mmrRound
 	closeChan chan struct{}
 }
 
@@ -63,7 +63,7 @@ func newMMR(n, f uint) mmr {
 func (m *mmr) propose(est byte, r uint16) error {
 	abaLogger.Debug("proposing estimate", "est", est, "round", r)
 	round := m.getRound(r)
-	if err := round.round.propose(est, bot); err != nil {
+	if err := round.propose(est, bot); err != nil {
 		return fmt.Errorf("unable to propose to round %d: %v", r, err)
 	}
 	return nil
@@ -72,7 +72,7 @@ func (m *mmr) propose(est byte, r uint16) error {
 func (m *mmr) submitEcho(echo byte, sender uuid.UUID, r uint16) error {
 	abaLogger.Debug("submitting echo", "echo", echo, "sender", sender, "round", r)
 	round := m.getRound(r)
-	if err := round.round.submitEcho(echo, sender); err != nil {
+	if err := round.submitEcho(echo, sender); err != nil {
 		return fmt.Errorf("unable to submit echo to round %d: %v", r, err)
 	}
 	return nil
@@ -81,7 +81,7 @@ func (m *mmr) submitEcho(echo byte, sender uuid.UUID, r uint16) error {
 func (m *mmr) submitVote(vote byte, sender uuid.UUID, r uint16) error {
 	abaLogger.Debug("submitting vote", "vote", vote, "sender", sender, "round", r)
 	round := m.getRound(r)
-	if err := round.round.submitVote(vote, sender); err != nil {
+	if err := round.submitVote(vote, sender); err != nil {
 		return fmt.Errorf("unable to submit vote to round %d: %v", r, err)
 	}
 	return nil
@@ -90,7 +90,7 @@ func (m *mmr) submitVote(vote byte, sender uuid.UUID, r uint16) error {
 func (m *mmr) submitBind(bind byte, sender uuid.UUID, r uint16) error {
 	abaLogger.Debug("submitting bind", "bind", bind, "sender", sender, "round", r)
 	round := m.getRound(r)
-	if err := round.round.submitBind(bind, sender); err != nil {
+	if err := round.submitBind(bind, sender); err != nil {
 		return fmt.Errorf("unable to submit bind to round %d: %v", r, err)
 	}
 	return nil
@@ -99,7 +99,7 @@ func (m *mmr) submitBind(bind byte, sender uuid.UUID, r uint16) error {
 func (m *mmr) submitCoin(coin byte, r uint16) error {
 	abaLogger.Debug("submitting coin", "coin", coin, "mmrRound", r)
 	round := m.getRound(r)
-	if res := round.round.submitCoin(coin); res.err != nil {
+	if res := round.submitCoin(coin); res.err != nil {
 		return fmt.Errorf("unable to submit coin to round %d: %v", r, res.err)
 	} else if res.decided && !m.hasDecided {
 		m.hasDecided = true
@@ -113,7 +113,7 @@ func (m *mmr) submitCoin(coin byte, r uint16) error {
 func (m *mmr) submitExternallyValid(val byte, r uint16) {
 	abaLogger.Debug("submitting externally valid value", "val", val, "round", r)
 	round := m.getRound(r + 1)
-	round.round.submitExternallyValid(val)
+	round.submitExternallyValid(val)
 }
 
 func (m *mmr) getRound(rNum uint16) *cancelableRound {
@@ -129,9 +129,9 @@ func (m *mmr) getRound(rNum uint16) *cancelableRound {
 func (m *mmr) newRound(r uint16) *cancelableRound {
 	round := newMMRRound(m.n, m.f)
 	closeChan := make(chan struct{}, 1)
-	go m.listenRequests(round, closeChan, r)
+	go m.listenRequests(&round, closeChan, r)
 	return &cancelableRound{
-		round:     round,
+		mmrRound:  round,
 		closeChan: closeChan,
 	}
 }
