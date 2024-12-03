@@ -7,7 +7,7 @@ import (
 	"log/slog"
 )
 
-var externallyValidBCALogger = utils.GetLogger("Externally Valid Binding Crusader Agreement", slog.LevelDebug)
+var externallyValidBCALogger = utils.GetLogger("Externally Valid Binding Crusader Agreement", slog.LevelWarn)
 
 type externallyValidBCA struct {
 	n                       uint
@@ -35,7 +35,7 @@ type externallyValidBCA struct {
 }
 
 func newExternallyValidBCA(n, f uint) externallyValidBCA {
-	s := externallyValidBCA{
+	e := externallyValidBCA{
 		n:                       n,
 		f:                       f,
 		sentEchoes:              []bool{false, false},
@@ -57,10 +57,10 @@ func newExternallyValidBCA(n, f uint) externallyValidBCA {
 		unblockChan:             make(chan struct{}, 1),
 		closeChan:               make(chan struct{}, 1),
 	}
-	go s.waitToVote()
-	go s.waitToBind()
-	go s.waitToDecide()
-	return s
+	go e.waitToVote()
+	go e.waitToBind()
+	go e.waitToDecide()
+	return e
 }
 
 func (e externallyValidBCA) propose(est, prevCoin byte) error {

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var concurrentMMRLogger = utils.GetLogger("Concurrent MMR", slog.LevelDebug)
+var concurrentMMRLogger = utils.GetLogger("Concurrent MMR", slog.LevelWarn)
 
 type concurrentMMR struct {
 	mmr

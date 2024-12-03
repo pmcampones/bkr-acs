@@ -8,7 +8,7 @@ import (
 )
 
 type bca interface {
-	propose(est byte, prevCoin byte) error
+	propose(est, prevCoin byte) error
 	submitExternallyValid(byte)
 	submitEcho(echo byte, sender uuid.UUID) error
 	submitVote(vote byte, sender uuid.UUID) error
@@ -31,7 +31,7 @@ type mmrRound struct {
 }
 
 func newFirstRound(n, f uint) mmrRound {
-	ca := newBindingCrusaderAgreement(n, f)
+	ca := newSimpleBCA(n, f)
 	round := mmrRound{
 		bca: &ca,
 		//externallyValidBCA:          newExternallyValidBCA(n, f),

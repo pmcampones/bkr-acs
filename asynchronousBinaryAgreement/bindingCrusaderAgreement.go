@@ -84,7 +84,8 @@ func (c *bindingCrusaderAgreement) submitEcho(echo byte, sender uuid.UUID) error
 	countEcho := len(c.echoes[echo])
 	if countEcho == int(c.f+1) && !c.sentEchoes[echo] {
 		c.broadcastEcho(echo)
-	} else if countEcho == int(c.n-c.f) {
+	}
+	if countEcho == int(c.n-c.f) {
 		c.outputExternalValidChan <- echo
 		countOther := len(c.echoes[1-echo])
 		if countOther < int(c.n-c.f) {

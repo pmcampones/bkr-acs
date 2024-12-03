@@ -7,7 +7,7 @@ import (
 	"log/slog"
 )
 
-var abaLogger = utils.GetLogger("MMR Instance", slog.LevelDebug)
+var abaLogger = utils.GetLogger("MMR Instance", slog.LevelWarn)
 
 const firstRound = 0
 const averageNumRounds = 2
