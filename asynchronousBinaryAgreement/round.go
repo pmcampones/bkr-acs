@@ -24,7 +24,6 @@ var roundLogger = utils.GetLogger("MMR Round", slog.LevelWarn)
 
 type mmrRound struct {
 	bca
-	//externallyValidBCA
 	coinReqChan        chan struct{}
 	coinReceiveChan    chan byte
 	internalTransition chan roundTransitionResult
@@ -66,7 +65,6 @@ type roundTransitionResult struct {
 
 func (r *mmrRound) execRound() {
 	roundLogger.Info("executing round")
-	//dec := <-r.externallyValidBCA.outputDecision
 	dec := <-r.bca.getOutputDecision()
 	roundLogger.Info("round decided", "dec", dec)
 	roundLogger.Info("requesting coin")

@@ -69,7 +69,7 @@ func (s *ivbca) propose(est, prevCoin byte) error {
 }
 
 func (s *ivbca) submitExternallyValid(_ byte) {
-	// do nothing
+	// do nothing, this method is only used to comply with the interface
 }
 
 func (s *ivbca) submitEcho(echo byte, sender uuid.UUID) error {
