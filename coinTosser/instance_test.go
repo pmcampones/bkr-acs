@@ -36,8 +36,7 @@ func testShouldTossWithoutThreshold(t *testing.T, nodes uint) {
 	assert.True(t, lo.EveryBy(coinShares, func(cs ctShare) bool { return areElementsEqualsTest(t, cs.pt.point, blindedSecret) }))
 	for _, tuple := range lo.Zip2(coinTossings, coinShares) {
 		ct, cs := tuple.Unpack()
-		err := ct.submitShare(cs, uuid.New())
-		assert.NoError(t, err)
+		ct.submitShare(cs, uuid.New())
 	}
 	outcomes := lo.Map(outputChans, func(oc chan bool, _ int) bool {
 		return <-oc
@@ -73,8 +72,7 @@ func testShouldAllSeeSameCoinWithThreshold(t *testing.T, nodes, threshold uint) 
 	})
 	for _, ct := range coinTossings {
 		for _, cs := range coinShares {
-			err := ct.submitShare(cs, uuid.New())
-			assert.NoError(t, err)
+			ct.submitShare(cs, uuid.New())
 		}
 	}
 	outcomes := lo.Map(outputChans, func(oc chan bool, _ int) bool {

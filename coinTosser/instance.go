@@ -84,8 +84,14 @@ func (d *deal) getCommit(idx group.Scalar) (*group.Element, error) {
 	return nil, fmt.Errorf("commitment not found for share %v", idx)
 }
 
-func (ct *coinToss) submitShare(ctShare ctShare, senderId UUID) error {
+func (ct *coinToss) submitShare(ctShare ctShare, senderId UUID) {
 	ctLogger.Debug("received share", "share", ctShare.pt, "sender", senderId)
+	if err := ct.computeShareSubmission(ctShare, senderId); err != nil {
+		ctLogger.Warn("unable to compute share submission", "sender", senderId, "error", err)
+	}
+}
+
+func (ct *coinToss) computeShareSubmission(ctShare ctShare, senderId UUID) error {
 	isValid, err := ct.isTossValid(ctShare) // <-- Bottleneck
 	if err != nil {
 		return fmt.Errorf("unable to validate share from peer %v: %v", senderId, err)
@@ -170,5 +176,5 @@ func (sp *shareProcessor) close() {
 }
 
 func (ct *coinToss) close() {
-	ct.close()
+	ct.shareProcessor.close()
 }

@@ -111,11 +111,14 @@ func (c *CTChannel) bebDeliver(deliverChan <-chan *msg) {
 func (c *CTChannel) submitShare(id, senderId UUID, ctShare ctShare) error {
 	if c.finished[id] {
 		return nil
-	} else if ct := c.instances[id]; ct == nil {
-		return fmt.Errorf("coin toss instance not found")
-	} else if err := ct.submitShare(ctShare, senderId); err != nil {
-		return fmt.Errorf("unable to submit share: %v", err)
 	}
+	ct := c.instances[id]
+	if ct == nil {
+		return fmt.Errorf("coin toss instance not found")
+	}
+	go func() {
+		ct.submitShare(ctShare, senderId)
+	}()
 	channelLogger.Debug("submitted share", "id", id, "sender", senderId)
 	return nil
 }
