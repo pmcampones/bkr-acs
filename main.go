@@ -114,8 +114,8 @@ func participateBKR(bkrChannel *acs.BKRChannel) error {
 		}
 		id := utils.BytesToUUID([]byte(fmt.Sprintf("bkr-%d", i)))
 		proposal := []byte(input)
-		outputChan := bkrChannel.NewBKRInstance(id)
-		if err := bkrChannel.Propose(id, proposal); err != nil {
+		outputChan, err := bkrChannel.Propose(id, proposal)
+		if err != nil {
 			return fmt.Errorf("unable to propose val: %v", err)
 		}
 		output := <-outputChan
