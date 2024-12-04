@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"log/slog"
+	"sync"
 	"unsafe"
 )
 
@@ -36,6 +37,7 @@ type BKRChannel struct {
 	abaChannel    *aba.AbaChannel
 	brbChannel    *brb.BRBChannel
 	participants  []uuid.UUID
+	instanceLock  sync.Mutex
 	instances     map[uuid.UUID]*bkr
 	finished      map[uuid.UUID]bool
 	commands      chan func() error
@@ -49,6 +51,7 @@ func NewBKRChannel(f uint, abaChannel *aba.AbaChannel, brbChannel *brb.BRBChanne
 		abaChannel:    abaChannel,
 		brbChannel:    brbChannel,
 		participants:  participants,
+		instanceLock:  sync.Mutex{},
 		instances:     make(map[uuid.UUID]*bkr),
 		finished:      make(map[uuid.UUID]bool),
 		commands:      make(chan func() error),
@@ -117,6 +120,8 @@ func (c *BKRChannel) submitProposal(bkrId uuid.UUID, proposal []byte, sender uui
 }
 
 func (c *BKRChannel) getInstance(bkrId uuid.UUID) *bkr {
+	c.instanceLock.Lock()
+	defer c.instanceLock.Unlock()
 	bkrInstance := c.instances[bkrId]
 	if bkrInstance == nil {
 		bkrChannelLogger.Debug("creating new bkr instance", "id", bkrId)
