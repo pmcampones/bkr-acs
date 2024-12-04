@@ -23,10 +23,13 @@ func TestChannelShouldAcceptOwnProposal(t *testing.T) {
 	abaChan := getAbachans(t, 1, 0, []*on.Node{node})[0]
 	bkrChan := NewBKRChannel(0, abaChan, brbChan, []uuid.UUID{proposer})
 	id := uuid.New()
-	outputListener := bkrChan.NewBKRInstance(id)
+	getListener := make(chan chan [][]byte, 1)
 	go func() {
-		assert.NoError(t, bkrChan.Propose(id, []byte("Hello World")))
+		outputListener, err := bkrChan.Propose(id, []byte("Hello World"))
+		assert.NoError(t, err)
+		getListener <- outputListener
 	}()
+	outputListener := <-getListener
 	res := <-outputListener
 	assert.Equal(t, 1, len(res))
 	assert.True(t, slices.Equal([]byte("Hello World"), res[0]))
@@ -64,16 +67,22 @@ func testChannelShouldAgreeProposals(t *testing.T, n, f uint, maxDelay uint) {
 		return NewBKRChannel(f, a, b, proposers)
 	})
 	id := uuid.New()
-	outputListeners := lo.Map(bkrChans, func(b *BKRChannel, _ int) chan [][]byte {
-		return b.NewBKRInstance(id)
+	getListeners := lo.Map(bkrChans, func(b *BKRChannel, _ int) chan chan [][]byte {
+		return make(chan chan [][]byte, 1)
 	})
+	outputListeners := make([]chan [][]byte, len(bkrChans))
 	for i, b := range bkrChans {
 		proposal := []byte(fmt.Sprintf("Hello World %d", i))
 		go func() {
 			delay := time.Duration(rand.IntN(int(maxDelay)))
 			time.Sleep(delay * time.Millisecond)
-			assert.NoError(t, b.Propose(id, proposal))
+			outputListener, err := b.Propose(id, proposal)
+			assert.NoError(t, err)
+			getListeners[i] <- outputListener
 		}()
+	}
+	for i, l := range getListeners {
+		outputListeners[i] = <-l
 	}
 	results := lo.Map(outputListeners, func(o chan [][]byte, _ int) [][]byte {
 		return <-o

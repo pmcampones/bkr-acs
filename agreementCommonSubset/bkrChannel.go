@@ -64,19 +64,14 @@ func NewBKRChannel(f uint, abaChannel *aba.AbaChannel, brbChannel *brb.BRBChanne
 	return c
 }
 
-func (c *BKRChannel) NewBKRInstance(id uuid.UUID) chan [][]byte {
-	instance := c.getInstance(id)
-	return instance.output
-}
-
-func (c *BKRChannel) Propose(id uuid.UUID, proposal []byte) error {
+func (c *BKRChannel) Propose(id uuid.UUID, proposal []byte) (chan [][]byte, error) {
 	msg := &bkrProposalMsg{bkrId: id, proposal: proposal}
 	data := msg.marshal()
 	bkrChannelLogger.Debug("broadcasting proposal", "id", id, "proposal", string(proposal))
 	if err := c.brbChannel.BRBroadcast(data); err != nil {
-		return fmt.Errorf("unable to broadcast message: %w", err)
+		return nil, fmt.Errorf("unable to broadcast message: %w", err)
 	}
-	return nil
+	return c.getInstance(id).output, nil
 }
 
 func (c *BKRChannel) listenBroadcasts() {
