@@ -20,15 +20,14 @@ const dleqDst = "DLEQ"
 type coinToss struct {
 	base group.Element
 	d    *deal
-	sp   *shareProcessor
+	shareProcessor
 }
 
 func newCoinToss(threshold uint, base group.Element, d *deal, outputChan chan bool) *coinToss {
-	sp := newShareProcessor(threshold, outputChan)
 	ct := &coinToss{
-		base: base,
-		d:    d,
-		sp:   sp,
+		base:           base,
+		d:              d,
+		shareProcessor: newShareProcessor(threshold, outputChan),
 	}
 	ctLogger.Info("new coin toss created", "threshold", threshold, "base", base)
 	return ct
@@ -87,13 +86,13 @@ func (d *deal) getCommit(idx group.Scalar) (*group.Element, error) {
 
 func (ct *coinToss) submitShare(ctShare ctShare, senderId UUID) error {
 	ctLogger.Debug("received share", "share", ctShare.pt, "sender", senderId)
-	isValid, err := ct.isTossValid(ctShare)
+	isValid, err := ct.isTossValid(ctShare) // <-- Bottleneck
 	if err != nil {
 		return fmt.Errorf("unable to validate share from peer %v: %v", senderId, err)
 	} else if !isValid {
 		return fmt.Errorf("invalid share from peer %v", senderId)
 	} else {
-		return ct.sp.processShare(ctShare.pt, senderId)
+		return ct.processShare(ctShare.pt, senderId)
 	}
 }
 
@@ -115,9 +114,9 @@ type shareProcessor struct {
 	closeChan    chan struct{}
 }
 
-func newShareProcessor(t uint, outputChan chan bool) *shareProcessor {
+func newShareProcessor(t uint, outputChan chan bool) shareProcessor {
 	commands := make(chan func())
-	sp := &shareProcessor{
+	sp := shareProcessor{
 		t:            t,
 		shares:       make([]pointShare, 0),
 		receivedFrom: make(map[UUID]bool),
@@ -171,5 +170,5 @@ func (sp *shareProcessor) close() {
 }
 
 func (ct *coinToss) close() {
-	ct.sp.close()
+	ct.close()
 }
