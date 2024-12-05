@@ -115,14 +115,23 @@ func (c *BKRChannel) submitProposal(bkrId uuid.UUID, proposal []byte, sender uui
 }
 
 func (c *BKRChannel) getInstance(bkrId uuid.UUID) *bkr {
+	bkrInstance := c.instances[bkrId]
+	if bkrInstance == nil {
+		bkrInstance = c.createNewInstance(bkrId)
+	}
+	return bkrInstance
+}
+
+func (c *BKRChannel) createNewInstance(bkrId uuid.UUID) *bkr {
+	bkrChannelLogger.Debug("creating new bkr instance", "id", bkrId)
 	c.instanceLock.Lock()
 	defer c.instanceLock.Unlock()
 	bkrInstance := c.instances[bkrId]
-	if bkrInstance == nil {
-		bkrChannelLogger.Debug("creating new bkr instance", "id", bkrId)
-		bkrInstance = newBKR(bkrId, c.f, c.participants, c.abaChannel)
-		c.instances[bkrId] = bkrInstance
+	if bkrInstance != nil {
+		return bkrInstance
 	}
+	bkrInstance = newBKR(bkrId, c.f, c.participants, c.abaChannel)
+	c.instances[bkrId] = bkrInstance
 	return bkrInstance
 }
 
